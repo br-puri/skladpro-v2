@@ -7,5 +7,3 @@ venv
 .claude
 node_modules
 *.db
-static/uploads/products/*
-!static/uploads/products/.gitkeep
