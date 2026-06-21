@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Discounts{% endblock %}
+{% block page_title %}Discounts & Promotions{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_discount') }}" class="btn btn-primary">+ Add Discount</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if discounts %}
+  <table><thead><tr><th>Name</th><th>Type</th><th>Value</th><th>Applies To</th><th>Active</th><th></th></tr></thead><tbody>
+  {% for d in discounts %}
+  <tr>
+    <td><strong>{{ d['name'] }}</strong></td>
+    <td>{{ d['type'] }}</td>
+    <td>{{ d['value']|int }}{{ '%' if d['type']=='percent' else ' £' }}</td>
+    <td>{{ d['applies_to'] }}</td>
+    <td><span class="badge badge-{{ 'success' if d['active'] else 'neutral' }}">{{ 'active' if d['active'] else 'inactive' }}</span></td>
+    <td>
+      <form method="post" action="{{ url_for('toggle_discount', did=d['id']) }}" style="display:inline">
+        <button class="btn btn-sm">{{ 'Deactivate' if d['active'] else 'Activate' }}</button>
+      </form>
+    </td>
+  </tr>{% endfor %}
+  </tbody></table>
+  {% else %}<div class="empty">No discounts yet</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

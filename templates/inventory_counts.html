@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Inventory Counts{% endblock %}
+{% block page_title %}Inventory Counts{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_inventory_count') }}" class="btn btn-primary">+ New Count</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if counts %}
+  <table><thead><tr><th>Doc</th><th>Date</th><th>Warehouse</th><th>Status</th><th>Notes</th><th></th></tr></thead><tbody>
+  {% for c in counts %}
+  <tr>
+    <td class="mono">{{ c['num'] }}</td><td>{{ c['doc_date'] }}</td><td>{{ c['wh_name'] }}</td>
+    <td><span class="badge badge-{{ 'success' if c['status']=='applied' else 'warning' }}">{{ c['status'] }}</span></td>
+    <td style="color:#888">{{ c['notes'] or '—' }}</td>
+    <td><div class="btn-group" style="flex-wrap:nowrap">
+      {% if c['status']=='draft' %}<a href="{{ url_for('edit_inventory_count', cid=c['id']) }}" class="btn btn-sm">Edit</a>
+      {% else %}<a href="{{ url_for('edit_inventory_count', cid=c['id']) }}" class="btn btn-sm">View</a>{% endif %}
+      <form method="post" action="{{ url_for('delete_inventory_count', cid=c['id']) }}" style="display:inline" onsubmit="return confirm('Delete this inventory count?')">
+        <button class="btn btn-sm btn-danger">Del</button>
+      </form>
+    </div></td>
+  </tr>{% endfor %}
+  </tbody></table>
+  {% else %}<div class="empty">No inventory counts yet</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

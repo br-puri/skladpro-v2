@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}{{ product['name'] }} — Movements{% endblock %}
+{% block page_title %}Stock Movements{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('products') }}" class="back-link">← Products</a>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ product['name'] }}</h2>
+    <div style="font-size:12px;color:#94a3b8;margin-top:2px">SKU: {{ product['sku'] or '—' }} &nbsp;·&nbsp; Unit: {{ product['unit'] }}</div>
+  </div>
+  <form method="GET" style="display:flex;gap:8px;align-items:center">
+    <select name="wh" class="form-control" style="width:auto" onchange="this.form.submit()">
+      <option value="">All warehouses</option>
+      {% for w in warehouses %}
+      <option value="{{ w['id'] }}" {% if wh_filter==w['id'] %}selected{% endif %}>{{ w['name'] }}</option>
+      {% endfor %}
+    </select>
+    {% if wh_filter %}<a href="?" class="btn btn-sm">Clear</a>{% endif %}
+  </form>
+</div>
+
+<!-- Current stock summary -->
+<div class="metrics" style="margin-bottom:20px">
+  {% for wid, qty in current_stock.items() %}
+  {% for w in warehouses if w['id']==wid %}
+  <div class="metric">
+    <div class="metric-label">{{ w['name'] }}</div>
+    <div class="metric-value {% if qty <= product['min_stock'] %}red{% else %}blue{% endif %}">
+      {{ qty | int }} <span style="font-size:14px;font-weight:400">{{ product['unit'] }}</span>
+    </div>
+    {% if qty <= product['min_stock'] %}
+    <div class="metric-sub" style="color:#dc2626">Below reorder point ({{ product['min_stock']|int }})</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Movement History</span>
+    <span style="font-size:12px;color:#94a3b8">{{ movements|length }} records</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Reference</th>
+          <th>Warehouse</th>
+          <th>Counterpart</th>
+          <th style="text-align:right">Qty Change</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movements %}
+        <tr>
+          <td>{{ m['doc_date'] }}</td>
+          <td>
+            <span class="badge
+              {% if m['doc_type'] in ('Purchase','Transfer (in)','Credit Note') %}badge-success
+              {% elif m['doc_type'] in ('Sale','Write-off','Transfer (out)','Debit Note') %}badge-danger
+              {% else %}badge-neutral{% endif %}">
+              {{ m['doc_type'] }}
+            </span>
+          </td>
+          <td class="mono">{{ m['doc_ref'] }}</td>
+          <td style="color:#64748b">{{ m['wh_name'] }}</td>
+          <td style="color:#374151">{{ m['counterpart'] or '—' }}</td>
+          <td style="text-align:right;font-weight:700;font-size:14px;
+            color:{% if m['qty_change'] > 0 %}#16a34a{% else %}#dc2626{% endif %}">
+            {% if m['qty_change'] > 0 %}+{% endif %}{{ m['qty_change'] | round(2) }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No movements recorded yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Customers{% endblock %}
+{% block page_title %}Customers{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_customer') }}" class="btn btn-primary">+ Add Customer</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="search-wrap" method="get">
+    <input name="q" value="{{ q }}" class="form-control search-input" placeholder="Search by name, company, email, phone, postcode, city…">
+    <select name="type" class="form-control" style="width:140px" onchange="this.form.submit()">
+      <option value="">All types</option>
+      <option value="customer" {{ 'selected' if ctype=='customer' }}>Customers</option>
+      <option value="supplier" {{ 'selected' if ctype=='supplier' }}>Suppliers</option>
+    </select>
+    <button type="submit" class="btn">Search</button>
+  </form>
+  <div class="table-wrap">
+  {% if customers %}
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Discount</th><th>Outstanding</th><th></th></tr></thead>
+    <tbody>{% for row in customers %}{% set c = row['contact'] %}
+    <tr>
+      <td><a href="{{ url_for('view_customer', cid=c['id']) }}" style="color:#1a6ef5;text-decoration:none;font-weight:500">{{ c['company'] if c['company'] else c['name'] }}</a></td>
+      <td><span class="badge badge-{{ 'info' if c['type']=='customer' else 'neutral' }}">{{ c['type'] }}</span></td>
+      <td>{{ c['phone'] }}</td><td>{{ c['email'] }}</td>
+      <td>{% if c['discount_pct'] > 0 %}<span class="badge badge-success">{{ c['discount_pct']|int }}%</span>{% else %}—{% endif %}</td>
+      <td style="color:{{ '#c0392b' if row['outstanding'] > 0 else '#1a8a4a' }};font-weight:500">
+        {% if row['outstanding'] > 0 %}£{{ "{:,.2f}".format(row['outstanding']) }}{% else %}—{% endif %}
+      </td>
+      <td><div class="btn-group">
+        <a href="{{ url_for('view_customer', cid=c['id']) }}" class="btn btn-sm">View</a>
+        <a href="{{ url_for('edit_customer', cid=c['id']) }}" class="btn btn-sm">Edit</a>
+        <form method="post" action="{{ url_for('delete_customer', cid=c['id']) }}" style="display:inline" onsubmit="return confirm('Delete?')">
+          <button class="btn btn-sm btn-danger">Del</button>
+        </form>
+      </div></td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No customers found</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

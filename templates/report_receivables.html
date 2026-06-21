@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Aged Receivables{% endblock %}
+{% block page_title %}Aged Receivables{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
+{% block content %}
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Total Outstanding</div><div class="metric-value red">£{{ "{:,.2f}".format(total) }}</div></div>
+  <div class="metric"><div class="metric-label">Current</div><div class="metric-value">£{{ "{:,.2f}".format(buckets['current']) }}</div></div>
+  <div class="metric"><div class="metric-label">1-30 days</div><div class="metric-value">£{{ "{:,.2f}".format(buckets['30']) }}</div></div>
+  <div class="metric"><div class="metric-label">31-60 days</div><div class="metric-value">£{{ "{:,.2f}".format(buckets['60']) }}</div></div>
+  <div class="metric"><div class="metric-label">61-90 days</div><div class="metric-value red">£{{ "{:,.2f}".format(buckets['90']) }}</div></div>
+  <div class="metric"><div class="metric-label">90+ days</div><div class="metric-value red">£{{ "{:,.2f}".format(buckets['90+']) }}</div></div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+  {% if rows %}
+  <table>
+    <thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Age</th><th>Bucket</th><th style="text-align:right">Amount</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    {% set s = r['sale'] %}
+    <tr>
+      <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="mono" style="color:#2563eb;text-decoration:none">{{ s['num'] }}</a></td>
+      <td>{{ s['doc_date'] }}</td>
+      <td>{{ s['customer'] }}</td>
+      <td>{{ r['age'] }} days</td>
+      <td><span class="badge badge-{{ 'success' if r['bucket']=='current' else 'warning' if r['bucket'] in ('30','60') else 'danger' }}">
+        {% if r['bucket']=='current' %}Current{% elif r['bucket']=='30' %}1-30 days{% elif r['bucket']=='60' %}31-60 days{% elif r['bucket']=='90' %}61-90 days{% else %}90+ days{% endif %}
+      </span></td>
+      <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(s['total']) }}</td>
+      <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="btn btn-sm">View</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No outstanding invoices</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

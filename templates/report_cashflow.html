@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Cash Flow{% endblock %}
+{% block page_title %}Cash Flow{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <form method="get" class="search-wrap">
+    <input type="date" name="from" value="{{ date_from }}" class="form-control" style="width:160px">
+    <span style="color:#888;font-size:13px">to</span>
+    <input type="date" name="to" value="{{ date_to }}" class="form-control" style="width:160px">
+    <button class="btn">Apply</button>
+    {% if date_from or date_to %}<a href="{{ url_for('report_cashflow') }}" class="btn">Clear</a>{% endif %}
+  </form>
+</div>
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Total Income</div><div class="metric-value green">£{{ "{:,.2f}".format(total_income) }}</div></div>
+  <div class="metric"><div class="metric-label">Total Expenses</div><div class="metric-value red">£{{ "{:,.2f}".format(total_expense) }}</div></div>
+  <div class="metric"><div class="metric-label">Net Cash Flow</div><div class="metric-value {% if total_income-total_expense >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.2f}".format(total_income-total_expense) }}</div></div>
+</div>
+<div class="card">
+  <div class="card-header"><span class="card-title">Monthly Breakdown</span></div>
+  <div class="table-wrap">
+  {% if months %}
+  <table>
+    <thead><tr><th>Month</th><th style="text-align:right">Income</th><th style="text-align:right">Expenses</th><th style="text-align:right">Net</th></tr></thead>
+    <tbody>
+    {% for m, data in months %}
+    <tr>
+      <td><strong>{{ m }}</strong></td>
+      <td style="text-align:right;color:#16a34a">£{{ "{:,.2f}".format(data['income']) }}</td>
+      <td style="text-align:right;color:#dc2626">£{{ "{:,.2f}".format(data['expense']) }}</td>
+      <td style="text-align:right;font-weight:600;color:{{ '#16a34a' if data['income']-data['expense']>=0 else '#dc2626' }}">£{{ "{:,.2f}".format(data['income']-data['expense']) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No transactions in this period</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}Categories{% endblock %}
+{% block page_title %}Categories{% endblock %}
+{% block content %}
+<style>
+  /* Modal overlay */
+  .cat-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.45);
+    display: none; align-items: center; justify-content: center; z-index: 9999;
+  }
+  .cat-modal-backdrop.open { display: flex; }
+  .cat-modal {
+    background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.20);
+    width: 100%; max-width: 460px; padding: 24px; transform: scale(0.96);
+    transition: transform 0.15s ease;
+  }
+  .cat-modal-backdrop.open .cat-modal { transform: scale(1); }
+  .cat-modal h3 { margin: 0 0 16px; font-size: 17px; font-weight: 700; color: #1e293b; }
+  .cat-modal .form-group { margin-bottom: 14px; }
+  .cat-modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+</style>
+
+<div class="two-col" style="align-items:start">
+  <div class="card" style="margin-bottom:0">
+    <div class="card-header"><span class="card-title">All Categories</span></div>
+    {% if parents %}
+    <table>
+      <thead><tr><th>Name</th><th>Description</th><th></th></tr></thead>
+      <tbody>
+      {% for c in parents %}
+      <tr style="background:#fafaf8">
+        <td style="font-weight:700">{{ c['name'] }}</td>
+        <td style="color:#888">{{ c['description'] or '—' }}</td>
+        <td>
+          <button type="button" class="btn btn-sm"
+            onclick='openCatModal({{ c["id"] }}, {{ c["name"]|tojson }}, {{ (c["description"] or "")|tojson }}, {{ url_for("rename_category", cid=c["id"])|tojson }})'>Edit</button>
+          <form method="post" action="{{ url_for('delete_category', cid=c['id']) }}" style="display:inline"
+            onsubmit="return confirm('Delete category and all its subcategories?')">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% for sub in children.get(c['id'], []) %}
+      <tr>
+        <td style="padding-left:28px;color:#444">↳ {{ sub['name'] }}</td>
+        <td style="color:#888">{{ sub['description'] or '—' }}</td>
+        <td>
+          <button type="button" class="btn btn-sm"
+            onclick='openCatModal({{ sub["id"] }}, {{ sub["name"]|tojson }}, {{ (sub["description"] or "")|tojson }}, {{ url_for("rename_category", cid=sub["id"])|tojson }})'>Edit</button>
+          <form method="post" action="{{ url_for('delete_category', cid=sub['id']) }}" style="display:inline"
+            onsubmit="return confirm('Delete subcategory?')">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No categories yet</div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="form-card" style="margin-bottom:0;max-width:none">
+      <div style="font-weight:600;font-size:14px;margin-bottom:14px">Add Category</div>
+      <form method="post" action="{{ url_for('add_category') }}">
+        <input type="hidden" name="parent_id" value="">
+        <div class="form-group"><label class="form-label">Name *</label><input name="name" class="form-control" required placeholder="e.g. Electronics"></div>
+        <div class="form-group"><label class="form-label">Description</label><input name="description" class="form-control" placeholder="Optional"></div>
+        <button type="submit" class="btn btn-primary" style="margin-top:8px">Add Category</button>
+      </form>
+    </div>
+
+    <div class="form-card" style="margin-bottom:0;max-width:none">
+      <div style="font-weight:600;font-size:14px;margin-bottom:14px">Add Subcategory</div>
+      {% if parents %}
+      <form method="post" action="{{ url_for('add_category') }}">
+        <div class="form-group">
+          <label class="form-label">Parent Category *</label>
+          <select name="parent_id" class="form-control" required>
+            <option value="">— Select parent —</option>
+            {% for c in parents %}<option value="{{ c['id'] }}">{{ c['name'] }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Subcategory Name *</label><input name="name" class="form-control" required placeholder="e.g. Smartphones"></div>
+        <div class="form-group"><label class="form-label">Description</label><input name="description" class="form-control" placeholder="Optional"></div>
+        <button type="submit" class="btn btn-primary" style="margin-top:8px">Add Subcategory</button>
+      </form>
+      {% else %}
+      <div style="font-size:13px;color:#888">Add a category first before adding subcategories.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Edit modal -->
+<div class="cat-modal-backdrop" id="catModal">
+  <div class="cat-modal">
+    <h3>Edit Category</h3>
+    <form id="catModalForm" method="post">
+      <div class="form-group">
+        <label class="form-label">Name *</label>
+        <input id="catModalName" name="name" class="form-control" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input id="catModalDesc" name="description" class="form-control" placeholder="Optional">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeCatModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openCatModal(id, name, desc, url) {
+  const modal = document.getElementById('catModal');
+  document.getElementById('catModalForm').action = url;
+  document.getElementById('catModalName').value = name;
+  document.getElementById('catModalDesc').value = desc || '';
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('catModalName').focus(), 50);
+}
+function closeCatModal() {
+  document.getElementById('catModal').classList.remove('open');
+}
+document.getElementById('catModal').addEventListener('click', function(e) {
+  if (e.target === this) closeCatModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeCatModal();
+});
+</script>
+{% endblock %}

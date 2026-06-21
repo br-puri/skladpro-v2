@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Profit Report{% endblock %}
+{% block page_title %}Profit Report{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Reports</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="search-wrap" method="get">
+    <input type="date" name="from" value="{{ date_from }}" class="form-control" style="width:160px">
+    <span style="color:#888;font-size:13px">to</span>
+    <input type="date" name="to" value="{{ date_to }}" class="form-control" style="width:160px">
+    <select name="customer" class="form-control" style="width:200px">
+      <option value="">All Customers</option>
+      {% for c in customers %}
+      <option value="{{ c }}" {% if c == customer_filter %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn">Apply</button>
+    {% if date_from or date_to or customer_filter %}<a href="{{ url_for('report_profit') }}" class="btn">Clear</a>{% endif %}
+  </form>
+</div>
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Revenue</div><div class="metric-value green">£{{ "{:,.0f}".format(total_rev) }}</div></div>
+  <div class="metric"><div class="metric-label">Cost of Goods</div><div class="metric-value red">£{{ "{:,.0f}".format(total_cost) }}</div></div>
+  <div class="metric"><div class="metric-label">Gross Profit</div><div class="metric-value {% if total_profit>=0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(total_profit) }}</div></div>
+  <div class="metric"><div class="metric-label">Margin</div><div class="metric-value">{{ "{:.1f}".format(total_profit/total_rev*100 if total_rev else 0) }}%</div></div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+  <table><thead><tr><th>Date</th><th>Doc</th><th>Customer</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Margin</th></tr></thead><tbody>
+  {% for r in rows %}
+  {% set profit = r['revenue'] - r['cost'] %}
+  <tr><td>{{ r['doc_date'] }}</td><td class="mono">{{ r['num'] }}</td><td>{{ r['customer'] }}</td>
+  <td>£{{ "{:,.0f}".format(r['revenue']) }}</td><td style="color:#888">£{{ "{:,.0f}".format(r['cost']) }}</td>
+  <td style="color:{{ '#1a8a4a' if profit>=0 else '#c0392b' }}">£{{ "{:,.0f}".format(profit) }}</td>
+  <td>{{ "{:.1f}".format(profit/r['revenue']*100 if r['revenue'] else 0) }}%</td>
+  </tr>{% endfor %}
+  </tbody></table>
+  </div>
+</div>
+{% endblock %}

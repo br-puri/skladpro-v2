@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<form method="post" class="form-card" style="max-width:600px" enctype="multipart/form-data">
+  <div style="font-weight:600;font-size:14px;margin-bottom:14px;color:#444">Your Company Details</div>
+  <div class="form-group">
+    <label class="form-label">Company Logo <span style="font-weight:400;color:#888">(shown on invoice)</span></label>
+    {% if s.get('co_logo') %}
+    <div style="margin-bottom:8px">
+      <img src="{{ url_for('static', filename='uploads/' + s['co_logo']) }}" style="height:60px;object-fit:contain;border:1px solid #e8e6df;border-radius:6px;padding:4px;background:#fff">
+    </div>
+    {% endif %}
+    <input name="co_logo" type="file" accept="image/*" class="form-control" style="padding:6px">
+    {% if s.get('co_logo') %}<div style="font-size:11px;color:#888;margin-top:4px">Leave empty to keep current logo</div>{% endif %}
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Company Name</label><input name="co_company" class="form-control" value="{{ s.get('co_company','') }}" placeholder="Ltd / Trading name"></div>
+    <div class="form-group"><label class="form-label">Contact Name</label><input name="co_name" class="form-control" value="{{ s.get('co_name','') }}" placeholder="Your name"></div>
+  </div>
+  <div style="font-weight:600;font-size:13px;margin:14px 0 10px;color:#475569">Registered Address</div>
+  <div class="form-group"><label class="form-label">Address Line 1</label><input name="co_address" class="form-control" value="{{ s.get('co_address','') }}" placeholder="Street / building"></div>
+  <div class="form-group"><label class="form-label">Address Line 2</label><input name="co_address2" class="form-control" value="{{ s.get('co_address2','') }}" placeholder="Area / estate (optional)"></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">City</label><input name="co_city" class="form-control" value="{{ s.get('co_city','') }}"></div>
+    <div class="form-group"><label class="form-label">Postcode</label><input name="co_postcode" class="form-control" value="{{ s.get('co_postcode','') }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Country</label><input name="co_country" class="form-control" value="{{ s.get('co_country','') }}"></div>
+    <div class="form-group"><label class="form-label">VAT Number</label><input name="co_vat" class="form-control" value="{{ s.get('co_vat','') }}" placeholder="e.g. GB123456789"></div>
+  </div>
+
+  <div style="font-weight:600;font-size:13px;margin:18px 0 10px;color:#475569">Delivery Address <span style="font-weight:400;color:#94a3b8;font-size:11px">(shown on catalogue)</span></div>
+  <div class="form-group"><label class="form-label">Address Line 1</label><input name="co_delivery_address" class="form-control" value="{{ s.get('co_delivery_address','') }}" placeholder="Street / building"></div>
+  <div class="form-group"><label class="form-label">Address Line 2</label><input name="co_delivery_address2" class="form-control" value="{{ s.get('co_delivery_address2','') }}" placeholder="Area / estate (optional)"></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">City</label><input name="co_delivery_city" class="form-control" value="{{ s.get('co_delivery_city','') }}"></div>
+    <div class="form-group"><label class="form-label">Postcode</label><input name="co_delivery_postcode" class="form-control" value="{{ s.get('co_delivery_postcode','') }}"></div>
+  </div>
+  <div class="form-group"><label class="form-label">Country</label><input name="co_delivery_country" class="form-control" value="{{ s.get('co_delivery_country','') }}"></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Email</label><input name="co_email" type="email" class="form-control" value="{{ s.get('co_email','') }}"></div>
+    <div class="form-group"><label class="form-label">Phone</label><input name="co_phone" class="form-control" value="{{ s.get('co_phone','') }}"></div>
+  </div>
+
+  <hr class="section">
+  <div style="font-weight:600;font-size:14px;margin-bottom:14px;color:#444">Catalogue</div>
+  <div class="form-group">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <input type="checkbox" name="co_hide_stock" value="1" {{ 'checked' if s.get('co_hide_stock') }} style="width:16px;height:16px;accent-color:#d9a024">
+      <span style="font-size:13px;color:#1e293b">Hide stock badges on catalogue <span style="font-size:11px;color:#94a3b8">(hides "In stock" / "Out of stock" labels on product cards)</span></span>
+    </label>
+  </div>
+
+  <hr class="section">
+  <div style="font-weight:600;font-size:14px;margin-bottom:14px;color:#444">Email (SMTP) <span style="font-weight:400;color:#888;font-size:12px">— used for sending invoices</span></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">SMTP Host</label><input name="smtp_host" class="form-control" value="{{ s.get('smtp_host','') }}" placeholder="e.g. smtp.gmail.com"></div>
+    <div class="form-group"><label class="form-label">Port</label><input name="smtp_port" type="number" class="form-control" value="{{ s.get('smtp_port','587') }}" placeholder="587 (TLS) or 465 (SSL)"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Username</label><input name="smtp_user" class="form-control" value="{{ s.get('smtp_user','') }}" autocomplete="off" placeholder="usually your email address"></div>
+    <div class="form-group"><label class="form-label">Password / App Password</label><input name="smtp_pass" type="password" class="form-control" value="{{ s.get('smtp_pass','') }}" autocomplete="new-password" placeholder="Use an app-specific password if 2FA is on"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">From Address</label><input name="smtp_from" type="email" class="form-control" value="{{ s.get('smtp_from','') }}" placeholder="invoices@yourcompany.com"></div>
+    <div class="form-group" style="align-self:end">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-top:24px">
+        <input type="checkbox" name="smtp_tls" value="1" {{ 'checked' if s.get('smtp_tls','1') else '' }} style="width:16px;height:16px;accent-color:#d9a024">
+        <span style="font-size:13px;color:#1e293b">Use TLS (recommended for port 587)</span>
+      </label>
+    </div>
+  </div>
+  <div style="font-size:11.5px;color:#94a3b8;margin:-4px 0 14px;line-height:1.5">
+    <strong style="color:#475569">Gmail:</strong> host <code>smtp.gmail.com</code>, port <code>587</code>, TLS on. Use an <em>App Password</em> (Google account → Security → 2-step verification → App passwords), not your normal password.<br>
+    <strong style="color:#475569">Outlook/365:</strong> <code>smtp-mail.outlook.com</code>, port <code>587</code>, TLS on.<br>
+    <strong style="color:#475569">Custom domain:</strong> the <em>From Address</em> must match the SMTP username exactly, or messages may be silently dropped or routed to spam.
+  </div>
+
+  <!-- SMTP test (AJAX, so it doesn't trigger the main Save) -->
+  <div style="background:#fffaf0;border:1px solid #f3e3b5;border-radius:8px;padding:14px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:8px">Send a test email</div>
+    <div style="font-size:11.5px;color:#64748b;margin-bottom:10px">Save your SMTP settings above first, then send a test to confirm it works. <strong>Important:</strong> check the spam folder if it doesn't arrive in the inbox.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input id="emailTestTo" type="email" class="form-control" placeholder="Send test to…" style="flex:1;max-width:280px">
+      <button type="button" class="btn" onclick="sendTestEmail()">Send test</button>
+    </div>
+    <div id="emailTestStatus" style="font-size:12px;margin-top:8px;display:none"></div>
+  </div>
+  <script>
+  async function sendTestEmail() {
+    const to = document.getElementById('emailTestTo').value.trim();
+    const status = document.getElementById('emailTestStatus');
+    if (!to) { status.style.display='block'; status.style.color='#dc2626'; status.textContent='Enter a recipient'; return; }
+    status.style.display='block'; status.style.color='#64748b'; status.textContent='Sending…';
+    const fd = new FormData(); fd.append('to', to); fd.append('ajax', '1');
+    try {
+      const r = await fetch("{{ url_for('settings_email_test') }}", { method: 'POST', body: fd });
+      // The server redirects with a flash on success; check final status
+      if (r.ok || r.redirected) {
+        status.style.color='#15803d';
+        status.textContent='✓ Sent. Check inbox AND spam folder. Reload the page to see the server message.';
+      } else {
+        status.style.color='#dc2626';
+        status.textContent='Failed (HTTP ' + r.status + ')';
+      }
+    } catch (e) {
+      status.style.color='#dc2626';
+      status.textContent='Network error: ' + e.message;
+    }
+  }
+  </script>
+
+  <hr class="section">
+  <div style="font-weight:600;font-size:14px;margin-bottom:14px;color:#444">Bank Details <span style="font-weight:400;color:#888;font-size:12px">(shown on invoice)</span></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Bank Name</label><input name="co_bank_name" class="form-control" value="{{ s.get('co_bank_name','') }}" placeholder="e.g. Barclays"></div>
+    <div class="form-group"><label class="form-label">Sort Code</label><input name="co_sort_code" class="form-control" value="{{ s.get('co_sort_code','') }}" placeholder="e.g. 12-34-56"></div>
+  </div>
+  <div class="form-group"><label class="form-label">Account Number</label><input name="co_account_number" class="form-control" value="{{ s.get('co_account_number','') }}" placeholder="e.g. 12345678"></div>
+
+  <div style="margin-top:18px">
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+  </div>
+</form>
+{% endblock %}

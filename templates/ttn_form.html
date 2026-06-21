@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if ttn else 'New' }} TTN{% endblock %}
+{% block page_title %}{{ 'Edit' if ttn else 'New' }} Transport Note{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('ttns') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<form method="post" class="form-card">
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Date</label><input name="doc_date" type="date" class="form-control" value="{{ ttn['doc_date'] if ttn else today }}"></div>
+    <div class="form-group"><label class="form-label">Status</label>
+      <select name="status" class="form-control">
+        <option value="in_transit" {{ 'selected' if ttn and ttn['status']=='in_transit' }}>In Transit</option>
+        <option value="delivered" {{ 'selected' if ttn and ttn['status']=='delivered' }}>Delivered</option>
+        <option value="returned" {{ 'selected' if ttn and ttn['status']=='returned' }}>Returned</option>
+      </select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Sender</label><input name="sender" class="form-control" value="{{ ttn['sender'] if ttn else '' }}"></div>
+    <div class="form-group"><label class="form-label">Receiver</label><input name="receiver" class="form-control" value="{{ ttn['receiver'] if ttn else '' }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Carrier</label><input name="carrier" class="form-control" value="{{ ttn['carrier'] if ttn else '' }}" placeholder="e.g. Nova Poshta"></div>
+    <div class="form-group"><label class="form-label">Reference Document</label><input name="ref_doc" class="form-control" value="{{ ttn['ref_doc'] if ttn else '' }}" placeholder="e.g. PUR-001"></div>
+  </div>
+  <div class="form-group"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2">{{ ttn['notes'] if ttn else '' }}</textarea></div>
+  <div style="margin-top:18px;display:flex;gap:8px">
+    <button type="submit" class="btn btn-primary">{{ 'Save' if ttn else 'Create TTN' }}</button>
+    <a href="{{ url_for('ttns') }}" class="btn">Cancel</a>
+  </div>
+</form>
+{% endblock %}

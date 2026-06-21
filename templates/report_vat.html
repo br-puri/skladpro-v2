@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}VAT Report{% endblock %}
+{% block page_title %}VAT Report{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <form method="get" class="search-wrap">
+    <input type="date" name="from" value="{{ date_from }}" class="form-control" style="width:160px">
+    <span style="color:#888;font-size:13px">to</span>
+    <input type="date" name="to" value="{{ date_to }}" class="form-control" style="width:160px">
+    <button class="btn">Apply</button>
+    {% if date_from or date_to %}<a href="{{ url_for('report_vat') }}" class="btn">Clear</a>{% endif %}
+  </form>
+</div>
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Net Sales</div><div class="metric-value">£{{ "{:,.2f}".format(total_net) }}</div></div>
+  <div class="metric"><div class="metric-label">VAT Collected</div><div class="metric-value blue">£{{ "{:,.2f}".format(total_vat) }}</div></div>
+  <div class="metric"><div class="metric-label">Gross Sales</div><div class="metric-value">£{{ "{:,.2f}".format(total_gross) }}</div></div>
+</div>
+<div class="card">
+  <div class="card-header"><span class="card-title">VAT by Month</span></div>
+  <div class="table-wrap">
+  {% if months %}
+  <table>
+    <thead><tr><th>Month</th><th style="text-align:right">Net Sales</th><th style="text-align:right">VAT</th><th style="text-align:right">Gross Sales</th></tr></thead>
+    <tbody>
+    {% for m, data in months %}
+    <tr>
+      <td><strong>{{ m }}</strong></td>
+      <td style="text-align:right">£{{ "{:,.2f}".format(data['net']) }}</td>
+      <td style="text-align:right;color:#2563eb;font-weight:600">£{{ "{:,.2f}".format(data['vat']) }}</td>
+      <td style="text-align:right">£{{ "{:,.2f}".format(data['gross']) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No VAT data in this period</div>{% endif %}
+  </div>
+</div>
+<div style="font-size:12px;color:#94a3b8;margin-top:12px">Use this report for HMRC VAT returns. Only completed, non-archived sales with VAT are included.</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Supplier Orders{% endblock %}
+{% block page_title %}Supplier Orders{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_supplier_order') }}" class="btn btn-primary">+ New Order</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if orders %}
+  <table>
+    <thead><tr><th>Doc</th><th>Date</th><th>Supplier</th><th>Items</th><th>CTNS</th><th>CBM</th><th></th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+    <tr>
+      <td><a href="{{ url_for('view_supplier_order', oid=o['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ o['num'] }}</a></td>
+      <td>{{ o['doc_date'] }}</td>
+      <td>{{ o['supplier'] or '—' }}</td>
+      <td>{{ o['item_count'] }}</td>
+      <td>{{ "{:,.0f}".format(o['total_ctns']) }}</td>
+      <td>{{ "{:,.3f}".format(o['total_cbm']) }}</td>
+      <td><a href="{{ url_for('view_supplier_order', oid=o['id']) }}" class="btn btn-sm">View</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No orders yet</div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

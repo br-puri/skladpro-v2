@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit Sale' if sale else 'New Sale' }}{% endblock %}
+{% block page_title %}{{ 'Edit ' + sale['num'] if sale else 'New Sale' }}{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('sales') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+
+<form method="post" action="{{ url_for('edit_sale', sid=sale['id']) if sale else url_for('add_sale') }}" style="max-width:1000px">
+  <div class="form-card" style="max-width:none;margin-bottom:16px">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Customer *</label>
+        <select name="customer" id="customerSelect" class="form-control" required onchange="loadCustomer(this)">
+          <option value="">— Select customer —</option>
+          {% for c in customers %}
+          {% set label = c['company'] if c['company'] else c['name'] %}
+          <option value="{{ label }}" data-id="{{ c['id'] }}" data-disc="{{ c['discount_pct'] }}"
+            {{ 'selected' if sale and sale['customer'] == label }}>{{ label }}</option>
+          {% endfor %}
+          <option value="Walk-in" {{ 'selected' if sale and sale['customer'] == 'Walk-in' }}>Walk-in</option>
+        </select>
+        <input type="hidden" name="customer_id" id="customer_id" value="{{ sale['customer_id'] if sale and sale['customer_id'] else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input name="doc_date" type="date" class="form-control" value="{{ sale['doc_date'] if sale else today }}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Currency</label>
+        <select name="currency" id="currencySelect" class="form-control" onchange="currencyChanged()">
+          {% for cur in [('GBP','GBP £'),('USD','USD $'),('EUR','EUR €'),('PLN','PLN zł')] %}
+          <option value="{{ cur[0] }}" {{ 'selected' if sale and sale['currency'] == cur[0] else ('selected' if not sale and cur[0] == 'GBP') }}>{{ cur[1] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Tax / VAT (%)</label>
+        <input name="tax_pct" id="taxPct" type="number" min="0" max="100" step="0.1" class="form-control"
+          value="{{ sale['tax_pct']|int if sale else 20 }}" oninput="calcTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <input name="notes" class="form-control" placeholder="Optional" value="{{ sale['notes'] if sale else '' }}">
+      </div>
+    </div>
+  </div>
+
+  {% set li_price_label = 'Price' %}
+  {% set li_price_field = 'price' %}
+  {% set li_show_wh     = True %}
+  {% set li_items       = items %}
+  {% set li_edit_doc    = sale %}
+  {% set li_currency    = sale['currency'] if sale else 'GBP' %}
+  {% set li_tax         = sale['tax_pct']|int if sale else 20 %}
+  {% set li_discount    = sale['discount']|int if sale and sale['discount'] else 0 %}
+  {% include '_line_items.html' %}
+
+  <script>
+  function loadCustomer(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    document.getElementById('customer_id').value = opt.dataset.id || '';
+    if (opt.dataset.disc && opt.dataset.disc > 0) {
+      document.getElementById('globalDiscount').value = opt.dataset.disc;
+      calcTotal();
+    }
+  }
+  </script>
+
+  <div class="btn-group">
+    <button type="submit" class="btn btn-primary">{{ 'Save Changes' if sale else 'Create Sale' }}</button>
+    <a href="{{ url_for('sales') }}" class="btn">Cancel</a>
+  </div>
+</form>
+{% endblock %}

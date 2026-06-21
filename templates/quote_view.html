@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{{ quote['num'] }}{% endblock %}
+{% block page_title %}{{ quote['num'] }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('export_quote_pdf', qid=quote['id']) }}" class="btn">↓ PDF</a>
+  <a href="{{ url_for('edit_quote', qid=quote['id']) }}" class="btn">Edit</a>
+  <a href="{{ url_for('quotes') }}" class="back-link">← Back</a>
+{% endblock %}
+{% block content %}
+<div class="form-card" style="max-width:660px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+    <div><div class="metric-label">Customer</div><div style="font-size:15px;font-weight:600">{{ quote['customer'] }}</div></div>
+    <div>
+      <div class="metric-label">Status</div>
+      <form method="post" action="{{ url_for('update_quote_status', qid=quote['id']) }}" style="display:flex;gap:6px;align-items:center;margin-top:2px">
+        <select name="status" class="form-control" style="width:auto;font-size:12px;padding:3px 8px">
+          {% for s in ['draft','sent','accepted','rejected','expired'] %}
+          <option value="{{ s }}" {{ 'selected' if quote['status'] == s }}>{{ s|capitalize }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm">Update</button>
+      </form>
+    </div>
+    <div><div class="metric-label">Quote Date</div><div>{{ quote['doc_date'] }}</div></div>
+    <div><div class="metric-label">Expiry Date</div><div>{{ quote['expiry_date'] or '—' }}</div></div>
+    <div><div class="metric-label">Currency</div><div>{{ quote['currency'] }}</div></div>
+    {% if quote['tax_pct'] > 0 %}<div><div class="metric-label">VAT</div><div>{{ quote['tax_pct']|int }}% — £{{ "{:,.3f}".format(quote['tax_amount'] if quote['tax_amount'] else 0) }}</div></div>{% endif %}
+    {% if quote['discount'] > 0 %}<div><div class="metric-label">Global Discount</div><div>{{ quote['discount']|int }}%</div></div>{% endif %}
+    {% if quote['notes'] %}<div style="grid-column:1/-1"><div class="metric-label">Notes</div><div>{{ quote['notes'] }}</div></div>{% endif %}
+  </div>
+  <hr class="section">
+  <table style="width:100%;font-size:13px;border-collapse:collapse">
+    <thead><tr>
+      <th style="text-align:left;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Product</th>
+      <th style="text-align:left;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Warehouse</th>
+      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Qty</th>
+      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Price</th>
+      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Disc%</th>
+      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Subtotal</th>
+    </tr></thead>
+    <tbody>
+    {% for item in items %}
+    <tr>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8">{{ item['product_name'] }}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;color:#888">{{ item['wh_name'] }}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">{{ item['qty'] }} {{ item['unit'] }}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">£{{ "{:,.3f}".format(item['price']) }}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">{{ item['discount_pct']|int }}%</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">£{{ "{:,.3f}".format(item['qty']*item['price']*(1-item['discount_pct']/100)) }}</td>
+    </tr>{% endfor %}
+    </tbody>
+    <tfoot>
+      {% if quote['subtotal'] and quote['subtotal'] != quote['total'] %}
+      <tr><td colspan="5" style="padding:6px 0;text-align:right;color:#888">Subtotal</td>
+      <td style="padding:6px 0;text-align:right;color:#888">£{{ "{:,.3f}".format(quote['subtotal']) }}</td></tr>
+      {% if quote['tax_pct'] > 0 %}
+      <tr><td colspan="5" style="padding:6px 0;text-align:right;color:#888">VAT ({{ quote['tax_pct']|int }}%)</td>
+      <td style="padding:6px 0;text-align:right;color:#888">£{{ "{:,.3f}".format(quote['tax_amount']) }}</td></tr>
+      {% endif %}{% endif %}
+      <tr><td colspan="5" style="padding:11px 0;text-align:right;font-weight:600">Total</td>
+      <td style="padding:11px 0;text-align:right;font-weight:600;font-size:15px">£{{ "{:,.3f}".format(quote['total']) }}</td></tr>
+    </tfoot>
+  </table>
+
+  <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
+    {% if quote['status'] not in ('rejected','expired') %}
+    <form method="post" action="{{ url_for('convert_quote', qid=quote['id']) }}" onsubmit="return confirm('Convert this quote to a sale? Stock will be deducted.')">
+      <button class="btn btn-primary">Convert to Sale</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('delete_quote', qid=quote['id']) }}" onsubmit="return confirm('Delete this quote?')">
+      <button class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

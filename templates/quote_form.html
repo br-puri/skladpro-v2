@@ -1,0 +1,313 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit Quote' if quote else 'New Quote' }}{% endblock %}
+{% block page_title %}{{ 'Edit ' + quote['num'] if quote else 'New Quote' }}{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('quotes') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<form method="post" action="{{ url_for('edit_quote', qid=quote['id']) if quote else url_for('add_quote') }}" style="max-width:900px">
+  <div class="form-card" style="max-width:none;margin-bottom:16px">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Customer *</label>
+        <select name="customer" id="customerSelect" class="form-control" required onchange="loadCustomer(this)">
+          <option value="">— Select customer —</option>
+          {% for c in customers %}
+          <option value="{{ c['name'] }}" data-id="{{ c['id'] }}" data-disc="{{ c['discount_pct'] }}"
+            {{ 'selected' if quote and quote['customer'] == c['name'] }}>{{ c['name'] }}</option>
+          {% endfor %}
+          <option value="Walk-in" {{ 'selected' if quote and quote['customer'] == 'Walk-in' }}>Walk-in</option>
+        </select>
+        <input type="hidden" name="customer_id" id="customer_id" value="{{ quote['customer_id'] if quote and quote['customer_id'] else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quote Date</label>
+        <input name="doc_date" type="date" class="form-control" value="{{ quote['doc_date'] if quote else today }}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Expiry Date</label>
+        <input name="expiry_date" type="date" class="form-control" value="{{ quote['expiry_date'] if quote and quote['expiry_date'] else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Currency</label>
+        <select name="currency" class="form-control">
+          {% for cur in [('GBP','GBP £'),('USD','USD $'),('EUR','EUR €')] %}
+          <option value="{{ cur[0] }}" {{ 'selected' if quote and quote['currency'] == cur[0] else ('selected' if not quote and cur[0] == 'GBP') }}>{{ cur[1] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Global Discount (%)</label>
+        <input name="global_discount" id="globalDiscount" type="number" min="0" max="100" step="0.1" class="form-control"
+          value="{{ quote['discount']|int if quote else 0 }}" oninput="calcTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tax / VAT (%)</label>
+        <input name="tax_pct" id="taxPct" type="number" min="0" max="100" step="0.1" class="form-control"
+          value="{{ quote['tax_pct']|int if quote else 20 }}" oninput="calcTotal()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <input name="notes" class="form-control" placeholder="Optional" value="{{ quote['notes'] if quote else '' }}">
+    </div>
+    {% if discounts %}
+    <div style="font-size:12px;color:#888;margin-top:2px">Quick discounts:
+      {% for d in discounts %}<button type="button" class="btn btn-sm" style="margin-left:6px" onclick="document.getElementById('globalDiscount').value='{{ d['value'] }}';calcTotal()">{{ d['name'] }} ({{ d['value']|int }}%)</button>{% endfor %}
+    </div>{% endif %}
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <span class="card-title">Line Items</span>
+      <button type="button" class="btn btn-sm" onclick="addRow()">+ Add Line</button>
+    </div>
+    <div style="padding:10px 16px 4px">
+      <div style="position:relative;margin-bottom:10px;background:#f0f7ff;border:1px solid #c3d9f5;border-radius:8px;padding:9px 14px;display:flex;align-items:center;gap:10px">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;color:#6b87b0"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <div style="position:relative;flex:1;max-width:400px">
+          <input type="text" id="topSearch" placeholder="Type to search product by name or SKU…"
+            class="form-control" autocomplete="off" style="background:#fff">
+          <div class="prod-dropdown" id="topDropdown"></div>
+        </div>
+        <span style="font-size:12px;color:#6b87b0">Click to add a row</span>
+      </div>
+    </div>
+    <div style="overflow-x:auto;padding:0 16px">
+    <table class="line-items" id="itemsTable">
+      <thead><tr>
+        <th style="width:30%">Product</th>
+        <th style="width:18%">Warehouse</th>
+        <th style="width:10%">Qty</th>
+        <th style="width:12%">Price (£)</th>
+        <th style="width:10%">Disc%</th>
+        <th style="width:12%">Subtotal</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="itemsBody">
+        {% if quote and items %}
+          {% for item in items %}
+          {% set pname = '' %}{% for p in products %}{% if p['id'] == item['product_id'] %}{% set pname = p['name'] %}{% endif %}{% endfor %}
+          <tr>
+            <td style="position:relative;min-width:200px">
+              <input type="hidden" name="product_id[]" class="prod-id" value="{{ item['product_id'] }}">
+              <input type="text" class="form-control prod-search" value="{{ pname }}" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+              <div class="prod-dropdown"></div>
+            </td>
+            <td><select name="warehouse_id[]" class="form-control">
+              {% for w in warehouses %}<option value="{{ w['id'] }}" {{ 'selected' if w['id'] == item['warehouse_id'] }}>{{ w['name'] }}</option>{% endfor %}
+            </select></td>
+            <td><input type="number" name="qty[]" min="0" step="0.001" value="{{ item['qty'] }}" class="form-control" oninput="calcTotal()"></td>
+            <td><input type="number" name="price[]" min="0" step="0.001" value="{{ item['price'] }}" class="form-control" oninput="calcTotal()"></td>
+            <td><input type="number" name="discount_pct[]" min="0" max="100" step="0.1" value="{{ item['discount_pct'] }}" class="form-control" oninput="calcTotal()"></td>
+            <td class="subtotal" style="font-size:12px;color:#666;white-space:nowrap;padding-left:8px">£{{ "%.3f"|format(item['qty']*item['price']*(1-item['discount_pct']/100)) }}</td>
+            <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>
+          </tr>
+          {% endfor %}
+        {% else %}
+        <tr>
+          <td style="position:relative;min-width:200px">
+            <input type="hidden" name="product_id[]" class="prod-id" value="">
+            <input type="text" class="form-control prod-search" value="" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+            <div class="prod-dropdown"></div>
+          </td>
+          <td><select name="warehouse_id[]" class="form-control">
+            {% for w in warehouses %}<option value="{{ w['id'] }}" {{ 'selected' if w['id'] == default_wh_id }}>{{ w['name'] }}</option>{% endfor %}
+          </select></td>
+          <td><input type="number" name="qty[]" min="0" step="0.001" value="1" class="form-control" oninput="calcTotal()"></td>
+          <td><input type="number" name="price[]" min="0" step="0.001" value="0" class="form-control" oninput="calcTotal()"></td>
+          <td><input type="number" name="discount_pct[]" min="0" max="100" step="0.1" value="0" class="form-control" oninput="calcTotal()"></td>
+          <td class="subtotal" style="font-size:12px;color:#666;white-space:nowrap;padding-left:8px">£0.000</td>
+          <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid #f0ede8;font-size:13px;display:flex;gap:24px;color:#888">
+      <span>Subtotal: <strong id="subtotalDisplay" style="color:#1a1a18">£0.000</strong></span>
+      <span>VAT (<span id="taxPctDisplay">20</span>%): <strong id="taxDisplay" style="color:#1a1a18">£0.000</strong></span>
+      <span>Total: <strong id="totalDisplay" style="color:#1a1a18;font-size:15px">£0.000</strong></span>
+    </div>
+  </div>
+
+  <div class="btn-group">
+    <button type="submit" class="btn btn-primary">{{ 'Save Changes' if quote else 'Create Quote' }}</button>
+    <a href="{{ url_for('quotes') }}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<script>
+const products = {{ products | tojson }};
+const warehouses = {{ warehouses | tojson }};
+const defaultWhId = {{ default_wh_id | tojson }};
+
+function warehouseOptions() {
+  return warehouses.map(w => `<option value="${w.id}"${w.id === defaultWhId ? ' selected' : ''}>${w.name}</option>`).join('');
+}
+
+function makeRow(pid, pname, price) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="position:relative;min-width:200px">
+      <input type="hidden" name="product_id[]" class="prod-id" value="${pid}">
+      <input type="text" class="form-control prod-search" value="${pname}" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+      <div class="prod-dropdown"></div>
+    </td>
+    <td><select name="warehouse_id[]" class="form-control">${warehouseOptions()}</select></td>
+    <td><input type="number" name="qty[]" min="0" step="0.001" value="1" class="form-control" oninput="calcTotal()"></td>
+    <td><input type="number" name="price[]" min="0" step="0.001" value="${price}" class="form-control" oninput="calcTotal()"></td>
+    <td><input type="number" name="discount_pct[]" min="0" max="100" step="0.1" value="0" class="form-control" oninput="calcTotal()"></td>
+    <td class="subtotal" style="font-size:12px;color:#666;white-space:nowrap;padding-left:8px">£0.000</td>
+    <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>`;
+  return tr;
+}
+
+function addRow() {
+  document.getElementById('itemsBody').appendChild(makeRow('', '', 0));
+}
+
+function removeRow(btn) {
+  if (document.querySelectorAll('#itemsBody tr').length > 1) { btn.closest('tr').remove(); calcTotal(); }
+}
+
+function calcTotal() {
+  let subtotal = 0;
+  document.querySelectorAll('#itemsBody tr').forEach(row => {
+    const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
+    const price = parseFloat(row.querySelector('[name="price[]"]')?.value) || 0;
+    const disc = parseFloat(row.querySelector('[name="discount_pct[]"]')?.value) || 0;
+    const sub = qty * price * (1 - disc / 100);
+    subtotal += sub;
+    const cell = row.querySelector('.subtotal');
+    if (cell) cell.textContent = '£' + sub.toFixed(3);
+  });
+  const gDisc = parseFloat(document.getElementById('globalDiscount')?.value) || 0;
+  const afterDisc = subtotal * (1 - gDisc / 100);
+  const taxPct = parseFloat(document.getElementById('taxPct')?.value) || 0;
+  const taxAmt = afterDisc * taxPct / 100;
+  const total = afterDisc + taxAmt;
+  document.getElementById('subtotalDisplay').textContent = '£' + afterDisc.toFixed(3);
+  document.getElementById('taxPctDisplay').textContent = taxPct;
+  document.getElementById('taxDisplay').textContent = '£' + taxAmt.toFixed(3);
+  document.getElementById('totalDisplay').textContent = '£' + total.toFixed(3);
+}
+
+function loadCustomer(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('customer_id').value = opt.dataset.id || '';
+  if (opt.dataset.disc && opt.dataset.disc > 0) {
+    document.getElementById('globalDiscount').value = opt.dataset.disc;
+    calcTotal();
+  }
+}
+
+function searchProducts(input) {
+  const q = input.value.toLowerCase();
+  const dropdown = input.nextElementSibling;
+  if (!q) { closeDropdown(dropdown); return; }
+  const matches = products.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+  ).slice(0, 25);
+  renderDropdown(dropdown, matches, function(p) {
+    input.value = p.name;
+    input.closest('td').querySelector('.prod-id').value = p.id;
+    const row = input.closest('tr');
+    row.querySelector('[name="price[]"]').value = p.price || 0;
+    calcTotal();
+    closeDropdown(dropdown);
+  });
+}
+
+const topSearch = document.getElementById('topSearch');
+const topDropdown = document.getElementById('topDropdown');
+
+topSearch.addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  if (!q) { closeDropdown(topDropdown); return; }
+  const matches = products.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+  ).slice(0, 25);
+  renderDropdown(topDropdown, matches, function(p) {
+    let target = null;
+    for (const row of document.querySelectorAll('#itemsBody tr')) {
+      if (!row.querySelector('.prod-id').value) { target = row; break; }
+    }
+    if (!target) {
+      const tr = makeRow('', '', 0);
+      document.getElementById('itemsBody').appendChild(tr);
+      target = tr;
+    }
+    target.querySelector('.prod-id').value = p.id;
+    target.querySelector('.prod-search').value = p.name;
+    target.querySelector('[name="price[]"]').value = p.price || 0;
+    calcTotal();
+    closeDropdown(topDropdown);
+    topSearch.value = '';
+    topSearch.focus();
+  });
+});
+
+topSearch.addEventListener('keydown', function(e) { handleDropdownKeys(e, topDropdown); });
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#topSearch') && !e.target.closest('#topDropdown')) closeDropdown(topDropdown);
+  if (!e.target.closest('.prod-search') && !e.target.closest('.prod-dropdown')) {
+    document.querySelectorAll('#itemsBody .prod-dropdown').forEach(closeDropdown);
+  }
+});
+
+function renderDropdown(dropdown, matches, onSelect) {
+  if (!matches.length) { closeDropdown(dropdown); return; }
+  dropdown.innerHTML = matches.map(p =>
+    `<div class="pd-item" data-id="${p.id}">
+      <span><strong>${p.name}</strong>${p.sku ? ` <span style="color:#aaa;font-size:11px">${p.sku}</span>` : ''}</span>
+      <span style="color:#888;font-size:12px">£${parseFloat(p.price||0).toFixed(2)}</span>
+    </div>`
+  ).join('');
+  dropdown.style.display = 'block';
+  dropdown.onmousedown = function(e) {
+    const item = e.target.closest('.pd-item');
+    if (!item) return;
+    e.preventDefault();
+    const p = products.find(x => x.id == item.dataset.id);
+    if (p) onSelect(p);
+  };
+}
+
+function closeDropdown(dropdown) {
+  if (dropdown) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; }
+}
+
+function handleDropdownKeys(e, dropdown) {
+  const items = dropdown.querySelectorAll('.pd-item');
+  let active = dropdown.querySelector('.pd-item.active');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = active ? (active.nextElementSibling || items[0]) : items[0];
+    active?.classList.remove('active'); next?.classList.add('active');
+    next?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = active ? (active.previousElementSibling || items[items.length-1]) : items[items.length-1];
+    active?.classList.remove('active'); prev?.classList.add('active');
+    prev?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && active) {
+    e.preventDefault();
+    active.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  } else if (e.key === 'Escape') {
+    closeDropdown(dropdown);
+  }
+}
+
+document.getElementById('itemsBody').addEventListener('keydown', function(e) {
+  const input = e.target.closest('.prod-search');
+  if (!input) return;
+  handleDropdownKeys(e, input.nextElementSibling);
+});
+
+calcTotal();
+</script>
+{% endblock %}

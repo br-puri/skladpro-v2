@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Top Customers{% endblock %}
+{% block page_title %}Top Customers{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <form method="get" class="search-wrap">
+    <input type="date" name="from" value="{{ date_from }}" class="form-control" style="width:160px">
+    <span style="color:#888;font-size:13px">to</span>
+    <input type="date" name="to" value="{{ date_to }}" class="form-control" style="width:160px">
+    <button class="btn">Apply</button>
+    {% if date_from or date_to %}<a href="{{ url_for('report_top_customers') }}" class="btn">Clear</a>{% endif %}
+  </form>
+</div>
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Customers</div><div class="metric-value">{{ customers|length }}</div></div>
+  <div class="metric"><div class="metric-label">Total Revenue</div><div class="metric-value blue">£{{ "{:,.2f}".format(total_revenue) }}</div></div>
+  <div class="metric"><div class="metric-label">Total Cost</div><div class="metric-value">£{{ "{:,.2f}".format(total_cost) }}</div></div>
+  <div class="metric"><div class="metric-label">Total Profit</div><div class="metric-value {% if total_profit >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.2f}".format(total_profit) }}</div></div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+  {% if customers %}
+  <table>
+    <thead><tr>
+      <th>#</th>
+      <th>Customer</th>
+      <th style="text-align:right">Orders</th>
+      <th style="text-align:right">Revenue</th>
+      <th style="text-align:right">Cost</th>
+      <th style="text-align:right">Profit</th>
+      <th style="text-align:right">Margin</th>
+      <th style="text-align:right">Paid</th>
+      <th style="text-align:right">Unpaid</th>
+    </tr></thead>
+    <tbody>
+    {% for c in customers %}
+    <tr>
+      <td style="color:#94a3b8">{{ loop.index }}</td>
+      <td><strong>{{ c['name'] }}</strong></td>
+      <td style="text-align:right">{{ c['orders'] }}</td>
+      <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(c['revenue']) }}</td>
+      <td style="text-align:right;color:#64748b">£{{ "{:,.2f}".format(c['cost']) }}</td>
+      <td style="text-align:right;font-weight:600;color:{{ '#16a34a' if c['profit'] >= 0 else '#dc2626' }}">£{{ "{:,.2f}".format(c['profit']) }}</td>
+      <td style="text-align:right">
+        <span class="badge badge-{{ 'success' if c['margin_pct'] >= 20 else 'warning' if c['margin_pct'] >= 0 else 'danger' }}">
+          {{ "%.1f"|format(c['margin_pct']) }}%
+        </span>
+      </td>
+      <td style="text-align:right;color:#16a34a">£{{ "{:,.2f}".format(c['paid']) }}</td>
+      <td style="text-align:right;color:{{ '#dc2626' if c['unpaid']>0 else '#94a3b8' }}">£{{ "{:,.2f}".format(c['unpaid']) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No customer data in this period</div>{% endif %}
+  </div>
+</div>
+<div style="font-size:12px;color:#94a3b8;margin-top:12px">Profit = revenue (after item discounts) − cost of goods sold (qty × cost). Global discounts are not deducted from line revenue.</div>
+{% endblock %}

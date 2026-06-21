@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Finance{% endblock %}
+{% block page_title %}Finance{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">+ Add Transaction</a>
+{% endblock %}
+{% block content %}
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-label">Total Income</div>
+    <div class="metric-value green">£{{ "{:,.0f}".format(income) }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Total Expenses</div>
+    <div class="metric-value red">£{{ "{:,.0f}".format(expenses) }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Net Cash</div>
+    <div class="metric-value {% if net >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(net) }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Transactions</div>
+    <div class="metric-value">{{ transactions|length }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <form class="search-wrap" method="get" style="padding:14px 16px">
+    <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:150px">
+    <span style="color:#888;font-size:13px">to</span>
+    <input type="date" name="date_to" value="{{ date_to }}" class="form-control" style="width:150px">
+    <select name="method" class="form-control" style="width:120px">
+      <option value="">All methods</option>
+      <option value="cash" {{ 'selected' if method=='cash' }}>Cash</option>
+      <option value="bank" {{ 'selected' if method=='bank' }}>Bank</option>
+    </select>
+    <button type="submit" class="btn">Filter</button>
+    {% if date_from or date_to or method %}<a href="{{ url_for('finance') }}" class="btn">Clear</a>{% endif %}
+  </form>
+  <div class="table-wrap">
+  {% if transactions %}
+  <table>
+    <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Contact</th><th>Amount</th><th></th></tr></thead>
+    <tbody>
+    {% for t in transactions %}
+    <tr>
+      <td>{{ t['doc_date'] }}</td>
+      <td><span class="badge badge-{{ 'success' if t['type']=='income' else 'danger' }}">{{ t['type'] }}</span></td>
+      <td>{{ t['desc'] }}</td>
+      <td style="color:#888">{{ t['contact'] or '—' }}</td>
+      <td style="font-weight:500;color:{{ '#1a8a4a' if t['type']=='income' else '#c0392b' }}">
+        {{ '+' if t['type']=='income' else '-' }}£{{ "{:,.2f}".format(t['amount']) }}
+      </td>
+      <td>
+        <div class="btn-group" style="flex-wrap:nowrap">
+          <a href="{{ url_for('edit_transaction', tid=t['id']) }}" class="btn btn-sm">Edit</a>
+          <form method="post" action="{{ url_for('delete_transaction', tid=t['id']) }}" style="display:inline" onsubmit="return confirm('Delete this transaction?')">
+            <button class="btn btn-sm btn-danger">Del</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No transactions yet</div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

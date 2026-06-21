@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}TTNs{% endblock %}
+{% block page_title %}Transport Notes (TTN){% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_ttn') }}" class="btn btn-primary">+ New TTN</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if ttns %}
+  <table><thead><tr><th>TTN #</th><th>Date</th><th>Sender</th><th>Receiver</th><th>Carrier</th><th>Ref Doc</th><th>Status</th><th></th></tr></thead><tbody>
+  {% for t in ttns %}
+  <tr>
+    <td class="mono">{{ t['num'] }}</td><td>{{ t['doc_date'] }}</td>
+    <td>{{ t['sender'] or '—' }}</td><td>{{ t['receiver'] or '—' }}</td>
+    <td>{{ t['carrier'] or '—' }}</td><td class="mono">{{ t['ref_doc'] or '—' }}</td>
+    <td><span class="badge badge-{{ 'success' if t['status']=='delivered' else 'danger' if t['status']=='returned' else 'warning' }}">{{ t['status'].replace('_',' ') }}</span></td>
+    <td><a href="{{ url_for('edit_ttn', tid=t['id']) }}" class="btn btn-sm">Edit</a></td>
+  </tr>{% endfor %}
+  </tbody></table>
+  {% else %}<div class="empty">No TTNs yet</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

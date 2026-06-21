@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Credit Notes{% endblock %}
+{% block page_title %}Credit Notes{% endblock %}
+{% block topbar_actions %}
+  {% if session.get('role')=='admin' %}
+  <a href="{{ url_for('add_credit_note') }}" class="btn btn-primary">+ New Credit Note</a>
+  {% endif %}
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Number</th><th>Date</th><th>Customer</th><th>Warehouse</th>
+          <th>Total</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in notes %}
+        <tr>
+          <td><a href="{{ url_for('view_credit_note', cnid=n['id']) }}" class="mono">{{ n['num'] }}</a></td>
+          <td>{{ n['doc_date'] }}</td>
+          <td>{{ n['customer'] }}</td>
+          <td style="color:#64748b">{{ n['wh_name'] or '—' }}</td>
+          <td style="font-weight:600">£{{ "{:,.2f}".format(n['total']) }}</td>
+          <td>
+            <span class="badge {% if n['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">
+              {{ n['status'] }}
+            </span>
+          </td>
+          <td><a href="{{ url_for('view_credit_note', cnid=n['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">No credit notes yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

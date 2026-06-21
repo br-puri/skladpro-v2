@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Quotes{% endblock %}
+{% block page_title %}Quotes{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('add_quote') }}" class="btn btn-primary">+ New Quote</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if quotes %}
+  <table>
+    <thead><tr><th class="cb-col"><input type="checkbox" id="select-all"></th><th>Quote #</th><th>Date</th><th>Expiry</th><th>Customer</th><th>Total</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for q in quotes %}
+    <tr>
+      <td class="cb-col"><input type="checkbox" class="bulk-cb" value="{{ q['id'] }}"></td>
+      <td><a href="{{ url_for('view_quote', qid=q['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ q['num'] }}</a></td>
+      <td>{{ q['doc_date'] }}</td>
+      <td>{{ q['expiry_date'] or '—' }}</td>
+      <td>{{ q['customer'] }}</td>
+      <td>£{{ "{:,.3f}".format(q['total']) }}</td>
+      <td><span class="badge badge-{{ 'success' if q['status']=='accepted' else 'danger' if q['status'] in ('rejected','expired') else 'warning' if q['status']=='sent' else '' }}">{{ q['status'] }}</span></td>
+      <td>
+        <div class="btn-group">
+          <a href="{{ url_for('view_quote', qid=q['id']) }}" class="btn btn-sm">View</a>
+          <a href="{{ url_for('edit_quote', qid=q['id']) }}" class="btn btn-sm">Edit</a>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No quotes yet</div>
+  {% endif %}
+  </div>
+</div>
+<form id="bulk-form" method="post" style="display:none"><input type="hidden" id="bulk-action-input" name="action"></form>
+<div id="bulk-bar" class="bulk-bar">
+  <span id="bulk-count">0 selected</span>
+  <select id="bulk-action"><option value="">— Action —</option><option value="delete">Delete</option><option value="sent">Mark as Sent</option><option value="accepted">Mark as Accepted</option><option value="rejected">Mark as Rejected</option><option value="expired">Mark as Expired</option></select>
+  <button id="bulk-submit" class="btn btn-sm btn-primary">Apply</button>
+  <button id="bulk-cancel" class="btn btn-sm" style="background:#444;border-color:#444;color:#fff">Cancel selection</button>
+</div>
+<script>initBulk("{{ url_for('bulk_quotes') }}", "Apply '{a}' to {n} quote(s)?");</script>
+{% endblock %}

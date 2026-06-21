@@ -1,0 +1,383 @@
+{#
+  Shared line-items block — included by sale_form.html and purchase_form.html.
+  Required variables (set before {% include %}):
+    li_price_label  : "Price" or "Cost"
+    li_price_field  : "price" or "cost"  (JS key from products array for autofill)
+    li_show_wh      : True / False        (per-line warehouse column)
+    li_items        : existing items list or None/[]
+    li_currency     : current currency string e.g. 'GBP'
+    li_tax          : tax pct int
+    li_discount     : global discount pct
+    li_edit_doc     : the sale/purchase row being edited, or None
+#}
+<style>
+.scan-dropdown {
+  display:none;position:absolute;top:100%;left:0;min-width:360px;z-index:999;
+  background:#fff;border:1px solid #d0cdc8;border-radius:6px;
+  max-height:280px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12);
+  margin-top:2px;
+}
+.sd-item:hover, .sd-item.active { background:#f0f7ff; }
+</style>
+
+<!-- Barcode / product search bar -->
+<div style="position:relative;margin-bottom:12px;background:#f0f7ff;border:1px solid #c3d9f5;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+  <span style="font-size:18px">&#x1F4F7;</span>
+  <div style="position:relative;flex:1;max-width:420px">
+    <input type="text" id="barcodeInput" placeholder="Scan barcode or search by name / SKU…"
+      class="form-control" autocomplete="off" autocorrect="off" spellcheck="false">
+    <div class="scan-dropdown" id="scanDropdown"></div>
+  </div>
+  <span style="font-size:12px;color:#6b87b0">Scan or type to search — press Enter or click to add</span>
+  <span id="scanFeedback" style="font-size:13px;font-weight:500"></span>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Line Items</span>
+    <button type="button" class="btn btn-sm" onclick="addRow()">+ Add Line</button>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="line-items" id="itemsTable">
+    <thead><tr>
+      <th style="width:32px;text-align:center;color:#94a3b8">#</th>
+      <th style="width:{% if li_show_wh %}22%{% else %}32%{% endif %}">Product</th>
+      {% if li_show_wh %}<th style="width:15%">Warehouse</th>{% endif %}
+      <th style="width:9%">Qty</th>
+      <th style="width:8%">CTNs</th>
+      <th style="width:11%" id="priceHeader">{{ li_price_label }} (£)</th>
+      <th style="width:11%">Subtotal</th>
+      <th></th>
+    </tr></thead>
+    <tbody id="itemsBody">
+      {% if li_edit_doc and li_items %}
+        {% for item in li_items %}
+        {% set ns = namespace(pname='', ctn_qty=0) %}
+        {% for p in products %}{% if p['id'] == item['product_id'] %}{% set ns.pname = p['name'] %}{% set ns.ctn_qty = p['carton_qty'] or 0 %}{% endif %}{% endfor %}
+        <tr>
+          <td class="row-num" style="text-align:center;font-size:11px;color:#94a3b8;width:32px;padding:6px 4px">{{ loop.index }}</td>
+          <td style="padding:6px 8px">
+            <input type="hidden" name="product_id[]" value="{{ item['product_id'] }}">
+            <span class="product-name" style="font-size:13px;font-weight:500">{{ ns.pname }}</span>
+          </td>
+          {% if li_show_wh %}
+          <td><select name="warehouse_id[]" class="form-control">
+            {% for w in warehouses %}<option value="{{ w['id'] }}" {{ 'selected' if w['id'] == item.get('warehouse_id', default_wh_id) }}>{{ w['name'] }}</option>{% endfor %}
+          </select></td>
+          {% endif %}
+          <td><input type="number" name="qty[]" min="0" step="0.001" value="{{ item['qty'] }}" class="form-control qty-input" oninput="qtyChanged(this)"></td>
+          <td><input type="number" min="0" step="0.01" value="{{ (item['qty'] / ns.ctn_qty)|round(2) if ns.ctn_qty and ns.ctn_qty > 0 else '' }}" class="form-control ctn-input" placeholder="—" oninput="ctnChanged(this)"></td>
+          <td><input type="number" name="price[]" min="0" step="0.0001" value="{{ item['price'] }}" class="form-control" oninput="calcTotal()"></td>
+          <input type="hidden" name="discount_pct[]" value="0">
+          <td class="subtotal" style="font-size:12px;color:#666;white-space:nowrap;padding-left:8px" data-raw="{{ item['qty']*item['price'] }}">£{{ "%.3f"|format(item['qty']*item['price']) }}</td>
+          <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>
+        </tr>
+        {% endfor %}
+      {% else %}
+      <tr>
+        <td class="row-num" style="text-align:center;font-size:11px;color:#94a3b8;width:32px;padding:6px 4px">1</td>
+        <td style="padding:6px 8px">
+          <input type="hidden" name="product_id[]" value="">
+          <span class="product-name" style="font-size:13px;color:#aaa;font-style:italic">Use scanner above to add products</span>
+        </td>
+        {% if li_show_wh %}
+        <td><select name="warehouse_id[]" class="form-control">
+          {% for w in warehouses %}<option value="{{ w['id'] }}" {{ 'selected' if w['id'] == default_wh_id }}>{{ w['name'] }}</option>{% endfor %}
+        </select></td>
+        {% endif %}
+        <td><input type="number" name="qty[]" min="0" step="0.001" value="1" class="form-control qty-input" oninput="qtyChanged(this)"></td>
+        <td><input type="number" min="0" step="0.01" class="form-control ctn-input" placeholder="—" oninput="ctnChanged(this)"></td>
+        <td><input type="number" name="price[]" min="0" step="0.0001" value="0" class="form-control" oninput="calcTotal()"></td>
+        <input type="hidden" name="discount_pct[]" value="0">
+        <td class="subtotal" style="font-size:12px;color:#666;white-space:nowrap;padding-left:8px" data-raw="0">£0.000</td>
+        <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Totals -->
+  <div style="padding:12px 18px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end">
+    <div style="width:300px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;color:#888">
+        <span>Subtotal</span><strong id="subtotalDisplay" style="color:#0f172a">£0.000</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;color:#888">
+        <span style="display:flex;align-items:center;gap:6px">
+          Discount
+          <input name="global_discount" id="globalDiscount" type="number" min="0" max="100" step="0.1"
+            value="{{ li_discount }}" oninput="calcTotal()"
+            style="width:64px;padding:2px 6px;font-size:12px;border:1px solid #d0cdc8;border-radius:4px;text-align:center">
+          %
+          {% if discounts %}{% for d in discounts %}<button type="button" class="btn btn-sm" style="padding:1px 6px;font-size:11px" onclick="document.getElementById('globalDiscount').value='{{ d['value'] }}';calcTotal()">{{ d['value']|int }}%</button>{% endfor %}{% endif %}
+        </span>
+        <strong id="discountDisplay" style="color:#c0392b">−£0.000</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;color:#888">
+        <span>VAT (<span id="taxPctDisplay">{{ li_tax }}</span>%)</span>
+        <strong id="taxDisplay" style="color:#0f172a">£0.000</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:2px solid #e8e6df;margin-top:4px">
+        <span style="font-size:15px;font-weight:700;color:#1a1a1a">Total</span>
+        <strong id="totalDisplay" style="color:#0f172a;font-size:17px">£0.000</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const products   = {{ products | tojson }};
+const warehouses = {{ warehouses | tojson }};
+const defaultWhId   = {{ default_wh_id | tojson }};
+const PRICE_FIELD   = '{{ li_price_field }}';   // 'price' or 'cost'
+const SHOW_WH_COL   = {{ 'true' if li_show_wh else 'false' }};
+const SYMBOLS = { GBP: '£', USD: '$', EUR: '€', PLN: 'zł' };
+
+function getSym() {
+  const sel = document.getElementById('currencySelect');
+  return SYMBOLS[sel ? sel.value : 'GBP'] || '£';
+}
+
+function currencyChanged() {
+  const sym = getSym();
+  document.getElementById('priceHeader').textContent = '{{ li_price_label }} (' + sym + ')';
+  document.querySelectorAll('#itemsBody .subtotal').forEach(el => {
+    el.textContent = sym + parseFloat(el.dataset.raw || 0).toFixed(3);
+  });
+  calcTotal();
+}
+
+function getCtnQty(row) {
+  const pid = row.querySelector('[name="product_id[]"]')?.value;
+  const p = products.find(x => x.id == pid);
+  return parseFloat(p?.carton_qty) || 0;
+}
+
+function warehouseOptions() {
+  return warehouses.map(w => `<option value="${w.id}"${w.id === defaultWhId ? ' selected' : ''}>${w.name}</option>`).join('');
+}
+
+function fillRowForProduct(row, productId) {
+  const p = products.find(x => x.id == productId);
+  if (!p) return;
+  row.querySelector('[name="product_id[]"]').value = p.id;
+  const nameEl = row.querySelector('.product-name');
+  nameEl.textContent = p.name;
+  nameEl.style.fontStyle = 'normal';
+  nameEl.style.color = '';
+  row.querySelector('[name="price[]"]').value = p[PRICE_FIELD] || 0;
+  const ctnInput = row.querySelector('.ctn-input');
+  const ctn = parseFloat(p.carton_qty) || 0;
+  ctnInput.placeholder = ctn > 0 ? `1 = ${ctn} pcs` : '—';
+  ctnInput.value = '';
+  calcTotal();
+}
+
+function renumberRows() {
+  document.querySelectorAll('#itemsBody tr').forEach((tr, i) => {
+    const numCell = tr.querySelector('.row-num');
+    if (numCell) numCell.textContent = i + 1;
+  });
+}
+
+function addRow() {
+  const whTd = SHOW_WH_COL
+    ? `<td><select name="warehouse_id[]" class="form-control">${warehouseOptions()}</select></td>`
+    : '';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="row-num" style="text-align:center;font-size:11px;color:#94a3b8;width:32px;padding:6px 4px"></td>
+    <td style="padding:6px 8px">
+      <input type="hidden" name="product_id[]" value="">
+      <span class="product-name" style="font-size:13px;color:#aaa;font-style:italic">Use scanner above to add products</span>
+    </td>
+    ${whTd}
+    <td><input type="number" name="qty[]" min="0" step="0.001" value="1" class="form-control qty-input" oninput="qtyChanged(this)"></td>
+    <td><input type="number" min="0" step="0.01" class="form-control ctn-input" placeholder="—" oninput="ctnChanged(this)"></td>
+    <td><input type="number" name="price[]" min="0" step="0.0001" value="0" class="form-control" oninput="calcTotal()"></td>
+    <input type="hidden" name="discount_pct[]" value="0">
+    <td class="subtotal" style="font-size:12px;color:#666;white-space:nowrap;padding-left:8px" data-raw="0">${getSym()}0.000</td>
+    <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>`;
+  document.getElementById('itemsBody').appendChild(tr);
+  renumberRows();
+}
+
+function removeRow(btn) {
+  if (document.querySelectorAll('#itemsBody tr').length > 1) { btn.closest('tr').remove(); renumberRows(); calcTotal(); }
+}
+
+function qtyChanged(input) {
+  const row = input.closest('tr');
+  const ctn = getCtnQty(row);
+  const ctnInput = row.querySelector('.ctn-input');
+  if (ctn > 0) {
+    const qty = parseFloat(input.value) || 0;
+    ctnInput.value = qty > 0 ? (qty / ctn).toFixed(2) : '';
+  }
+  calcTotal();
+}
+
+function ctnChanged(input) {
+  const row = input.closest('tr');
+  const ctn = getCtnQty(row);
+  if (ctn > 0) {
+    const ctns = parseFloat(input.value) || 0;
+    row.querySelector('.qty-input').value = ctns > 0 ? (ctns * ctn).toFixed(3) : 0;
+  }
+  calcTotal();
+}
+
+function calcTotal() {
+  const sym = getSym();
+  let lineTotal = 0;
+  document.querySelectorAll('#itemsBody tr').forEach(row => {
+    const qty   = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
+    const price = parseFloat(row.querySelector('[name="price[]"]')?.value) || 0;
+    const sub   = qty * price;
+    lineTotal  += sub;
+    const cell  = row.querySelector('.subtotal');
+    if (cell) { cell.dataset.raw = sub; cell.textContent = sym + sub.toFixed(3); }
+  });
+  const gDisc   = parseFloat(document.getElementById('globalDiscount')?.value) || 0;
+  const discAmt = lineTotal * gDisc / 100;
+  const subtotal = lineTotal - discAmt;
+  const taxEl   = document.getElementById('taxPct');
+  const taxPct  = (taxEl && !taxEl.disabled) ? (parseFloat(taxEl.value) || 0) : 0;
+  const taxAmt  = subtotal * taxPct / 100;
+  const total   = subtotal + taxAmt;
+  document.getElementById('subtotalDisplay').textContent = sym + lineTotal.toFixed(3);
+  const discEl = document.getElementById('discountDisplay');
+  if (discEl) discEl.textContent = gDisc > 0 ? `−${sym}${discAmt.toFixed(3)}` : `−${sym}0.000`;
+  const taxDisp = document.getElementById('taxPctDisplay');
+  if (taxDisp) taxDisp.textContent = taxPct;
+  document.getElementById('taxDisplay').textContent = sym + taxAmt.toFixed(3);
+  document.getElementById('totalDisplay').textContent = sym + total.toFixed(3);
+}
+
+// ── Barcode + product search ──────────────────────────────────────────────────
+const barcodeInput = document.getElementById('barcodeInput');
+const scanDropdown = document.getElementById('scanDropdown');
+const scanFeedback = document.getElementById('scanFeedback');
+let scannerTimer   = null;
+
+function showFeedback(msg, ok) {
+  scanFeedback.textContent = msg;
+  scanFeedback.style.color = ok ? '#1a8a4a' : '#c0392b';
+  setTimeout(() => { scanFeedback.textContent = ''; }, 2500);
+}
+
+function addProductById(id, qty) {
+  qty = qty || 1;
+  const p = products.find(x => x.id == id);
+  if (!p) return;
+  for (const row of document.querySelectorAll('#itemsBody tr')) {
+    const h = row.querySelector('[name="product_id[]"]');
+    if (h && h.value == id) {
+      const qtyIn = row.querySelector('[name="qty[]"]');
+      qtyIn.value = (parseFloat(qtyIn.value) || 0) + qty;
+      qtyIn.dispatchEvent(new Event('input'));
+      showFeedback(`+${qty} × ${p.name}`, true);
+      closeScanDropdown(); barcodeInput.value = ''; return;
+    }
+  }
+  let targetRow = null;
+  for (const row of document.querySelectorAll('#itemsBody tr')) {
+    const h = row.querySelector('[name="product_id[]"]');
+    if (h && !h.value) { targetRow = row; break; }
+  }
+  if (!targetRow) { addRow(); targetRow = document.querySelector('#itemsBody tr:last-child'); }
+  fillRowForProduct(targetRow, id);
+  targetRow.querySelector('[name="qty[]"]').value = qty;
+  targetRow.querySelector('[name="qty[]"]').dispatchEvent(new Event('input'));
+  showFeedback(`✓ ${p.name}`, true);
+  closeScanDropdown(); barcodeInput.value = ''; barcodeInput.focus();
+}
+
+function renderScanDropdown(matches) {
+  if (!matches.length) { closeScanDropdown(); return; }
+  const sym = getSym();
+  scanDropdown.innerHTML = matches.slice(0, 30).map(p => {
+    const ctn = p.carton_qty > 0 ? `${p.carton_qty} ${p.unit||'pcs'}/ctn` : '';
+    const stock = p.stock_total != null ? parseFloat(p.stock_total) : 0;
+    const stockColor = stock > 0 ? '#16a34a' : stock < 0 ? '#dc2626' : '#94a3b8';
+    const stockLabel = `${stock % 1 === 0 ? stock : stock.toFixed(2)} ${p.unit || 'pcs'}`;
+    return `<div class="sd-item" data-id="${p.id}"
+        style="padding:8px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0ede8;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div>
+        <span style="font-weight:500">${p.name}</span>
+        ${p.sku ? `<span style="color:#aaa;font-size:11px;margin-left:8px">${p.sku}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:12px;white-space:nowrap;font-size:12px;color:#666;align-items:center">
+        ${ctn ? `<span style="color:#64748b">${ctn}</span>` : ''}
+        <span style="color:${stockColor};font-weight:500">&#9679; ${stockLabel}</span>
+        <span style="font-weight:600;color:#1a1a1a">${sym}${parseFloat(p[PRICE_FIELD]||0).toFixed(2)}</span>
+      </div>
+    </div>`;
+  }).join('');
+  scanDropdown.style.display = 'block';
+}
+
+function closeScanDropdown() {
+  scanDropdown.style.display = 'none';
+  scanDropdown.innerHTML = '';
+}
+
+scanDropdown.addEventListener('mousedown', function(e) {
+  const item = e.target.closest('.sd-item');
+  if (!item) return;
+  e.preventDefault();
+  addProductById(item.dataset.id, 1);
+});
+
+barcodeInput.addEventListener('input', function() {
+  clearTimeout(scannerTimer);
+  const q = this.value.trim();
+  if (!q) { closeScanDropdown(); return; }
+  scannerTimer = setTimeout(() => {
+    const lower = q.toLowerCase();
+    const matches = products.filter(p =>
+      p.name.toLowerCase().includes(lower) ||
+      (p.sku || '').toLowerCase().includes(lower) ||
+      (p.barcode || '').includes(q));
+    const exact = products.find(p => p.barcode === q || p.sku === q);
+    if (exact && q.length >= 6) { addProductById(exact.id, 1); }
+    else { renderScanDropdown(matches); }
+  }, 80);
+});
+
+barcodeInput.addEventListener('keydown', function(e) {
+  const items  = scanDropdown.querySelectorAll('.sd-item');
+  let active   = scanDropdown.querySelector('.sd-item.active');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = active ? (active.nextElementSibling || items[0]) : items[0];
+    active?.classList.remove('active'); next?.classList.add('active');
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = active ? (active.previousElementSibling || items[items.length-1]) : items[items.length-1];
+    active?.classList.remove('active'); prev?.classList.add('active');
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const cmdEnter = e.metaKey || e.ctrlKey;
+    if (active) { addProductById(active.dataset.id, 1); }
+    else if (items.length === 1 || cmdEnter) {
+      if (items.length >= 1) { addProductById(items[0].dataset.id, 1); }
+    } else {
+      const code = this.value.trim();
+      if (!code) return;
+      fetch(`/products/barcode?q=${encodeURIComponent(code)}`)
+        .then(r => r.json())
+        .then(data => { if (data.found) addProductById(data.id, 1); else showFeedback(`✗ Not found: ${code}`, false); });
+      this.value = ''; closeScanDropdown();
+    }
+  } else if (e.key === 'Escape') { closeScanDropdown(); }
+});
+
+document.addEventListener('click', e => {
+  if (!barcodeInput.contains(e.target) && !scanDropdown.contains(e.target)) closeScanDropdown();
+});
+
+calcTotal();
+barcodeInput.focus();
+</script>

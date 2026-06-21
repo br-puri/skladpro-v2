@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Sales Archive{% endblock %}
+{% block page_title %}Sales Archive{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('sales') }}" class="back-link">← Back to Sales</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if sales %}
+  <table>
+    <thead><tr><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sales %}
+    <tr>
+      <td class="mono">{{ s['num'] }}</td>
+      <td>{{ s['doc_date'] }}</td>
+      <td>{{ s['customer'] }}</td>
+      <td>£{{ "{:,.0f}".format(s['total']) }}</td>
+      <td><span class="badge badge-neutral">archived</span></td>
+      <td>
+        <form method="post" action="{{ url_for('delete_sale', sid=s['id']) }}" onsubmit="return confirm('Permanently delete this sale? This cannot be undone.')">
+          <button class="btn btn-sm btn-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No archived sales</div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

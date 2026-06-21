@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports & Analytics{% endblock %}
+{% block content %}
+<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin:4px 0 12px">Sales & Profit</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
+  <a href="{{ url_for('report_sales') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">📊</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Sales Analytics</div>
+      <div style="font-size:12px;color:#64748b">Revenue by product and customer, profit margins</div>
+    </div>
+  </a>
+  <a href="{{ url_for('report_profit') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">💰</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Profit Report</div>
+      <div style="font-size:12px;color:#64748b">Revenue vs cost, profit per order</div>
+    </div>
+  </a>
+  <a href="{{ url_for('report_top_customers') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">🏆</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Top Customers</div>
+      <div style="font-size:12px;color:#64748b">Ranked by revenue, paid vs unpaid</div>
+    </div>
+  </a>
+</div>
+
+<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin:4px 0 12px">Inventory</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
+  <a href="{{ url_for('report_stock') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">📦</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Stock Report</div>
+      <div style="font-size:12px;color:#64748b">Current balances, stock value by warehouse</div>
+    </div>
+  </a>
+  <a href="{{ url_for('report_turnover') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">🔄</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Stock Turnover</div>
+      <div style="font-size:12px;color:#64748b">Intake vs sales vs write-offs per product</div>
+    </div>
+  </a>
+  <a href="{{ url_for('report_low_stock') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">⚠️</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Low Stock Alerts</div>
+      <div style="font-size:12px;color:#64748b">Products below their minimum stock level</div>
+    </div>
+  </a>
+</div>
+
+<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin:4px 0 12px">Finance</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
+  <a href="{{ url_for('report_receivables') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">📅</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Aged Receivables</div>
+      <div style="font-size:12px;color:#64748b">Outstanding invoices by age (30/60/90+)</div>
+    </div>
+  </a>
+  <a href="{{ url_for('report_cashflow') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">💵</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Cash Flow</div>
+      <div style="font-size:12px;color:#64748b">Income vs expenses, monthly breakdown</div>
+    </div>
+  </a>
+  <a href="{{ url_for('report_vat') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">🧾</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">VAT Report</div>
+      <div style="font-size:12px;color:#64748b">Net, VAT and gross sales for tax filing</div>
+    </div>
+  </a>
+</div>
+{% endblock %}

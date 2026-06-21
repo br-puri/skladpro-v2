@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+
+<style>
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.chart-grid .chart-wide {
+  grid-column: span 2;
+}
+.chart-card {
+  background: #fff;
+  border: 1px solid #e8e6df;
+  border-radius: 12px;
+  padding: 20px 22px 16px;
+}
+.chart-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 16px;
+}
+.chart-wrap { position: relative; }
+@media (max-width: 768px) {
+  .chart-grid { grid-template-columns: 1fr; }
+  .chart-grid .chart-wide { grid-column: span 1; }
+  .chart-card { padding: 14px 14px 12px; }
+}
+</style>
+
+<!-- KPI metrics -->
+<div class="metrics" style="margin-bottom:16px">
+  <a href="{{ url_for('products') }}" class="metric metric-link">
+    <div class="metric-label">Products</div>
+    <div class="metric-value blue">{{ product_count }}</div>
+  </a>
+  <a href="{{ url_for('warehouses') }}" class="metric metric-link">
+    <div class="metric-label">Warehouses</div>
+    <div class="metric-value">{{ warehouse_count }}</div>
+  </a>
+  <a href="{{ url_for('report_stock') }}" class="metric metric-link">
+    <div class="metric-label">Stock Value</div>
+    <div class="metric-value">£{{ "{:,.0f}".format(stock_value) }}</div>
+  </a>
+  <a href="{{ url_for('sales') }}" class="metric metric-link">
+    <div class="metric-label">Sales Revenue</div>
+    <div class="metric-value green">£{{ "{:,.0f}".format(completed_revenue) }}</div>
+  </a>
+  <a href="{{ url_for('finance') }}" class="metric metric-link">
+    <div class="metric-label">Net Cash</div>
+    <div class="metric-value {% if net_cash >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(net_cash) }}</div>
+  </a>
+  <a href="{{ url_for('sales') }}?status=pending" class="metric metric-link">
+    <div class="metric-label">Pending Sales</div>
+    <div class="metric-value {% if pending_sales > 0 %}red{% endif %}">{{ pending_sales }}</div>
+  </a>
+</div>
+
+<!-- Charts row -->
+<div class="chart-grid">
+
+  <!-- Monthly Revenue (wide) -->
+  <div class="chart-card chart-wide">
+    <h3>Monthly Revenue</h3>
+    <div class="chart-wrap"><canvas id="revenueChart" height="110"></canvas></div>
+  </div>
+
+  <!-- Sales Status doughnut -->
+  <div class="chart-card">
+    <h3>Sales by Status</h3>
+    <div class="chart-wrap"><canvas id="statusChart" height="160"></canvas></div>
+  </div>
+
+</div>
+
+<!-- Top products (full width) -->
+<div class="chart-card" style="margin-bottom:16px">
+  <h3>Top Products by Revenue</h3>
+  <div class="chart-wrap"><canvas id="topProductsChart" height="60"></canvas></div>
+</div>
+
+<!-- Bottom row: recent sales + low stock -->
+<div class="two-col">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Recent Sales</span><a href="{{ url_for('sales') }}" class="btn btn-sm">View all</a></div>
+    {% if recent_sales %}
+    <div class="table-wrap"><table><thead><tr><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead><tbody>
+    {% for s in recent_sales %}
+    <tr>
+      <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ s['num'] }}</a></td>
+      <td>{{ s['doc_date'] }}</td>
+      <td>{{ s['customer'] }}</td>
+      <td>£{{ "{:,.0f}".format(s['total']) }}</td>
+      <td><span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}">{{ s['status'] }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+    {% else %}<div class="empty">No sales yet — <a href="{{ url_for('add_sale') }}">create one</a></div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Low Stock Alerts</span><a href="{{ url_for('report_stock') }}" class="btn btn-sm">Stock report</a></div>
+    {% if low_stock %}
+    <table><thead><tr><th>Product</th><th>Current</th><th>Min</th><th>Unit</th></tr></thead><tbody>
+    {% for item in low_stock %}
+    <tr>
+      <td>{{ item['name'] }}</td>
+      <td><span class="badge {% if item['qty'] == 0 %}badge-danger{% else %}badge-warning{% endif %}">{{ item['qty'] }}</span></td>
+      <td style="color:#aaa">{{ item['min_stock'] }}</td>
+      <td>{{ item['unit'] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}<div class="empty" style="padding:24px">All products well stocked ✓</div>{% endif %}
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.color = '#64748b';
+
+// ── 1. Monthly Revenue Bar Chart ─────────────────────────────────────────────
+const monthlyData = {{ monthly_sales | tojson }};
+const monthLabels = monthlyData.map(m => {
+  const [y, mo] = m.month.split('-');
+  return new Date(y, mo - 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+});
+const monthTotals = monthlyData.map(m => parseFloat(m.total || 0).toFixed(2));
+
+new Chart(document.getElementById('revenueChart'), {
+  type: 'bar',
+  data: {
+    labels: monthLabels.length ? monthLabels : ['No data'],
+    datasets: [{
+      label: 'Revenue (£)',
+      data: monthTotals.length ? monthTotals : [0],
+      backgroundColor: 'rgba(26,110,245,0.18)',
+      borderColor: '#1a6ef5',
+      borderWidth: 2,
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ' £' + parseFloat(ctx.parsed.y).toLocaleString('en-GB', {minimumFractionDigits:2})
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: '#f1f5f9' },
+        ticks: { callback: v => '£' + Number(v).toLocaleString() }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// ── 2. Sales Status Doughnut ──────────────────────────────────────────────────
+const statusData = {{ status_counts | tojson }};
+const statusColors = { completed: '#22c55e', pending: '#f59e0b', cancelled: '#ef4444', archived: '#94a3b8' };
+const statusLabels = statusData.map(s => s.status.charAt(0).toUpperCase() + s.status.slice(1));
+const statusCounts = statusData.map(s => s.cnt);
+const statusBg = statusData.map(s => statusColors[s.status] || '#94a3b8');
+
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: statusLabels.length ? statusLabels : ['No data'],
+    datasets: [{
+      data: statusCounts.length ? statusCounts : [1],
+      backgroundColor: statusBg.length ? statusBg : ['#e2e8f0'],
+      borderWidth: 2,
+      borderColor: '#fff',
+      hoverOffset: 6
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '68%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 14, boxWidth: 12, font: { size: 12 } }
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed} invoice${ctx.parsed !== 1 ? 's' : ''}`
+        }
+      }
+    }
+  }
+});
+
+// ── 3. Top Products Horizontal Bar ───────────────────────────────────────────
+const topData = {{ top_products | tojson }};
+const topLabels = topData.map(p => p.name);
+const topRevenue = topData.map(p => parseFloat(p.revenue || 0).toFixed(2));
+const barColors = ['#1a6ef5','#3b82f6','#60a5fa','#93c5fd','#bfdbfe','#dbeafe'];
+
+new Chart(document.getElementById('topProductsChart'), {
+  type: 'bar',
+  data: {
+    labels: topLabels.length ? topLabels : ['No data'],
+    datasets: [{
+      label: 'Revenue (£)',
+      data: topRevenue.length ? topRevenue : [0],
+      backgroundColor: barColors.slice(0, topLabels.length || 1),
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ' £' + parseFloat(ctx.parsed.x).toLocaleString('en-GB', {minimumFractionDigits:2})
+        }
+      }
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        grid: { color: '#f1f5f9' },
+        ticks: { callback: v => '£' + Number(v).toLocaleString() }
+      },
+      y: { grid: { display: false } }
+    }
+  }
+});
+</script>
+{% endblock %}

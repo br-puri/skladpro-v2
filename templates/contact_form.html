@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if contact else 'Add' }} Contact{% endblock %}
+{% block page_title %}{{ 'Edit' if contact else 'Add' }} Contact{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('contacts') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<form method="post" class="form-card">
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Name</label><input name="name" class="form-control" value="{{ contact['name'] if contact else '' }}"></div>
+    <div class="form-group"><label class="form-label">Type</label>
+      <select name="type" class="form-control">
+        <option value="customer" {{ 'selected' if contact and contact['type']=='customer' }}>Customer</option>
+        <option value="supplier" {{ 'selected' if contact and contact['type']=='supplier' }}>Supplier</option>
+      </select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Company *</label><input name="company" class="form-control" value="{{ contact['company'] if contact and contact['company'] else '' }}" placeholder="Company / trading name" required></div>
+    <div class="form-group"><label class="form-label">VAT Number</label><input name="vat_number" class="form-control" value="{{ contact['vat_number'] if contact and contact['vat_number'] else '' }}" placeholder="e.g. GB123456789"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Phone</label><input name="phone" class="form-control" value="{{ contact['phone'] if contact else '' }}"></div>
+    <div class="form-group"><label class="form-label">Email</label><input name="email" type="email" class="form-control" value="{{ contact['email'] if contact else '' }}"></div>
+  </div>
+  <div class="form-group"><label class="form-label">Address Line 1</label><input name="address" class="form-control" value="{{ contact['address'] if contact else '' }}" placeholder="Street / building"></div>
+  <div class="form-group"><label class="form-label">Address Line 2</label><input name="address2" class="form-control" value="{{ contact['address2'] if contact and contact['address2'] else '' }}" placeholder="Area / estate (optional)"></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">City</label><input name="city" class="form-control" value="{{ contact['city'] if contact and contact['city'] else '' }}"></div>
+    <div class="form-group"><label class="form-label">Postcode</label><input name="postcode" class="form-control" value="{{ contact['postcode'] if contact and contact['postcode'] else '' }}"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Country</label><input name="country" class="form-control" value="{{ contact['country'] if contact and contact['country'] else '' }}"></div>
+    <div class="form-group"><label class="form-label">Currency</label>
+      <select name="currency" class="form-control">
+        <option value="GBP" {{ 'selected' if not contact or contact['currency']=='GBP' }}>GBP</option>
+        <option value="USD" {{ 'selected' if contact and contact['currency']=='USD' }}>USD</option>
+        <option value="EUR" {{ 'selected' if contact and contact['currency']=='EUR' }}>EUR</option>
+      </select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Balance (£)</label><input name="balance" type="number" step="0.01" class="form-control" value="{{ contact['balance'] if contact else '0' }}"></div>
+    <div class="form-group"><label class="form-label">Discount (%)</label><input name="discount_pct" type="number" step="0.1" min="0" max="100" class="form-control" value="{{ contact['discount_pct'] if contact else '0' }}"></div>
+  </div>
+  <div class="form-group"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2">{{ contact['notes'] if contact else '' }}</textarea></div>
+  <div style="margin-top:18px;display:flex;gap:8px">
+    <button type="submit" class="btn btn-primary">{{ 'Save' if contact else 'Add Contact' }}</button>
+    <a href="{{ url_for('contacts') }}" class="btn">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Sales Analytics{% endblock %}
+{% block page_title %}Sales Analytics{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Reports</a>{% endblock %}
+{% block content %}
+<form class="search-wrap" method="get" style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <label style="font-size:12px;color:#888">From</label>
+  <input type="date" name="from" value="{{ date_from }}" class="form-control" style="width:160px">
+  <label style="font-size:12px;color:#888">To</label>
+  <input type="date" name="to" value="{{ date_to }}" class="form-control" style="width:160px">
+  <button type="submit" class="btn btn-primary">Filter</button>
+  {% if date_from or date_to %}<a href="{{ url_for('report_sales') }}" class="btn">Clear</a>{% endif %}
+</form>
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Total Revenue</div><div class="metric-value green">£{{ "{:,.0f}".format(total_revenue) }}</div></div>
+  <div class="metric"><div class="metric-label">Total Profit</div><div class="metric-value {% if total_profit >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(total_profit) }}</div></div>
+  <div class="metric"><div class="metric-label">Margin</div><div class="metric-value">{{ "{:.1f}".format(total_profit/total_revenue*100 if total_revenue else 0) }}%</div></div>
+</div>
+<div class="two-col">
+  <div class="card">
+    <div class="card-header"><span class="card-title">By Product</span></div>
+    <div class="table-wrap">
+    <table><thead><tr><th>Product</th><th>Qty Sold</th><th>Revenue</th><th>Profit</th></tr></thead><tbody>
+    {% for p in by_product %}
+    <tr><td>{{ p['name'] }}</td><td>{{ p['qty']|int }}</td>
+    <td>£{{ "{:,.0f}".format(p['revenue']) }}</td>
+    <td style="color:{{ '#1a8a4a' if p['profit']>=0 else '#c0392b' }}">£{{ "{:,.0f}".format(p['profit']) }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">By Customer</span></div>
+    <div class="table-wrap">
+    <table><thead><tr><th>Customer</th><th>Orders</th><th>Revenue</th></tr></thead><tbody>
+    {% for name, data in by_customer %}
+    <tr><td>{{ name }}</td><td>{{ data['orders'] }}</td><td>£{{ "{:,.0f}".format(data['revenue']) }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+{% endblock %}

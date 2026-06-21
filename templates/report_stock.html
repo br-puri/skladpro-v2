@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Stock Report{% endblock %}
+{% block page_title %}Stock Report{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Reports</a>{% endblock %}
+{% block content %}
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Total Stock Value</div><div class="metric-value">£{{ "{:,.0f}".format(total_value) }}</div><div class="metric-sub">at cost price</div></div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+  <table><thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Unit</th>
+    {% for w in warehouses %}<th>{{ w['name'] }}</th>{% endfor %}
+    <th>Total</th><th>Cost</th><th>Value</th><th>Sold</th></tr></thead><tbody>
+  {% for row in rows %}{% set p = row['product'] %}
+  <tr>
+    <td class="mono">{{ p['sku'] }}</td><td>{{ p['name'] }}</td><td>{{ p['category'] }}</td><td>{{ p['unit'] }}</td>
+    {% for w in warehouses %}<td>{{ row['stock'].get(w['id'],0)|int }}</td>{% endfor %}
+    <td><strong>{{ row['total']|int }}</strong></td>
+    <td>£{{ "{:,.2f}".format(p['cost']) }}</td>
+    <td>£{{ "{:,.0f}".format(row['value']) }}</td>
+    <td style="color:#888">{{ row['sold']|int }}</td>
+  </tr>{% endfor %}
+  </tbody></table>
+  </div>
+</div>
+{% endblock %}

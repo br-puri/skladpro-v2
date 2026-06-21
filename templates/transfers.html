@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Transfers{% endblock %}
+{% block page_title %}Stock Transfers{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_transfer') }}" class="btn btn-primary">+ New Transfer</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if transfers %}
+  <table>
+    <thead><tr><th>#</th><th>Date</th><th>Product</th><th>From</th><th>To</th><th>Qty</th><th>Notes</th></tr></thead>
+    <tbody>
+    {% for t in transfers %}
+    <tr>
+      <td class="mono">TRF-{{ "%03d"|format(t['id']) }}</td>
+      <td>{{ t['doc_date'] }}</td>
+      <td>{{ t['product_name'] }}</td>
+      <td>{{ t['from_name'] }}</td>
+      <td>{{ t['to_name'] }}</td>
+      <td>{{ t['qty']|int }} {{ t['unit'] }}</td>
+      <td style="color:#888">{{ t['notes'] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No transfers yet</div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

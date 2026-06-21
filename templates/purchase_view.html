@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{{ purchase['num'] }}{% endblock %}
+{% block page_title %}{{ purchase['num'] }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('export_purchase_pdf', pid=purchase['id']) }}" class="btn btn-primary">↓ PDF</a>
+  <a href="{{ url_for('export_purchase_excel', pid=purchase['id']) }}" class="btn">↓ Excel</a>
+  <a href="{{ url_for('edit_purchase', pid=purchase['id']) }}" class="btn">Edit</a>
+  {% if session.get('role')=='admin' %}
+  <a href="{{ url_for('add_debit_note') }}?purchase_id={{ purchase['id'] }}" class="btn">↩ Raise Debit Note</a>
+  {% endif %}
+  <a href="{{ url_for('purchases') }}" class="back-link">← Back</a>
+{% endblock %}
+{% block content %}
+<div class="form-card" style="max-width:640px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+    <div><div class="metric-label">Supplier</div><div style="font-size:15px;font-weight:600">{{ purchase['supplier'] }}</div></div>
+    <div><div class="metric-label">Status</div><span class="badge badge-success">{{ purchase['status'] }}</span></div>
+    <div><div class="metric-label">Date</div><div>{{ purchase['doc_date'] }}</div></div>
+    <div><div class="metric-label">Warehouse</div><div>{{ purchase['wh_name'] or '—' }}</div></div>
+    <div><div class="metric-label">Currency</div><div>{{ purchase['currency'] }}</div></div>
+    {% if purchase['tax_pct'] > 0 %}<div><div class="metric-label">VAT</div><div>{{ purchase['tax_pct']|int }}% — £{{ "{:,.2f}".format(purchase['tax_amount'] if purchase['tax_amount'] else 0) }}</div></div>{% endif %}
+    {% if purchase['notes'] %}<div><div class="metric-label">Notes</div><div>{{ purchase['notes'] }}</div></div>{% endif %}
+  </div>
+  <hr class="section">
+  <table style="width:100%;font-size:13px;border-collapse:collapse">
+    <thead><tr>
+      <th style="text-align:left;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Product</th>
+      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Qty</th>
+      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Unit Cost</th>
+      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Subtotal</th>
+    </tr></thead>
+    <tbody>{% for item in items %}
+    <tr>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8">{{ item['product_name'] }}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">{{ item['qty']|int }} {{ item['unit'] }}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">£{{ "{:,.2f}".format(item['price']) }}</td>
+      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">£{{ "{:,.2f}".format(item['qty']*item['price']) }}</td>
+    </tr>{% endfor %}</tbody>
+    <tfoot>
+      {% if purchase['subtotal'] and purchase['subtotal'] != purchase['total'] %}
+      <tr><td colspan="3" style="padding:6px 0;text-align:right;color:#888">Subtotal</td>
+      <td style="padding:6px 0;text-align:right;color:#888">£{{ "{:,.2f}".format(purchase['subtotal']) }}</td></tr>
+      {% if purchase['tax_pct'] > 0 %}
+      <tr><td colspan="3" style="padding:6px 0;text-align:right;color:#888">VAT ({{ purchase['tax_pct']|int }}%)</td>
+      <td style="padding:6px 0;text-align:right;color:#888">£{{ "{:,.2f}".format(purchase['tax_amount']) }}</td></tr>
+      {% endif %}{% endif %}
+      <tr><td colspan="3" style="padding:11px 0;text-align:right;font-weight:600">Total</td>
+      <td style="padding:11px 0;text-align:right;font-weight:600;font-size:15px">£{{ "{:,.2f}".format(purchase['total']) }}</td></tr>
+    </tfoot>
+  </table>
+</div>
+
+  <!-- Debit Notes -->
+  {% if debit_notes_list %}
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><span class="card-title">Debit Notes</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Number</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for dn in debit_notes_list %}
+          <tr>
+            <td class="mono">{{ dn['num'] }}</td>
+            <td>{{ dn['doc_date'] }}</td>
+            <td>£{{ "{:,.2f}".format(dn['total']) }}</td>
+            <td><span class="badge {% if dn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">{{ dn['status'] }}</span></td>
+            <td><a href="{{ url_for('view_debit_note', dnid=dn['id']) }}" class="btn btn-sm">View</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+{% endblock %}

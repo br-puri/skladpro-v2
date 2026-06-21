@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+{% block title %}New Debit Note{% endblock %}
+{% block page_title %}New Debit Note{% endblock %}
+{% block content %}
+<form method="POST">
+<div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start">
+  <div>
+    <div class="form-card" style="max-width:100%;margin-bottom:16px">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input name="doc_date" type="date" class="form-control" value="{{ today }}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Supplier</label>
+          <select name="supplier_id" class="form-control" onchange="fillSupplierName(this)">
+            <option value="">— select —</option>
+            {% for s in suppliers %}
+            <option value="{{ s['id'] }}" data-name="{{ s['company'] or s['name'] }}"
+              {% if prefill_purchase and prefill_purchase['supplier_id']==s['id'] %}selected{% endif %}>
+              {{ s['company'] or s['name'] }}
+            </option>
+            {% endfor %}
+          </select>
+          <input name="supplier" id="supplier-name" type="hidden"
+            value="{{ prefill_purchase['supplier'] if prefill_purchase else '' }}" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Warehouse (stock removed from)</label>
+          <select name="warehouse_id" class="form-control">
+            <option value="">— no stock change —</option>
+            {% for w in warehouses %}
+            <option value="{{ w['id'] }}"
+              {% if prefill_purchase and prefill_purchase.get('warehouse_id')==w['id'] %}selected{% endif %}>
+              {{ w['name'] }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Linked Purchase (optional)</label>
+          <input name="purchase_id" class="form-control"
+            value="{{ prefill_purchase['id'] if prefill_purchase else '' }}" placeholder="Purchase ID">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea name="notes" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Returned Items</span>
+        <button type="button" class="btn btn-sm" onclick="addRow()">+ Add Row</button>
+      </div>
+      <div style="padding:10px 16px 4px">
+        <div style="position:relative;margin-bottom:10px;background:#f0f7ff;border:1px solid #c3d9f5;border-radius:8px;padding:9px 14px;display:flex;align-items:center;gap:10px">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;color:#6b87b0"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div style="position:relative;flex:1;max-width:400px">
+            <input type="text" id="topSearch" placeholder="Type to search product by name or SKU…"
+              class="form-control" autocomplete="off" style="background:#fff">
+            <div class="prod-dropdown" id="topDropdown"></div>
+          </div>
+          <span style="font-size:12px;color:#6b87b0">Click to add a row</span>
+        </div>
+      </div>
+      <div style="padding:0 16px">
+        <table class="line-items" id="items-table">
+          <thead><tr>
+            <th>Product</th><th>Qty</th><th>Unit Cost</th><th>Amount</th><th></th>
+          </tr></thead>
+          <tbody id="items-body">
+            {% if prefill_items %}
+              {% for item in prefill_items %}
+              {% set pname = '' %}{% for p in products %}{% if p['id']==item['product_id'] %}{% set pname = p['name'] %}{% endif %}{% endfor %}
+              <tr>
+                <td style="position:relative;min-width:220px">
+                  <input type="hidden" name="product_id[]" class="prod-id" value="{{ item['product_id'] }}">
+                  <input type="text" class="form-control prod-search" value="{{ pname }}" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+                  <div class="prod-dropdown"></div>
+                </td>
+                <td><input name="qty[]" type="number" step="any" min="0" value="{{ item['qty'] }}" class="form-control qty" style="width:80px" oninput="calcRow(this)"></td>
+                <td><input name="price[]" type="number" step="any" min="0" value="{{ item['price'] }}" class="form-control price" style="width:100px" oninput="calcRow(this)"></td>
+                <td class="amount" style="text-align:right;font-weight:600">{{ "{:,.2f}".format(item['qty']*item['price']) }}</td>
+                <td><button type="button" class="remove-btn" onclick="this.closest('tr').remove();calcTotal()">×</button></td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td style="position:relative;min-width:220px">
+                  <input type="hidden" name="product_id[]" class="prod-id" value="">
+                  <input type="text" class="form-control prod-search" value="" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+                  <div class="prod-dropdown"></div>
+                </td>
+                <td><input name="qty[]" type="number" step="any" min="0" value="1" class="form-control qty" style="width:80px" oninput="calcRow(this)"></td>
+                <td><input name="price[]" type="number" step="any" min="0" value="0" class="form-control price" style="width:100px" oninput="calcRow(this)"></td>
+                <td class="amount" style="text-align:right;font-weight:600">0.00</td>
+                <td><button type="button" class="remove-btn" onclick="this.closest('tr').remove();calcTotal()">×</button></td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        <div style="text-align:right;margin-top:10px;font-size:15px;font-weight:700;padding-bottom:12px">
+          Total: £<span id="grand-total">0.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card" style="max-width:100%">
+    <button type="submit" class="btn btn-primary" style="width:100%;margin-bottom:10px">Save Debit Note</button>
+    <a href="{{ url_for('debit_notes') }}" class="btn" style="width:100%;text-align:center">Cancel</a>
+    <hr class="section">
+    <p style="font-size:12px;color:#64748b;line-height:1.6">
+      A debit note records goods returned to a supplier.<br><br>
+      <strong>Status: Draft</strong> — no stock or balance changes yet.<br><br>
+      Click <strong>Apply</strong> on the view page to remove stock and adjust the supplier's balance.
+    </p>
+  </div>
+</div>
+</form>
+
+<script>
+const products = {{ products | tojson }};
+
+function makeRow(pid, pname, qty, price) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="position:relative;min-width:220px">
+      <input type="hidden" name="product_id[]" class="prod-id" value="${pid}">
+      <input type="text" class="form-control prod-search" value="${pname}" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+      <div class="prod-dropdown"></div>
+    </td>
+    <td><input name="qty[]" type="number" step="any" min="0" value="${qty}" class="form-control qty" style="width:80px" oninput="calcRow(this)"></td>
+    <td><input name="price[]" type="number" step="any" min="0" value="${price}" class="form-control price" style="width:100px" oninput="calcRow(this)"></td>
+    <td class="amount" style="text-align:right;font-weight:600">${(qty*price).toFixed(2)}</td>
+    <td><button type="button" class="remove-btn" onclick="this.closest('tr').remove();calcTotal()">×</button></td>`;
+  return tr;
+}
+
+function addRow() {
+  document.getElementById('items-body').appendChild(makeRow('', '', 1, 0));
+}
+
+function calcRow(input) {
+  const row = input.closest('tr');
+  const qty = parseFloat(row.querySelector('.qty').value) || 0;
+  const price = parseFloat(row.querySelector('.price').value) || 0;
+  row.querySelector('.amount').textContent = (qty * price).toFixed(2);
+  calcTotal();
+}
+
+function calcTotal() {
+  let t = 0;
+  document.querySelectorAll('.amount').forEach(el => t += parseFloat(el.textContent) || 0);
+  document.getElementById('grand-total').textContent = t.toFixed(2);
+}
+
+function fillSupplierName(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('supplier-name').value = opt.dataset.name || opt.text;
+}
+
+function searchProducts(input) {
+  const q = input.value.toLowerCase();
+  const dropdown = input.nextElementSibling;
+  if (!q) { closeDropdown(dropdown); return; }
+  const matches = products.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+  ).slice(0, 25);
+  renderDropdown(dropdown, matches, 'cost', function(p) {
+    input.value = p.name;
+    input.closest('td').querySelector('.prod-id').value = p.id;
+    const row = input.closest('tr');
+    row.querySelector('.price').value = p.cost || 0;
+    calcRow(row.querySelector('.qty'));
+    closeDropdown(dropdown);
+  });
+}
+
+const topSearch = document.getElementById('topSearch');
+const topDropdown = document.getElementById('topDropdown');
+
+topSearch.addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  if (!q) { closeDropdown(topDropdown); return; }
+  const matches = products.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+  ).slice(0, 25);
+  renderDropdown(topDropdown, matches, 'cost', function(p) {
+    let target = null;
+    for (const row of document.querySelectorAll('#items-body tr')) {
+      if (!row.querySelector('.prod-id').value) { target = row; break; }
+    }
+    if (!target) {
+      const tr = makeRow('', '', 1, 0);
+      document.getElementById('items-body').appendChild(tr);
+      target = tr;
+    }
+    target.querySelector('.prod-id').value = p.id;
+    target.querySelector('.prod-search').value = p.name;
+    target.querySelector('.price').value = p.cost || 0;
+    calcRow(target.querySelector('.qty'));
+    closeDropdown(topDropdown);
+    topSearch.value = '';
+    topSearch.focus();
+  });
+});
+
+topSearch.addEventListener('keydown', function(e) { handleDropdownKeys(e, topDropdown); });
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#topSearch') && !e.target.closest('#topDropdown')) closeDropdown(topDropdown);
+  if (!e.target.closest('.prod-search') && !e.target.closest('.prod-dropdown')) {
+    document.querySelectorAll('.line-items .prod-dropdown').forEach(closeDropdown);
+  }
+});
+
+function renderDropdown(dropdown, matches, priceField, onSelect) {
+  if (!matches.length) { closeDropdown(dropdown); return; }
+  dropdown.innerHTML = matches.map(p =>
+    `<div class="pd-item" data-id="${p.id}">
+      <span><strong>${p.name}</strong>${p.sku ? ` <span style="color:#aaa;font-size:11px">${p.sku}</span>` : ''}</span>
+      <span style="color:#888;font-size:12px">£${parseFloat(p[priceField]||0).toFixed(2)}</span>
+    </div>`
+  ).join('');
+  dropdown.style.display = 'block';
+  dropdown.onmousedown = function(e) {
+    const item = e.target.closest('.pd-item');
+    if (!item) return;
+    e.preventDefault();
+    const p = products.find(x => x.id == item.dataset.id);
+    if (p) onSelect(p);
+  };
+}
+
+function closeDropdown(dropdown) {
+  if (dropdown) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; }
+}
+
+function handleDropdownKeys(e, dropdown) {
+  const items = dropdown.querySelectorAll('.pd-item');
+  let active = dropdown.querySelector('.pd-item.active');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = active ? (active.nextElementSibling || items[0]) : items[0];
+    active?.classList.remove('active'); next?.classList.add('active');
+    next?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = active ? (active.previousElementSibling || items[items.length-1]) : items[items.length-1];
+    active?.classList.remove('active'); prev?.classList.add('active');
+    prev?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && active) {
+    e.preventDefault();
+    active.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  } else if (e.key === 'Escape') {
+    closeDropdown(dropdown);
+  }
+}
+
+document.getElementById('items-body').addEventListener('keydown', function(e) {
+  const input = e.target.closest('.prod-search');
+  if (!input) return;
+  handleDropdownKeys(e, input.nextElementSibling);
+});
+
+calcTotal();
+</script>
+{% endblock %}

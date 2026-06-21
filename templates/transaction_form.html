@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if transaction else 'Add' }} Transaction{% endblock %}
+{% block page_title %}{{ 'Edit' if transaction else 'Add' }} Transaction{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('finance') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<form method="post" class="form-card">
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Type</label>
+      <select name="type" class="form-control">
+        <option value="income" {{ 'selected' if transaction and transaction['type']=='income' }}>Income</option>
+        <option value="expense" {{ 'selected' if transaction and transaction['type']=='expense' }}>Expense</option>
+      </select></div>
+    <div class="form-group"><label class="form-label">Method</label>
+      <select name="method" class="form-control">
+        <option value="cash" {{ 'selected' if transaction and transaction['method']=='cash' }}>Cash</option>
+        <option value="bank" {{ 'selected' if transaction and transaction['method']=='bank' }}>Bank transfer</option>
+      </select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Date</label>
+      <input name="doc_date" type="date" class="form-control" value="{{ transaction['doc_date'] if transaction else today }}"></div>
+    <div class="form-group"><label class="form-label">Currency</label>
+      <select name="currency" class="form-control">
+        <option value="GBP" {{ 'selected' if not transaction or transaction['currency']=='GBP' }}>GBP</option>
+        <option value="USD" {{ 'selected' if transaction and transaction['currency']=='USD' }}>USD</option>
+        <option value="EUR" {{ 'selected' if transaction and transaction['currency']=='EUR' }}>EUR</option>
+      </select></div>
+  </div>
+  <div class="form-group"><label class="form-label">Description *</label>
+    <input name="desc" class="form-control" required placeholder="e.g. Payment for SAL-005" value="{{ transaction['desc'] if transaction else '' }}"></div>
+  <div class="form-group"><label class="form-label">Amount</label>
+    <input name="amount" type="number" min="0" step="0.01" class="form-control" value="{{ transaction['amount'] if transaction else '0' }}"></div>
+  <div class="form-group"><label class="form-label">Contact</label>
+    <select name="contact_id" class="form-control">
+      <option value="">— None —</option>
+      {% for c in contacts %}<option value="{{ c['id'] }}" {{ 'selected' if transaction and transaction['contact_id']==c['id'] }}>{{ c['name'] }}</option>{% endfor %}
+    </select></div>
+  <div class="form-group"><label class="form-label">Reference Document</label>
+    <input name="ref_doc" class="form-control" placeholder="e.g. SAL-001" value="{{ transaction['ref_doc'] if transaction else '' }}"></div>
+  <div style="margin-top:18px;display:flex;gap:8px">
+    <button type="submit" class="btn btn-primary">{{ 'Save Changes' if transaction else 'Add Transaction' }}</button>
+    <a href="{{ url_for('finance') }}" class="btn">Cancel</a>
+  </div>
+</form>
+{% endblock %}

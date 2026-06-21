@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit ' + purchase['num'] if purchase else 'New Purchase' }}{% endblock %}
+{% block page_title %}{{ 'Edit ' + purchase['num'] if purchase else 'New Purchase' }}{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('purchases') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+
+<form method="post"
+  action="{{ url_for('edit_purchase', pid=purchase['id']) if purchase else url_for('add_purchase') }}"
+  style="max-width:1000px">
+  <div class="form-card" style="max-width:none;margin-bottom:16px">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Supplier *</label>
+        <select name="supplier" id="supplierSelect" class="form-control" required onchange="linkSupplier(this)">
+          <option value="">— Select supplier —</option>
+          {% for s in suppliers %}
+          {% set label = s['company'] if s['company'] else s['name'] %}
+          <option value="{{ label }}" data-id="{{ s['id'] }}"
+            {{ 'selected' if purchase and purchase['supplier'] == label }}>{{ label }}</option>
+          {% endfor %}
+          <option value="Other" {{ 'selected' if purchase and purchase['supplier'] == 'Other' }}>Other</option>
+        </select>
+        <input type="hidden" name="supplier_id" id="supplier_id" value="{{ purchase['supplier_id'] if purchase and purchase['supplier_id'] else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input name="doc_date" type="date" class="form-control" value="{{ purchase['doc_date'] if purchase else today }}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Receive to Warehouse *</label>
+        <select name="warehouse_id" class="form-control" required>
+          {% for w in warehouses %}<option value="{{ w['id'] }}" {{ 'selected' if purchase and purchase['warehouse_id'] == w['id'] else ('selected' if not purchase and w['id'] == default_wh_id) }}>{{ w['name'] }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Currency</label>
+        <select name="currency" id="currencySelect" class="form-control" onchange="currencyChanged()">
+          {% for cur in [('GBP','GBP £'),('USD','USD $'),('EUR','EUR €'),('PLN','PLN zł')] %}
+          <option value="{{ cur[0] }}" {{ 'selected' if purchase and purchase['currency'] == cur[0] else ('selected' if not purchase and cur[0] == 'GBP') }}>{{ cur[1] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:8px">
+          Tax / VAT (%)
+          <label style="display:flex;align-items:center;gap:5px;font-weight:400;color:#64748b;text-transform:none;letter-spacing:0;cursor:pointer">
+            <input type="checkbox" id="vatToggle" onchange="toggleVat(this)"
+              {{ 'checked' if purchase and purchase['tax_pct'] and purchase['tax_pct'] > 0 }}
+              style="width:14px;height:14px;cursor:pointer;accent-color:#2563eb">
+            <span style="font-size:11px">Apply VAT</span>
+          </label>
+        </label>
+        <div id="vatField" style="{{ '' if purchase and purchase['tax_pct'] and purchase['tax_pct'] > 0 else 'display:none' }}">
+          <input name="tax_pct" id="taxPct" type="number" min="0" max="100" step="0.1" class="form-control"
+            value="{{ purchase['tax_pct']|int if purchase and purchase['tax_pct'] else 20 }}" oninput="calcTotal()">
+        </div>
+        <input name="tax_pct" id="taxPctHidden" type="hidden" value="0">
+        <div id="vatNote" style="font-size:11px;color:#94a3b8;margin-top:5px;{{ 'display:none' if purchase and purchase['tax_pct'] and purchase['tax_pct'] > 0 }}">
+          ✓ No VAT on imports
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <input name="notes" class="form-control" placeholder="Optional" value="{{ purchase['notes'] if purchase else '' }}">
+      </div>
+    </div>
+  </div>
+
+  <script>
+  function toggleVat(cb) {
+    const field  = document.getElementById('vatField');
+    const note   = document.getElementById('vatNote');
+    const hidden = document.getElementById('taxPctHidden');
+    const real   = document.getElementById('taxPct');
+    if (cb.checked) {
+      field.style.display = '';
+      note.style.display  = 'none';
+      hidden.disabled     = true;
+      real.disabled       = false;
+    } else {
+      field.style.display = 'none';
+      note.style.display  = '';
+      hidden.disabled     = false;
+      real.disabled       = true;
+      real.value = 20; // keep for next time toggle is turned on
+    }
+    calcTotal();
+  }
+  // init on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    const cb = document.getElementById('vatToggle');
+    const hidden = document.getElementById('taxPctHidden');
+    const real   = document.getElementById('taxPct');
+    if (!cb.checked) { hidden.disabled = false; real.disabled = true; }
+    else             { hidden.disabled = true;  real.disabled = false; }
+  });
+  </script>
+
+  {% set li_price_label = 'Cost' %}
+  {% set li_price_field = 'cost' %}
+  {% set li_show_wh     = False %}
+  {% set li_items       = items %}
+  {% set li_edit_doc    = purchase %}
+  {% set li_currency    = purchase['currency'] if purchase else 'GBP' %}
+  {% set li_tax         = purchase['tax_pct']|int if purchase else 0 %}
+  {% set li_discount    = purchase['discount']|int if purchase and purchase['discount'] else 0 %}
+  {% include '_line_items.html' %}
+
+  <script>
+  function linkSupplier(sel) {
+    document.getElementById('supplier_id').value = sel.options[sel.selectedIndex].dataset.id || '';
+  }
+  </script>
+
+  <div class="btn-group">
+    <button type="submit" class="btn btn-primary">{{ 'Save Changes' if purchase else 'Save Purchase' }}</button>
+    <a href="{{ url_for('purchases') }}" class="btn">Cancel</a>
+  </div>
+</form>
+{% endblock %}

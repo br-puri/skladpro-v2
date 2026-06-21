@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}{{ contact['name'] }}{% endblock %}
+{% block page_title %}{{ contact['name'] }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('edit_contact', cid=contact['id']) }}" class="btn">Edit</a>
+  <a href="{{ url_for('contacts') }}" class="back-link">← Back</a>
+{% endblock %}
+{% block content %}
+<div class="two-col" style="margin-bottom:18px">
+  <div class="form-card" style="max-width:none">
+    {% if outstanding > 0 %}
+    <div style="background:#fff3f3;border:1px solid #f5c6c6;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:600;color:#c0392b">Outstanding Balance</div>
+      <div style="font-size:20px;font-weight:700;color:#c0392b">£{{ "{:,.2f}".format(outstanding) }}</div>
+    </div>
+    {% elif contact['type'] == 'customer' %}
+    <div style="background:#f0faf4;border:1px solid #b7dfc8;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:600;color:#1a8a4a">Outstanding Balance</div>
+      <div style="font-size:20px;font-weight:700;color:#1a8a4a">£0.00 — all paid</div>
+    </div>
+    {% endif %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div><div class="metric-label">Type</div><span class="badge badge-{{ 'info' if contact['type']=='customer' else 'neutral' }}">{{ contact['type'] }}</span></div>
+      <div><div class="metric-label">Balance</div><div style="font-weight:600;color:{{ '#1a8a4a' if contact['balance']>=0 else '#c0392b' }}">£{{ "{:,.2f}".format(contact['balance']) }}</div></div>
+      {% if contact['company'] %}<div><div class="metric-label">Company</div><div>{{ contact['company'] }}</div></div>{% endif %}
+      {% if contact['vat_number'] %}<div><div class="metric-label">VAT Number</div><div>{{ contact['vat_number'] }}</div></div>{% endif %}
+      <div><div class="metric-label">Phone</div><div>{{ contact['phone'] or '—' }}</div></div>
+      <div><div class="metric-label">Email</div><div>{{ contact['email'] or '—' }}</div></div>
+      <div style="grid-column:1/-1"><div class="metric-label">Address</div><div>{{ [contact['address'], contact['address2'], contact['city'], contact['postcode'], contact['country']]|select|join(', ') or '—' }}</div></div>
+      <div><div class="metric-label">Discount</div><div>{{ contact['discount_pct']|int }}%</div></div>
+      <div><div class="metric-label">Currency</div><div>{{ contact['currency'] }}</div></div>
+    </div>
+    {% if contact['notes'] %}<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0ede8;font-size:13px;color:#666">{{ contact['notes'] }}</div>{% endif %}
+  </div>
+  <div class="card" style="margin-bottom:0">
+    <div class="card-header"><span class="card-title">Add Note / Interaction</span></div>
+    <form method="post" action="{{ url_for('add_contact_note', cid=contact['id']) }}" style="padding:16px">
+      <div class="form-group">
+        <select name="type" class="form-control" style="margin-bottom:8px">
+          <option value="note">Note</option><option value="call">Call</option>
+          <option value="meeting">Meeting</option><option value="email">Email</option>
+        </select>
+      </div>
+      <div class="form-group"><textarea name="desc" class="form-control" rows="3" placeholder="Write a note…" required></textarea></div>
+      <button type="submit" class="btn btn-primary btn-sm">Add Note</button>
+    </form>
+  </div>
+</div>
+
+{% if history %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-header"><span class="card-title">Interaction History</span></div>
+  <table><thead><tr><th>Date</th><th>Type</th><th>Description</th></tr></thead><tbody>
+  {% for h in history %}
+  <tr><td>{{ h['event_date'] }}</td><td><span class="badge badge-neutral">{{ h['event_type'] }}</span></td><td>{{ h['desc'] }}</td></tr>
+  {% endfor %}
+  </tbody></table>
+</div>{% endif %}
+
+{% if sales %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-header"><span class="card-title">Sales</span></div>
+  <table><thead><tr><th>Doc</th><th>Date</th><th>Total</th><th>Status</th></tr></thead><tbody>
+  {% for s in sales %}
+  <tr><td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ s['num'] }}</a></td>
+  <td>{{ s['doc_date'] }}</td><td>£{{ "{:,.0f}".format(s['total']) }}</td>
+  <td><span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}">{{ s['status'] }}</span></td></tr>
+  {% endfor %}
+  </tbody></table>
+</div>{% endif %}
+
+{% if purchases %}
+<div class="card">
+  <div class="card-header"><span class="card-title">Purchases</span></div>
+  <table><thead><tr><th>Doc</th><th>Date</th><th>Total</th><th>Status</th></tr></thead><tbody>
+  {% for p in purchases %}
+  <tr><td><a href="{{ url_for('view_purchase', pid=p['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ p['num'] }}</a></td>
+  <td>{{ p['doc_date'] }}</td><td>£{{ "{:,.0f}".format(p['total']) }}</td>
+  <td><span class="badge badge-success">{{ p['status'] }}</span></td></tr>
+  {% endfor %}
+  </tbody></table>
+</div>{% endif %}
+{% endblock %}

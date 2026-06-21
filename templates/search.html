@@ -1,0 +1,298 @@
+{% extends 'base.html' %}
+{% block title %}Search{% endblock %}
+{% block page_title %}Search{% endblock %}
+{% block content %}
+<div style="max-width:860px;margin:0 auto">
+
+{% if not q %}
+<div class="card" style="text-align:center;padding:48px 32px;color:#94a3b8">
+  <div style="font-size:40px;margin-bottom:12px">🔍</div>
+  <div style="font-size:16px;font-weight:600;color:#64748b">Type something in the search bar above</div>
+  <div style="font-size:13px;margin-top:6px">Search across products, sales, purchases, contacts, and more</div>
+</div>
+{% elif total == 0 %}
+<div class="card" style="text-align:center;padding:48px 32px;color:#94a3b8">
+  <div style="font-size:40px;margin-bottom:12px">😕</div>
+  <div style="font-size:16px;font-weight:600;color:#64748b">No results for "{{ q }}"</div>
+  <div style="font-size:13px;margin-top:6px">Try a different keyword or check the spelling</div>
+</div>
+{% else %}
+<div style="font-size:13px;color:#94a3b8;margin-bottom:16px">{{ total }} result{{ 's' if total != 1 }} for "<strong style="color:#374151">{{ q }}</strong>"</div>
+
+{% macro highlight(text) %}{{ text }}{% endmacro %}
+
+{# ── Products ── #}
+{% if results.products %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Products</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.products|length }} result{{ 's' if results.products|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Unit</th><th></th></tr></thead>
+      <tbody>
+        {% for p in results.products %}
+        <tr>
+          <td class="mono">{{ p['sku'] or '—' }}</td>
+          <td><strong>{{ p['name'] }}</strong></td>
+          <td style="color:#64748b">{{ p['category'] or '—' }}</td>
+          <td>{{ p['unit'] }}</td>
+          <td><a href="{{ url_for('edit_product', pid=p['id']) }}" class="btn btn-sm">Edit</a>
+              <a href="{{ url_for('stock_movements', pid=p['id']) }}" class="btn btn-sm">History</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Contacts ── #}
+{% if results.contacts %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Contacts</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.contacts|length }} result{{ 's' if results.contacts|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Type</th><th>Email</th><th>Phone</th><th></th></tr></thead>
+      <tbody>
+        {% for c in results.contacts %}
+        <tr>
+          <td><strong>{{ c['name'] }}</strong></td>
+          <td><span class="badge {{ 'badge-success' if c['type']=='customer' else 'badge-warning' }}">{{ c['type'] }}</span></td>
+          <td style="color:#64748b">{{ c['email'] or '—' }}</td>
+          <td style="color:#64748b">{{ c['phone'] or '—' }}</td>
+          <td><a href="{{ url_for('edit_customer', cid=c['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Sales ── #}
+{% if results.sales %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Sales</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.sales|length }} result{{ 's' if results.sales|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Number</th><th>Date</th><th>Customer</th><th>Status</th><th style="text-align:right">Total</th><th></th></tr></thead>
+      <tbody>
+        {% for s in results.sales %}
+        <tr>
+          <td class="mono">{{ s['num'] }}</td>
+          <td>{{ s['doc_date'] }}</td>
+          <td>{{ s['contact_name'] or '—' }}</td>
+          <td><span class="badge {% if s['status']=='applied' %}badge-success{% elif s['status']=='draft' %}badge-warning{% else %}badge-neutral{% endif %}">{{ s['status'] }}</span></td>
+          <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(s['total']) }}</td>
+          <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Purchases ── #}
+{% if results.purchases %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Purchases</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.purchases|length }} result{{ 's' if results.purchases|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Number</th><th>Date</th><th>Supplier</th><th>Status</th><th style="text-align:right">Total</th><th></th></tr></thead>
+      <tbody>
+        {% for p in results.purchases %}
+        <tr>
+          <td class="mono">{{ p['num'] }}</td>
+          <td>{{ p['doc_date'] }}</td>
+          <td>{{ p['contact_name'] or '—' }}</td>
+          <td><span class="badge {% if p['status']=='applied' %}badge-success{% elif p['status']=='draft' %}badge-warning{% else %}badge-neutral{% endif %}">{{ p['status'] }}</span></td>
+          <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(p['total']) }}</td>
+          <td><a href="{{ url_for('view_purchase', pid=p['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Quotes ── #}
+{% if results.quotes %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Quotes</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.quotes|length }} result{{ 's' if results.quotes|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Number</th><th>Date</th><th>Customer</th><th>Status</th><th style="text-align:right">Total</th><th></th></tr></thead>
+      <tbody>
+        {% for q2 in results.quotes %}
+        <tr>
+          <td class="mono">{{ q2['num'] }}</td>
+          <td>{{ q2['doc_date'] }}</td>
+          <td>{{ q2['contact_name'] or '—' }}</td>
+          <td><span class="badge badge-neutral">{{ q2['status'] }}</span></td>
+          <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(q2['total']) }}</td>
+          <td><a href="{{ url_for('view_quote', qid=q2['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Credit Notes ── #}
+{% if results.credit_notes %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Credit Notes</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.credit_notes|length }} result{{ 's' if results.credit_notes|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Number</th><th>Date</th><th>Customer</th><th>Status</th><th style="text-align:right">Total</th><th></th></tr></thead>
+      <tbody>
+        {% for cn in results.credit_notes %}
+        <tr>
+          <td class="mono">{{ cn['num'] }}</td>
+          <td>{{ cn['doc_date'] }}</td>
+          <td>{{ cn['contact_name'] or '—' }}</td>
+          <td><span class="badge {% if cn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">{{ cn['status'] }}</span></td>
+          <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(cn['total']) }}</td>
+          <td><a href="{{ url_for('view_credit_note', cnid=cn['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Debit Notes ── #}
+{% if results.debit_notes %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Debit Notes</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.debit_notes|length }} result{{ 's' if results.debit_notes|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Number</th><th>Date</th><th>Supplier</th><th>Status</th><th style="text-align:right">Total</th><th></th></tr></thead>
+      <tbody>
+        {% for dn in results.debit_notes %}
+        <tr>
+          <td class="mono">{{ dn['num'] }}</td>
+          <td>{{ dn['doc_date'] }}</td>
+          <td>{{ dn['supplier'] or '—' }}</td>
+          <td><span class="badge {% if dn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">{{ dn['status'] }}</span></td>
+          <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(dn['total']) }}</td>
+          <td><a href="{{ url_for('view_debit_note', dnid=dn['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Write-offs ── #}
+{% if results.writeoffs %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Write-offs</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.writeoffs|length }} result{{ 's' if results.writeoffs|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Number</th><th>Date</th><th>Warehouse</th><th>Reason</th><th></th></tr></thead>
+      <tbody>
+        {% for w in results.writeoffs %}
+        <tr>
+          <td class="mono">{{ w['num'] }}</td>
+          <td>{{ w['doc_date'] }}</td>
+          <td>{{ w['wh_name'] or '—' }}</td>
+          <td style="color:#64748b">{{ w['reason'] or '—' }}</td>
+          <td><a href="{{ url_for('view_writeoff', wid=w['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Transactions ── #}
+{% if results.transactions %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Finance Transactions</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.transactions|length }} result{{ 's' if results.transactions|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Type</th><th>Contact</th><th>Notes</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>
+        {% for t in results.transactions %}
+        <tr>
+          <td>{{ t['doc_date'] }}</td>
+          <td><span class="badge badge-neutral">{{ t['type'] }}</span></td>
+          <td>{{ t['contact_name'] or '—' }}</td>
+          <td style="color:#64748b;font-size:12px">{{ t['notes'] or '—' }}</td>
+          <td style="text-align:right;font-weight:600">£{{ "{:,.2f}".format(t['amount']) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Warehouses ── #}
+{% if results.warehouses %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-header">
+    <span class="card-title">Warehouses</span>
+    <span style="font-size:12px;color:#94a3b8">{{ results.warehouses|length }} result{{ 's' if results.warehouses|length != 1 }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Location</th><th></th></tr></thead>
+      <tbody>
+        {% for w in results.warehouses %}
+        <tr>
+          <td><strong>{{ w['name'] }}</strong></td>
+          <td style="color:#64748b">{{ w['location'] or '—' }}</td>
+          <td><a href="{{ url_for('warehouses') }}" class="btn btn-sm">View All</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+</div>
+
+<script>
+// Focus search input if empty on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const inp = document.getElementById('global-search-input');
+  if (inp && !inp.value) inp.focus();
+});
+</script>
+{% endblock %}

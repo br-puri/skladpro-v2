@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ count['num'] }}{% endblock %}
+{% block page_title %}Inventory Count — {{ count['num'] }}{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('inventory_counts') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px;font-size:13px;color:#666">
+  Warehouse: <strong>{{ count['wh_name'] }}</strong> &nbsp;·&nbsp; Date: <strong>{{ count['doc_date'] }}</strong>
+  &nbsp;·&nbsp; Status: <span class="badge badge-{{ 'success' if count['status']=='applied' else 'warning' }}">{{ count['status'] }}</span>
+</div>
+<form method="post">
+<div class="card">
+  <div class="table-wrap">
+  <table><thead><tr><th>SKU</th><th>Product</th><th>Unit</th><th>System Qty</th><th>Actual Qty</th><th>Difference</th></tr></thead>
+  <tbody>
+  {% for item in items %}
+  <tr style="{{ 'background:#fff8e1' if item['qty_system'] != item['qty_actual'] else '' }}">
+    <td class="mono">{{ item['sku'] }}</td>
+    <td>{{ item['product_name'] }}</td>
+    <td>{{ item['unit'] }}</td>
+    <td>{{ item['qty_system']|int }}</td>
+    <td>{% if count['status']=='draft' %}
+      <input type="number" name="actual_{{ item['id'] }}" value="{{ item['qty_actual'] }}" step="0.01" min="0"
+             style="width:90px;padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px" oninput="updateDiff(this, {{ item['qty_system'] }})">
+    {% else %}{{ item['qty_actual']|int }}{% endif %}</td>
+    <td id="diff_{{ item['id'] }}" style="color:{{ '#c0392b' if item['qty_actual'] < item['qty_system'] else '#1a8a4a' if item['qty_actual'] > item['qty_system'] else '#aaa' }}">
+      {{ (item['qty_actual'] - item['qty_system'])|int }}
+    </td>
+  </tr>{% endfor %}
+  </tbody></table>
+  </div>
+</div>
+{% if count['status'] == 'draft' %}
+<div class="btn-group" style="margin-top:16px">
+  <button type="submit" name="action" value="save" class="btn btn-primary">Save</button>
+  <button type="submit" name="action" value="apply" class="btn" style="border-color:#1a8a4a;color:#1a8a4a" onclick="return confirm('Apply count and update all stock levels?')">Apply & Update Stock</button>
+  <a href="{{ url_for('inventory_counts') }}" class="btn">Cancel</a>
+</div>{% endif %}
+</form>
+<script>
+function updateDiff(input, system) {
+  const actual = parseFloat(input.value) || 0;
+  const diff = actual - system;
+  const id = input.name.replace('actual_', '');
+  const el = document.getElementById('diff_' + id);
+  if (el) { el.textContent = Math.round(diff); el.style.color = diff < 0 ? '#c0392b' : diff > 0 ? '#1a8a4a' : '#aaa'; }
+}
+</script>
+{% endblock %}

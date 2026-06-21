@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Write-offs{% endblock %}
+{% block page_title %}Write-offs{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_writeoff') }}" class="btn btn-primary">+ New Write-off</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  {% if writeoffs %}
+  <table><thead><tr><th>Doc</th><th>Date</th><th>Warehouse</th><th>Reason</th><th>Total Cost</th><th></th></tr></thead><tbody>
+  {% for w in writeoffs %}
+  <tr>
+    <td><a href="{{ url_for('view_writeoff', wid=w['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ w['num'] }}</a></td>
+    <td>{{ w['doc_date'] }}</td><td>{{ w['wh_name'] or '—' }}</td><td>{{ w['reason'] or '—' }}</td>
+    <td style="color:#c0392b">£{{ "{:,.2f}".format(w['total_cost']) }}</td>
+    <td><a href="{{ url_for('view_writeoff', wid=w['id']) }}" class="btn btn-sm">View</a></td>
+  </tr>{% endfor %}
+  </tbody></table>
+  {% else %}<div class="empty">No write-offs yet</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

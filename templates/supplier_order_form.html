@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit ' + order['num'] if order else 'New Supplier Order' }}{% endblock %}
+{% block page_title %}{{ 'Edit ' + order['num'] if order else 'New Supplier Order' }}{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('supplier_orders') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<style>
+  form .card { padding: 18px 20px; }
+  .so-meta-grid { display:grid; grid-template-columns: 180px 1fr 1.4fr; gap:14px; align-items:end; }
+  .so-meta-grid .form-group { margin: 0; }
+  /* hide spinner arrows on number inputs */
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  .so-picker {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px;
+    margin-top: 16px; position: relative;
+  }
+  .so-picker-row { display:flex; gap:10px; align-items:center; }
+  .so-picker .icon {
+    width: 32px; height:32px; border-radius: 8px; background:#1f2937; color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;
+  }
+  .so-picker input {
+    flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px;
+    font-size: 14px; background:#fff;
+  }
+  .so-picker input:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.15); }
+  .so-picker .hint { font-size:12px; color:#64748b; }
+
+  .so-results {
+    display:none; position:absolute; top:calc(100% - 4px); left:14px; right:14px;
+    background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+    box-shadow:0 10px 30px rgba(15,23,42,.12); max-height: 340px; overflow-y:auto;
+    z-index: 50;
+  }
+  .so-results.open { display:block; }
+  .so-result {
+    display:flex; gap:12px; align-items:center; padding:10px 12px; cursor:pointer;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .so-result:last-child { border-bottom:none; }
+  .so-result:hover, .so-result.active { background:#eff6ff; }
+  .so-result img, .so-result .ph {
+    width:42px; height:42px; border-radius:6px; object-fit:cover; background:#f1f5f9;
+    display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:11px;
+    flex-shrink:0; border:1px solid #e2e8f0;
+  }
+  .so-result .info { flex:1; min-width:0; }
+  .so-result .name { font-size:13px; font-weight:600; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .so-result .sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+  .so-result .meta { font-size:11px; color:#64748b; text-align:right; flex-shrink:0; }
+  .so-empty { padding: 18px; color:#94a3b8; text-align:center; font-size:13px; }
+
+  .so-cards { display:flex; flex-direction:column; gap:10px; margin-top: 16px; }
+  .so-card {
+    display:grid;
+    grid-template-columns: 64px minmax(180px, 2fr) minmax(100px, 1fr) 120px 90px 100px 36px;
+    gap: 12px; align-items:end;
+    background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .so-card .photo-wrap { align-self:center; }
+  .so-card .so-row-del { align-self:center; }
+  .so-card:hover { border-color:#cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,.04); }
+  .so-card .photo-wrap { position:relative; }
+  .so-card .photo-wrap img,
+  .so-card .photo-wrap .ph {
+    width:56px; height:56px; border-radius:8px; object-fit:cover; display:block;
+    border:1px solid #e2e8f0; background:#f8fafc;
+  }
+  .so-card .photo-wrap .ph {
+    display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:11px;
+    border-style: dashed;
+  }
+  .so-card .photo-wrap input[type=file] {
+    position:absolute; inset:0; opacity:0; cursor:pointer; width:56px; height:56px;
+  }
+  .so-card input[type=text], .so-card input[type=number] {
+    width:100%; padding: 8px 10px; border:1px solid #e2e8f0; border-radius:7px; font-size:13px;
+    background:#fff;
+  }
+  .so-card input[type=number] { text-align:right; }
+  .so-card input:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+  .so-card .field-label { font-size: 10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; display:block; }
+  .so-card .field { display:flex; flex-direction:column; }
+  .so-row-del {
+    width:32px; height:32px; border-radius:8px; background:#fee2e2; color:#dc2626;
+    border:none; cursor:pointer; font-size:18px; line-height:1;
+    display:flex; align-items:center; justify-content:center; transition: background .15s;
+  }
+  .so-row-del:hover { background:#fecaca; }
+
+  .so-summary {
+    margin-top: 16px; padding:14px 16px; background:#0f172a; color:#fff; border-radius:10px;
+    display:flex; gap:24px; align-items:center; justify-content:flex-end; font-size:13px;
+  }
+  .so-summary .stat { display:flex; flex-direction:column; align-items:flex-end; }
+  .so-summary .stat .lbl { font-size:10px; opacity:.6; text-transform:uppercase; letter-spacing:.08em; }
+  .so-summary .stat .val { font-size:18px; font-weight:700; font-variant-numeric: tabular-nums; }
+
+  .so-empty-state {
+    padding: 40px 20px; text-align:center; color:#94a3b8; font-size:13px;
+    border: 1px dashed #e2e8f0; border-radius:10px;
+  }
+
+  @media (max-width: 900px) {
+    .so-card { grid-template-columns: 48px 1fr 32px; grid-auto-rows:auto; }
+    .so-card .field { grid-column: 1 / -1; }
+  }
+</style>
+
+<form method="post" enctype="multipart/form-data"
+  action="{{ url_for('edit_supplier_order', oid=order['id']) if order else url_for('add_supplier_order') }}">
+
+  <div class="card">
+    <div class="so-meta-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input name="doc_date" type="date" class="form-control" value="{{ order['doc_date'] if order else today }}" required>
+      </div>
+      <div class="form-group">
+        <label>Supplier</label>
+        <input list="suppliers-list" name="supplier" class="form-control" value="{{ order['supplier'] if order else '' }}" placeholder="Type or pick a supplier">
+        <datalist id="suppliers-list">
+          {% for s in suppliers %}<option value="{{ s['name'] }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <input name="notes" class="form-control" value="{{ order['notes'] if order else '' }}" placeholder="Optional notes for this order">
+      </div>
+    </div>
+
+    <div class="so-picker">
+      <div class="so-picker-row">
+        <div class="icon">🔍</div>
+        <input type="text" id="productSearch" placeholder="Search products by name or SKU to add to this order…" autocomplete="off">
+        <span class="hint" id="productHint">{{ products|length }} products available</span>
+      </div>
+      <div class="so-results" id="productResults"></div>
+    </div>
+
+    <div class="so-cards" id="itemsList"></div>
+    <div class="so-empty-state" id="emptyState" style="display:none">
+      No items yet — search above to pick from your catalogue, or
+      <a href="#" onclick="addBlankRow(event)" style="color:#3b82f6;text-decoration:none;font-weight:500">add a blank row</a>.
+    </div>
+
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button type="button" class="btn btn-sm" onclick="addBlankRow(event)">+ Blank Row</button>
+    </div>
+
+    <div class="so-summary">
+      <div class="stat"><span class="lbl">Items</span><span class="val" id="sumItems">0</span></div>
+      <div class="stat"><span class="lbl">CTNS</span><span class="val" id="sumCtns">0</span></div>
+      <div class="stat"><span class="lbl">Total CBM</span><span class="val" id="sumCbm">0.000</span></div>
+    </div>
+  </div>
+
+  <div class="form-actions" style="margin-top:16px">
+    <button type="submit" class="btn btn-primary">{{ 'Save Changes' if order else 'Create Order' }}</button>
+    <a href="{{ url_for('supplier_orders') }}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<script>
+  const PRODUCTS = {{ products|tojson }};
+  const PHOTO_BASE = "{{ url_for('static', filename='uploads/products/') }}";
+  const EXISTING_ITEMS = {{ items|tojson }};
+
+  function el(tag, attrs={}, ...children) {
+    const e = document.createElement(tag);
+    for (const k in attrs) {
+      if (k === 'class') e.className = attrs[k];
+      else if (k === 'style') e.setAttribute('style', attrs[k]);
+      else if (k.startsWith('on')) e[k.toLowerCase()] = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    }
+    children.flat().forEach(c => { if (c == null) return; e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+
+  function fmtNum(n, d=0) {
+    if (!isFinite(n)) n = 0;
+    return n.toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+  }
+
+  function photoEl(photoFilename) {
+    if (photoFilename) {
+      const img = new Image();
+      img.src = PHOTO_BASE + photoFilename;
+      img.alt = '';
+      return img;
+    }
+    return el('div', {class:'ph'}, '—');
+  }
+
+  function addRow(data={}) {
+    const list = document.getElementById('itemsList');
+    const card = el('div', {class:'so-card'});
+
+    // Photo cell
+    const photoWrap = el('div', {class:'photo-wrap'});
+    photoWrap.appendChild(photoEl(data.photo));
+    const hiddenPhoto = el('input', {type:'hidden', name:'existing_photo[]', value: data.photo || ''});
+    const fileInput = el('input', {type:'file', name:'item_photo[]', accept:'image/*'});
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const old = photoWrap.querySelector('img, .ph');
+        if (old) old.remove();
+        const img = new Image();
+        img.src = ev.target.result;
+        photoWrap.insertBefore(img, hiddenPhoto);
+      };
+      reader.readAsDataURL(file);
+    });
+    photoWrap.appendChild(hiddenPhoto);
+    photoWrap.appendChild(fileInput);
+    card.appendChild(photoWrap);
+
+    // Name
+    card.appendChild(el('div', {class:'field'},
+      el('span', {class:'field-label'}, 'Name'),
+      el('input', {type:'text', name:'item_name[]', value: data.name || '', placeholder:'Product name'})
+    ));
+    // Article
+    card.appendChild(el('div', {class:'field'},
+      el('span', {class:'field-label'}, 'Article'),
+      el('input', {type:'text', name:'item_article[]', value: data.article || '', placeholder:'SKU'})
+    ));
+    // CBM
+    const cbmIn = el('input', {type:'number', step:'0.001', name:'item_cbm[]', value: data.cbm || 0});
+    cbmIn.addEventListener('input', recalc);
+    card.appendChild(el('div', {class:'field'}, el('span', {class:'field-label'}, 'CBM'), cbmIn));
+    // CTNS
+    const ctnsIn = el('input', {type:'number', step:'1', name:'item_ctns[]', value: data.ctns || 0});
+    ctnsIn.addEventListener('input', recalc);
+    card.appendChild(el('div', {class:'field'}, el('span', {class:'field-label'}, 'CTNS'), ctnsIn));
+    // Pcs/CTN
+    const ppcIn = el('input', {type:'number', step:'1', name:'item_pcs_per_ctn[]', value: data.pcs_per_ctn || 0});
+    ppcIn.addEventListener('input', recalc);
+    card.appendChild(el('div', {class:'field'}, el('span', {class:'field-label'}, 'Pcs/CTN'), ppcIn));
+
+    // Remove
+    const delBtn = el('button', {type:'button', class:'so-row-del', onclick: () => { card.remove(); recalc(); }}, '×');
+    card.appendChild(delBtn);
+
+    list.appendChild(card);
+    recalc();
+  }
+
+  function addBlankRow(e) { if (e) e.preventDefault(); addRow({ctns:1}); }
+
+  function recalc() {
+    const rows = document.querySelectorAll('#itemsList .so-card');
+    let items = 0, ctns = 0, cbm = 0;
+    rows.forEach(r => {
+      items++;
+      const c   = parseFloat(r.querySelector('input[name="item_ctns[]"]').value) || 0;
+      const cb  = parseFloat(r.querySelector('input[name="item_cbm[]"]').value) || 0;
+      ctns += c; cbm += c * cb;
+    });
+    document.getElementById('sumItems').textContent = items;
+    document.getElementById('sumCtns').textContent = fmtNum(ctns);
+    document.getElementById('sumCbm').textContent  = fmtNum(cbm, 3);
+    document.getElementById('emptyState').style.display = items ? 'none' : 'block';
+  }
+
+  // ── Product search ────────────────────────────────────────────────────────
+  const searchInput = document.getElementById('productSearch');
+  const results = document.getElementById('productResults');
+  let activeIdx = -1;
+
+  function renderResults(q) {
+    results.innerHTML = '';
+    if (!q) { results.classList.remove('open'); return; }
+    const ql = q.toLowerCase();
+    const matches = PRODUCTS.filter(p =>
+      (p.name || '').toLowerCase().includes(ql) ||
+      (p.sku || '').toLowerCase().includes(ql)
+    ).slice(0, 30);
+    if (!matches.length) {
+      results.appendChild(el('div', {class:'so-empty'}, 'No matches'));
+    } else {
+      matches.forEach((p, i) => {
+        const r = el('div', {class:'so-result', 'data-id': p.id, onclick: () => pickProduct(p)},
+          p.photo ? Object.assign(new Image(), {src: PHOTO_BASE + p.photo}) : el('div', {class:'ph'}, '—'),
+          el('div', {class:'info'},
+            el('div', {class:'name'}, p.name),
+            el('div', {class:'sub'}, p.sku ? 'SKU · ' + p.sku : '')
+          ),
+          el('div', {class:'meta'},
+            (p.carton_qty ? p.carton_qty + ' pcs/ctn' : ''),
+            el('br'),
+            (p.cbm ? p.cbm + ' cbm' : '')
+          )
+        );
+        results.appendChild(r);
+      });
+    }
+    results.classList.add('open');
+    activeIdx = -1;
+  }
+
+  function pickProduct(p) {
+    addRow({
+      name: p.name,
+      article: p.sku || '',
+      photo: p.photo || '',
+      cbm: p.cbm || 0,
+      pcs_per_ctn: p.carton_qty || 0,
+      ctns: 1
+    });
+    searchInput.value = '';
+    results.classList.remove('open');
+    searchInput.focus();
+  }
+
+  searchInput.addEventListener('input', e => renderResults(e.target.value.trim()));
+  searchInput.addEventListener('keydown', e => {
+    const items = results.querySelectorAll('.so-result');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      items.forEach((it, i) => it.classList.toggle('active', i === activeIdx));
+      if (items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'});
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      items.forEach((it, i) => it.classList.toggle('active', i === activeIdx));
+      if (items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'});
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && items[activeIdx]) items[activeIdx].click();
+      else if (items.length === 1) items[0].click();
+    } else if (e.key === 'Escape') {
+      results.classList.remove('open');
+    }
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.so-picker')) results.classList.remove('open');
+  });
+
+  // ── Init existing items ───────────────────────────────────────────────────
+  if (EXISTING_ITEMS && EXISTING_ITEMS.length) {
+    EXISTING_ITEMS.forEach(it => addRow(it));
+  } else {
+    recalc();
+  }
+</script>
+{% endblock %}

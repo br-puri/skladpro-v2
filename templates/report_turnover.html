@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Stock Turnover{% endblock %}
+{% block page_title %}Stock Turnover Report{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Reports</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+  <table><thead><tr><th>SKU</th><th>Product</th><th>Unit</th><th>Received</th><th>Sold</th><th>Written Off</th><th>Current Stock</th><th>Turnover Ratio</th></tr></thead><tbody>
+  {% for r in rows %}
+  <tr>
+    <td class="mono">{{ r['sku'] }}</td><td>{{ r['name'] }}</td><td>{{ r['unit'] }}</td>
+    <td style="color:#1a8a4a">{{ r['in']|int }}</td>
+    <td style="color:#1a6ef5">{{ r['out']|int }}</td>
+    <td style="color:#c0392b">{{ r['writeoff']|int }}</td>
+    <td><strong>{{ r['stock']|int }}</strong></td>
+    <td><span class="badge badge-{{ 'success' if r['turnover']>1 else 'warning' if r['turnover']>0 else 'neutral' }}">{{ r['turnover'] }}</span></td>
+  </tr>{% endfor %}
+  </tbody></table>
+  </div>
+</div>
+{% endblock %}

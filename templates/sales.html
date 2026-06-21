@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Sales{% endblock %}
+{% block page_title %}Sales{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('sales_archive') }}" class="btn">Archive</a>
+  <a href="{{ url_for('add_sale') }}" class="btn btn-primary">+ New Sale</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="search-wrap" method="get" style="padding:12px 16px;border-bottom:1px solid #f0ede8">
+    <label class="form-label" style="margin:0;white-space:nowrap">Customer</label>
+    <select name="customer_id" class="form-control" style="width:180px">
+      <option value="">All customers</option>
+      {% for c in customers %}
+      <option value="{{ c['id'] }}" {{ 'selected' if c['id']|string == customer_id }}>{{ c['label'] }}</option>
+      {% endfor %}
+    </select>
+    <label class="form-label" style="margin:0;white-space:nowrap">From</label>
+    <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:150px">
+    <label class="form-label" style="margin:0;white-space:nowrap">Till</label>
+    <input type="date" name="date_till" value="{{ date_till }}" class="form-control" style="width:150px">
+    <button type="submit" class="btn">Filter</button>
+    {% if date_from or date_till or customer_id %}<a href="{{ url_for('sales') }}" class="btn">Clear</a>{% endif %}
+  </form>
+  <div class="table-wrap">
+  {% if sales %}
+  <table>
+    <thead><tr><th class="cb-col"><input type="checkbox" id="select-all"></th><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th><th>Payment</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sales %}
+    <tr>
+      <td class="cb-col"><input type="checkbox" class="bulk-cb" value="{{ s['id'] }}"></td>
+      <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ s['num'] }}</a></td>
+      <td>{{ s['doc_date'] }}</td>
+      <td>{{ s['customer'] }}</td>
+      <td>£{{ "{:,.0f}".format(s['total']) }}</td>
+      <td><span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}">{{ s['status'] }}</span></td>
+      <td>
+        <form method="post" action="{{ url_for('toggle_paid', sid=s['id']) }}" style="display:inline">
+          <button class="badge badge-{{ 'success' if s['paid'] else 'danger' }}" style="border:none;cursor:pointer;font-size:11px;padding:3px 8px">
+            {{ 'Paid' if s['paid'] else 'Unpaid' }}
+          </button>
+        </form>
+      </td>
+      <td>
+        <div class="btn-group">
+          <a href="{{ url_for('view_sale', sid=s['id']) }}" class="btn btn-sm">View</a>
+          {% if s['status'] != 'cancelled' %}
+          <a href="{{ url_for('edit_sale', sid=s['id']) }}" class="btn btn-sm">Edit</a>
+          {% endif %}
+          {% if s['status'] == 'completed' %}
+          <form method="post" action="{{ url_for('cancel_sale', sid=s['id']) }}" onsubmit="return confirm('Cancel sale and restore stock?')">
+            <button class="btn btn-sm btn-danger">Cancel</button>
+          </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('archive_sale', sid=s['id']) }}" onsubmit="return confirm('Archive this sale? Stock will be restored if completed.')">
+            <button class="btn btn-sm">Archive</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No sales yet</div>
+  {% endif %}
+  </div>
+</div>
+<form id="bulk-form" method="post" style="display:none"><input type="hidden" id="bulk-action-input" name="action"></form>
+<div id="bulk-bar" class="bulk-bar">
+  <span id="bulk-count">0 selected</span>
+  <select id="bulk-action"><option value="">— Action —</option><option value="archive">Archive</option><option value="cancel">Cancel</option></select>
+  <button id="bulk-submit" class="btn btn-sm btn-primary">Apply</button>
+  <button id="bulk-cancel" class="btn btn-sm" style="background:#444;border-color:#444;color:#fff">Cancel selection</button>
+</div>
+<script>initBulk("{{ url_for('bulk_sales') }}", "Apply '{a}' to {n} sale(s)?");</script>
+{% endblock %}

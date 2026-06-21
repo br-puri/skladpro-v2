@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Audit Log{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Audit Log <span style="font-size:13px;font-weight:400;color:#94a3b8">({{ total }} entries)</span></h2>
+  <form method="GET" style="display:flex;gap:8px;align-items:center">
+    <select name="user" class="form-control" style="width:auto" onchange="this.form.submit()">
+      <option value="">All users</option>
+      {% for u in users %}
+        <option value="{{ u['username'] }}" {% if u['username']==user_filter %}selected{% endif %}>{{ u['username'] }}</option>
+      {% endfor %}
+    </select>
+    {% if user_filter %}<a href="{{ url_for('audit_log') }}" class="btn btn-sm">Clear</a>{% endif %}
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time (UTC)</th>
+          <th>User</th>
+          <th>Method</th>
+          <th>Path</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="mono" style="white-space:nowrap">{{ r['ts'] }}</td>
+          <td style="font-weight:500">{{ r['username'] or '—' }}</td>
+          <td>
+            <span class="badge {% if r['method']=='POST' %}badge-info{% else %}badge-neutral{% endif %}">
+              {{ r['method'] }}
+            </span>
+          </td>
+          <td class="mono" style="color:#374151">{{ r['path'] }}</td>
+          <td>
+            <span class="badge {% if r['status'] < 400 %}badge-success{% else %}badge-danger{% endif %}">
+              {{ r['status'] }}
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No activity yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if pages > 1 %}
+<div style="display:flex;gap:6px;justify-content:center;margin-top:16px">
+  {% for p in range(1, pages+1) %}
+    <a href="?page={{ p }}{% if user_filter %}&user={{ user_filter }}{% endif %}"
+       class="btn btn-sm {% if p==page %}btn-primary{% endif %}">{{ p }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

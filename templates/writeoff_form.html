@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% block title %}New Write-off{% endblock %}
+{% block page_title %}New Write-off{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('writeoffs') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<form method="post" style="max-width:760px">
+  <div class="form-card" style="max-width:none;margin-bottom:16px">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Warehouse *</label>
+        <select name="warehouse_id" class="form-control" required>
+          {% for w in warehouses %}<option value="{{ w['id'] }}" {{ 'selected' if w['id'] == default_wh_id }}>{{ w['name'] }}</option>{% endfor %}
+        </select></div>
+      <div class="form-group"><label class="form-label">Date</label><input name="doc_date" type="date" class="form-control" value="{{ today }}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Reason</label><input name="reason" class="form-control" placeholder="e.g. Damage, Expiry, Theft"></div>
+    <div class="form-group"><label class="form-label">Notes</label><input name="notes" class="form-control" placeholder="Optional"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <span class="card-title">Items to Write Off</span>
+      <button type="button" class="btn btn-sm" onclick="addRow()">+ Add Line</button>
+    </div>
+    <div style="padding:10px 16px 4px">
+      <div style="position:relative;margin-bottom:10px;background:#f0f7ff;border:1px solid #c3d9f5;border-radius:8px;padding:9px 14px;display:flex;align-items:center;gap:10px">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;color:#6b87b0"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <div style="position:relative;flex:1;max-width:400px">
+          <input type="text" id="topSearch" placeholder="Type to search product by name or SKU…"
+            class="form-control" autocomplete="off" style="background:#fff">
+          <div class="prod-dropdown" id="topDropdown"></div>
+        </div>
+        <span style="font-size:12px;color:#6b87b0">Click to add a row</span>
+      </div>
+    </div>
+    <div style="overflow-x:auto;padding:0 16px">
+    <table class="line-items">
+      <thead><tr><th style="width:65%">Product</th><th style="width:25%">Qty</th><th></th></tr></thead>
+      <tbody id="itemsBody">
+        <tr>
+          <td style="position:relative;min-width:220px">
+            <input type="hidden" name="product_id[]" class="prod-id" value="">
+            <input type="text" class="form-control prod-search" value="" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+            <div class="prod-dropdown"></div>
+          </td>
+          <td><input type="number" name="qty[]" min="0" step="0.01" value="1" class="form-control" style="width:110px"></td>
+          <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div style="height:12px"></div>
+  </div>
+
+  <div class="btn-group">
+    <button type="submit" class="btn btn-danger">Create Write-off</button>
+    <a href="{{ url_for('writeoffs') }}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<script>
+const products = {{ products | tojson }};
+
+function makeRow(pid, pname) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="position:relative;min-width:220px">
+      <input type="hidden" name="product_id[]" class="prod-id" value="${pid}">
+      <input type="text" class="form-control prod-search" value="${pname}" autocomplete="off" placeholder="Search product…" oninput="searchProducts(this)">
+      <div class="prod-dropdown"></div>
+    </td>
+    <td><input type="number" name="qty[]" min="0" step="0.01" value="1" class="form-control" style="width:110px"></td>
+    <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>`;
+  return tr;
+}
+
+function addRow() {
+  document.getElementById('itemsBody').appendChild(makeRow('', ''));
+}
+
+function removeRow(btn) {
+  if (document.querySelectorAll('#itemsBody tr').length > 1) btn.closest('tr').remove();
+}
+
+function searchProducts(input) {
+  const q = input.value.toLowerCase();
+  const dropdown = input.nextElementSibling;
+  if (!q) { closeDropdown(dropdown); return; }
+  const matches = products.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+  ).slice(0, 25);
+  renderDropdown(dropdown, matches, function(p) {
+    input.value = p.name;
+    input.closest('td').querySelector('.prod-id').value = p.id;
+    closeDropdown(dropdown);
+  });
+}
+
+const topSearch = document.getElementById('topSearch');
+const topDropdown = document.getElementById('topDropdown');
+
+topSearch.addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  if (!q) { closeDropdown(topDropdown); return; }
+  const matches = products.filter(p =>
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+  ).slice(0, 25);
+  renderDropdown(topDropdown, matches, function(p) {
+    let target = null;
+    for (const row of document.querySelectorAll('#itemsBody tr')) {
+      if (!row.querySelector('.prod-id').value) { target = row; break; }
+    }
+    if (!target) {
+      const tr = makeRow('', '');
+      document.getElementById('itemsBody').appendChild(tr);
+      target = tr;
+    }
+    target.querySelector('.prod-id').value = p.id;
+    target.querySelector('.prod-search').value = p.name;
+    closeDropdown(topDropdown);
+    topSearch.value = '';
+    topSearch.focus();
+  });
+});
+
+topSearch.addEventListener('keydown', function(e) { handleDropdownKeys(e, topDropdown); });
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#topSearch') && !e.target.closest('#topDropdown')) closeDropdown(topDropdown);
+  if (!e.target.closest('.prod-search') && !e.target.closest('.prod-dropdown')) {
+    document.querySelectorAll('#itemsBody .prod-dropdown').forEach(closeDropdown);
+  }
+});
+
+function renderDropdown(dropdown, matches, onSelect) {
+  if (!matches.length) { closeDropdown(dropdown); return; }
+  dropdown.innerHTML = matches.map(p =>
+    `<div class="pd-item" data-id="${p.id}">
+      <span><strong>${p.name}</strong>${p.sku ? ` <span style="color:#aaa;font-size:11px">${p.sku}</span>` : ''}</span>
+      <span style="color:#888;font-size:12px">${p.unit || ''}</span>
+    </div>`
+  ).join('');
+  dropdown.style.display = 'block';
+  dropdown.onmousedown = function(e) {
+    const item = e.target.closest('.pd-item');
+    if (!item) return;
+    e.preventDefault();
+    const p = products.find(x => x.id == item.dataset.id);
+    if (p) onSelect(p);
+  };
+}
+
+function closeDropdown(dropdown) {
+  if (dropdown) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; }
+}
+
+function handleDropdownKeys(e, dropdown) {
+  const items = dropdown.querySelectorAll('.pd-item');
+  let active = dropdown.querySelector('.pd-item.active');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = active ? (active.nextElementSibling || items[0]) : items[0];
+    active?.classList.remove('active'); next?.classList.add('active');
+    next?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = active ? (active.previousElementSibling || items[items.length-1]) : items[items.length-1];
+    active?.classList.remove('active'); prev?.classList.add('active');
+    prev?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && active) {
+    e.preventDefault();
+    active.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  } else if (e.key === 'Escape') {
+    closeDropdown(dropdown);
+  }
+}
+
+document.getElementById('itemsBody').addEventListener('keydown', function(e) {
+  const input = e.target.closest('.prod-search');
+  if (!input) return;
+  handleDropdownKeys(e, input.nextElementSibling);
+});
+</script>
+{% endblock %}

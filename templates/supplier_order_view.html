@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}{{ order['num'] }}{% endblock %}
+{% block page_title %}{{ order['num'] }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('supplier_orders') }}" class="back-link">← Back</a>
+  <a href="{{ url_for('export_supplier_order_excel', oid=order['id']) }}" class="btn btn-sm">Excel</a>
+  <a href="{{ url_for('edit_supplier_order', oid=order['id']) }}" class="btn btn-sm">Edit</a>
+  <form method="post" action="{{ url_for('delete_supplier_order', oid=order['id']) }}" style="display:inline" onsubmit="return confirm('Delete this order?')">
+    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+  </form>
+{% endblock %}
+{% block content %}
+<style>
+  .card { padding: 18px 20px; }
+  .so-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .so-meta .lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
+  .so-meta .val { font-size: 14px; color: #0f172a; margin-top: 2px; font-weight: 500; }
+  .sov-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .sov-table th { text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+  .sov-table td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 13px; }
+  .sov-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sov-photo { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; display: block; }
+  .sov-photo-empty { width: 64px; height: 64px; border: 1px dashed #cbd5e1; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 10px; }
+  .sov-totals td { font-weight: 700; background: #f8fafc; }
+</style>
+
+<div class="card">
+  <div class="so-meta">
+    <div><div class="lbl">Date</div><div class="val">{{ order['doc_date'] }}</div></div>
+    <div><div class="lbl">Supplier</div><div class="val">{{ order['supplier'] or '—' }}</div></div>
+    <div><div class="lbl">Status</div><div class="val">{{ order['status'] }}</div></div>
+    {% if order['notes'] %}
+    <div style="grid-column: 1 / -1"><div class="lbl">Notes</div><div class="val">{{ order['notes'] }}</div></div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  {% if items %}
+  <table class="sov-table">
+    <thead>
+      <tr>
+        <th style="width:80px">Photo</th>
+        <th>Name</th>
+        <th>Article</th>
+        <th style="width:90px;text-align:right">CBM</th>
+        <th style="width:80px;text-align:right">CTNS</th>
+        <th style="width:110px;text-align:right">Pcs/CTN</th>
+        <th style="width:100px;text-align:right">Total CBM</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set ns = namespace(t_ctns=0, t_cbm=0) %}
+      {% for it in items %}
+        {% set total_cbm = (it['ctns'] or 0) * (it['cbm'] or 0) %}
+        {% set ns.t_ctns = ns.t_ctns + (it['ctns'] or 0) %}
+        {% set ns.t_cbm  = ns.t_cbm  + total_cbm %}
+        <tr>
+          <td>
+            {% if it['photo'] %}
+              <img src="{{ url_for('static', filename='uploads/products/' + it['photo']) }}" class="sov-photo" alt="">
+            {% else %}
+              <div class="sov-photo-empty">—</div>
+            {% endif %}
+          </td>
+          <td>{{ it['name'] }}</td>
+          <td class="mono">{{ it['article'] }}</td>
+          <td class="num">{{ "{:,.3f}".format(it['cbm'] or 0) }}</td>
+          <td class="num">{{ "{:,.0f}".format(it['ctns'] or 0) }}</td>
+          <td class="num">{{ "{:,.0f}".format(it['pcs_per_ctn'] or 0) }}</td>
+          <td class="num">{{ "{:,.3f}".format(total_cbm) }}</td>
+        </tr>
+      {% endfor %}
+      <tr class="sov-totals">
+        <td colspan="4" style="text-align:right">Totals</td>
+        <td class="num">{{ "{:,.0f}".format(ns.t_ctns) }}</td>
+        <td></td>
+        <td class="num">{{ "{:,.3f}".format(ns.t_cbm) }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No items in this order</div>
+  {% endif %}
+</div>
+{% endblock %}

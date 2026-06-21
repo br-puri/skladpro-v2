@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Low Stock Alerts{% endblock %}
+{% block page_title %}Low Stock Alerts{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
+{% block content %}
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Products Below Min Stock</div><div class="metric-value red">{{ rows|length }}</div></div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+  {% if rows %}
+  <table>
+    <thead><tr><th>Article</th><th>Product</th><th>Category</th><th style="text-align:right">Min Stock</th><th style="text-align:right">In Stock</th><th style="text-align:right">Shortage</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}{% set p = r['product'] %}
+    <tr style="background:#fffbf0">
+      <td class="mono">{{ p['sku'] }}</td>
+      <td><strong>{{ p['name'] }}</strong></td>
+      <td>{{ p['category'] }}</td>
+      <td style="text-align:right">{{ p['min_stock']|int }}</td>
+      <td style="text-align:right;color:{{ '#dc2626' if r['stock']==0 else '#a16207' }};font-weight:600">{{ r['stock']|int }}</td>
+      <td style="text-align:right;color:#dc2626;font-weight:600">{{ r['shortage']|int }}</td>
+      <td><a href="{{ url_for('edit_product', pid=p['id']) }}" class="btn btn-sm">Edit</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">All products are above minimum stock 🎉</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
