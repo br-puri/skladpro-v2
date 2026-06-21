@@ -723,7 +723,7 @@ def dashboard():
             JOIN products p ON p.id = si.product_id
             JOIN sales s ON s.id = si.sale_id
             WHERE s.status = 'completed'
-            GROUP BY si.product_id ORDER BY revenue DESC LIMIT 6
+            GROUP BY si.product_id, p.name ORDER BY revenue DESC LIMIT 6
         """).fetchall()
         status_counts = db.execute("""
             SELECT status, COUNT(*) as cnt, COALESCE(SUM(total),0) as total
@@ -1534,7 +1534,7 @@ def view_customer(cid):
             WHERE (s.customer_id=%s OR (s.customer_id IS NULL AND s.customer=%s))
               AND s.archived=0 AND s.status='completed'
               {date_where}
-            GROUP BY si.product_id
+            GROUP BY si.product_id, pr.name, pr.sku, pr.unit
             ORDER BY total_qty DESC
         """, date_params).fetchall()
 
@@ -2886,7 +2886,7 @@ def report_profit():
         if date_from: q += " AND s.doc_date>=%s"; params.append(date_from)
         if date_to: q += " AND s.doc_date<=%s"; params.append(date_to)
         if customer_filter: q += " AND s.customer=%s"; params.append(customer_filter)
-        rows = db.execute(q + " GROUP BY s.id ORDER BY s.doc_date DESC", params).fetchall()
+        rows = db.execute(q + " GROUP BY s.id, s.doc_date, s.num, s.customer ORDER BY s.doc_date DESC", params).fetchall()
         total_rev = sum(r['revenue'] for r in rows)
         total_cost = sum(r['cost'] for r in rows)
     return render_template('report_profit.html', rows=rows, total_rev=total_rev,
@@ -2973,7 +2973,7 @@ def report_top_customers():
         params = []
         if date_from: q += " AND s.doc_date>=%s"; params.append(date_from)
         if date_to:   q += " AND s.doc_date<=%s"; params.append(date_to)
-        q += " GROUP BY s.id"
+        q += " GROUP BY s.id, s.customer, s.total, s.paid"
         rows = db.execute(q, params).fetchall()
         agg = {}
         for r in rows:
