@@ -328,37 +328,37 @@ def init_db():
             try:
                 db.execute(f"ALTER TABLE contacts ADD COLUMN IF NOT EXISTS {col} TEXT DEFAULT ''")
             except Exception:
-                pass
+                db.rollback()
         try:
             db.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS archived INTEGER DEFAULT 0")
         except Exception:
-            pass
+            db.rollback()
         try:
             db.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid INTEGER DEFAULT 0")
         except Exception:
-            pass
+            db.rollback()
         try:
             db.execute("ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_name_snap TEXT DEFAULT ''")
         except Exception:
-            pass
-        for col in ['photo TEXT DEFAULT ""', 'length REAL DEFAULT 0', 'width REAL DEFAULT 0',
+            db.rollback()
+        for col in ["photo TEXT DEFAULT ''", 'length REAL DEFAULT 0', 'width REAL DEFAULT 0',
                     'height REAL DEFAULT 0', 'weight REAL DEFAULT 0', 'cbm REAL DEFAULT 0',
-                    'carton_qty REAL DEFAULT 0', 'subcategory TEXT DEFAULT ""',
+                    'carton_qty REAL DEFAULT 0', "subcategory TEXT DEFAULT ''",
                     'ctn_price REAL DEFAULT 0',
-                    'china_price REAL DEFAULT 0', 'china_currency TEXT DEFAULT "RMB"']:
+                    "china_price REAL DEFAULT 0", "china_currency TEXT DEFAULT 'RMB'"]:
             try:
                 db.execute(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {col}")
             except Exception:
-                pass
+                db.rollback()
         for col in ['discount REAL DEFAULT 0']:
             try:
                 db.execute(f"ALTER TABLE purchases ADD COLUMN IF NOT EXISTS {col}")
             except Exception:
-                pass
+                db.rollback()
         try:
             db.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_id INTEGER DEFAULT NULL")
         except Exception:
-            pass
+            db.rollback()
         db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id       SERIAL PRIMARY KEY,
@@ -455,7 +455,7 @@ def init_db():
             db.execute("ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS fetched_at TEXT")
             db.commit()
         except Exception:
-            pass  # column already exists
+            db.rollback()
         # Create default admin if no users exist
         if db.execute("SELECT COUNT(*) AS n FROM users").fetchone()['n'] == 0:
             db.execute("INSERT INTO users(username,password,role) VALUES(%s,%s,%s)",
