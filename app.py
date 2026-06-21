@@ -67,7 +67,7 @@ def write_audit(response):
 @app.context_processor
 def inject_defaults():
     with get_db() as db:
-        wh = db.execute("SELECT id FROM warehouses WHERE LOWER(name) LIKE '%brent%' LIMIT 1").fetchone()
+        wh = db.execute("SELECT id FROM warehouses WHERE LOWER(name) LIKE %s LIMIT 1", ('%brent%',)).fetchone()
     return {'default_wh_id': wh['id'] if wh else None}
 
 
