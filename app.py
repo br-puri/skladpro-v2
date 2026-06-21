@@ -3259,11 +3259,11 @@ def stock_movements(pid):
 
         movements = db.execute(f"""
             SELECT 'Purchase' as doc_type, pur.num as doc_ref, pur.doc_date,
-                   pi.warehouse_id, wh.name as wh_name, pi.qty as qty_change, pur.supplier as counterpart
+                   pur.warehouse_id, wh.name as wh_name, pi.qty as qty_change, pur.supplier as counterpart
             FROM purchase_items pi
             JOIN purchases pur ON pur.id=pi.purchase_id
-            JOIN warehouses wh ON wh.id=pi.warehouse_id
-            WHERE pi.product_id=%s {wh_cond.replace('t.','pi.')}
+            JOIN warehouses wh ON wh.id=pur.warehouse_id
+            WHERE pi.product_id=%s {wh_cond.replace('t.','pur.')}
 
             UNION ALL
 
