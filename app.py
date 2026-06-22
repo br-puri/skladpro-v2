@@ -3573,7 +3573,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     for i in items:
         ctn_qty = i.get('carton_qty') or 0
         line_total = i['qty'] * i['price'] * (1 - i.get('discount_pct', 0) / 100)
-        bc_val = str(i.get('barcode') or i.get('sku') or '').strip()
+        bc_val = str(i.get('barcode') or '').strip()
         if bc_val:
             try:
                 prod_bc = code128.Code128(bc_val, barHeight=5*mm, barWidth=0.5, humanReadable=True, fontSize=6)
