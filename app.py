@@ -3641,24 +3641,44 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         elements.append(Spacer(1, 5*mm))
         elements.append(Paragraph(f"<b>Notes:</b> {sale['notes']}", small_m))
 
-    # ── FOOTER: bank details ──────────────────────────────────────────────────
+    # ── FOOTER: bank details + barcode ────────────────────────────────────────
+    from reportlab.graphics.barcode import code128
+
     bank_parts = []
     if co.get('co_bank_name'):      bank_parts.append(('Bank', co['co_bank_name']))
     if co.get('co_sort_code'):      bank_parts.append(('Sort Code', co['co_sort_code']))
     if co.get('co_account_number'): bank_parts.append(('Account No', co['co_account_number']))
+
+    elements.append(Spacer(1, 8*mm))
+    elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
+    elements.append(Spacer(1, 3*mm))
+
+    bc = code128.Code128(sale['num'], barHeight=10*mm, barWidth=0.85, humanReadable=True, fontSize=7)
+    bc_label = Paragraph('<font color="#888888" size="7">INVOICE REF</font>', label_s)
+
     if bank_parts:
-        elements.append(Spacer(1, 8*mm))
-        elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
-        elements.append(Spacer(1, 3*mm))
-        bank_cells = [[Paragraph(f"<font color='#888888' size='7'>{k}</font><br/><b>{v}</b>", normal)
-                       for k, v in bank_parts]]
-        bw = 170*mm / max(len(bank_parts), 1)
-        bank_table = Table(bank_cells, colWidths=[bw]*len(bank_parts))
-        bank_table.setStyle(TableStyle([
+        bank_cells = [Paragraph(f"<font color='#888888' size='7'>{k}</font><br/><b>{v}</b>", normal)
+                      for k, v in bank_parts]
+        bw = 110*mm / max(len(bank_parts), 1)
+        bank_tbl = Table([bank_cells], colWidths=[bw]*len(bank_parts))
+        bank_tbl.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('LEFTPADDING',  (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
         ]))
-        elements.append(bank_table)
+        footer_row = Table([[bank_tbl, [bc_label, bc]]], colWidths=[110*mm, 60*mm])
+    else:
+        footer_row = Table([['', [bc_label, bc]]], colWidths=[110*mm, 60*mm])
+
+    footer_row.setStyle(TableStyle([
+        ('VALIGN',        (0,0), (-1,-1), 'TOP'),
+        ('ALIGN',         (1,0), (1,0),   'RIGHT'),
+        ('LEFTPADDING',   (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 0),
+        ('TOPPADDING',    (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+    ]))
+    elements.append(footer_row)
 
     pdf.build(elements)
     return buf.getvalue()
