@@ -2835,8 +2835,15 @@ def report_sales():
 
 @app.route('/reports/stock')
 def report_stock():
+    cat_filter = request.args.get('category', '')
     with get_db() as db:
-        products = db.execute("SELECT * FROM products ORDER BY category, name").fetchall()
+        categories = [r['category'] for r in db.execute(
+            "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category"
+        ).fetchall()]
+        if cat_filter:
+            products = db.execute("SELECT * FROM products WHERE category=%s ORDER BY name", (cat_filter,)).fetchall()
+        else:
+            products = db.execute("SELECT * FROM products ORDER BY category, name").fetchall()
         warehouses = db.execute("SELECT * FROM warehouses").fetchall()
         rows, total_value = [], 0
         for p in products:
@@ -2846,11 +2853,12 @@ def report_stock():
                 q = r['qty'] if r else 0
                 stock_by_wh[w['id']] = q
                 total += q
-            value = total * p['cost']
+            value = total * (p['cost'] or 0)
             total_value += value
             sold = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM sale_items WHERE product_id=%s", (p['id'],)).fetchone()['s']
             rows.append({'product': p, 'stock': stock_by_wh, 'total': total, 'value': value, 'sold': sold})
-    return render_template('report_stock.html', rows=rows, warehouses=warehouses, total_value=total_value)
+    return render_template('report_stock.html', rows=rows, warehouses=warehouses,
+                           total_value=total_value, categories=categories, cat_filter=cat_filter)
 
 
 @app.route('/reports/stock-by-category')

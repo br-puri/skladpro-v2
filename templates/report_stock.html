@@ -4,22 +4,43 @@
 {% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Reports</a>{% endblock %}
 {% block content %}
 <div class="metrics">
-  <div class="metric"><div class="metric-label">Total Stock Value</div><div class="metric-value">£{{ "{:,.0f}".format(total_value) }}</div><div class="metric-sub">at cost price</div></div>
+  <div class="metric"><div class="metric-label">Total Stock Value</div><div class="metric-value">£{{ "{:,.0f}".format(total_value) }}</div><div class="metric-sub">{% if cat_filter %}{{ cat_filter }}{% else %}all categories{% endif %}, at cost</div></div>
+  <div class="metric"><div class="metric-label">Products</div><div class="metric-value">{{ rows|length }}</div><div class="metric-sub">{% if cat_filter %}in {{ cat_filter }}{% else %}all categories{% endif %}</div></div>
 </div>
+
 <div class="card">
+  <div style="padding:12px 16px 0;display:flex;align-items:center;gap:10px">
+    <label style="font-size:12px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em">Category</label>
+    <select onchange="location='?category='+encodeURIComponent(this.value)"
+            style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;color:#0f172a;background:#fff;cursor:pointer">
+      <option value="" {% if not cat_filter %}selected{% endif %}>All categories</option>
+      {% for cat in categories %}
+      <option value="{{ cat }}" {% if cat_filter == cat %}selected{% endif %}>{{ cat }}</option>
+      {% endfor %}
+    </select>
+    {% if cat_filter %}
+    <a href="{{ url_for('report_stock') }}" style="font-size:12px;color:#64748b;text-decoration:none">✕ Clear</a>
+    {% endif %}
+  </div>
   <div class="table-wrap">
-  <table><thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Unit</th>
+  <table><thead><tr>
+    <th>SKU</th><th>Product</th>{% if not cat_filter %}<th>Category</th>{% endif %}<th>Unit</th>
     {% for w in warehouses %}<th>{{ w['name'] }}</th>{% endfor %}
-    <th>Total</th><th>Cost</th><th>Value</th><th>Sold</th></tr></thead><tbody>
+    <th>Total</th><th>Cost</th><th>Value</th><th>Sold</th>
+  </tr></thead><tbody>
   {% for row in rows %}{% set p = row['product'] %}
   <tr>
-    <td class="mono">{{ p['sku'] }}</td><td>{{ p['name'] }}</td><td>{{ p['category'] }}</td><td>{{ p['unit'] }}</td>
+    <td class="mono">{{ p['sku'] }}</td>
+    <td>{{ p['name'] }}</td>
+    {% if not cat_filter %}<td>{{ p['category'] }}</td>{% endif %}
+    <td>{{ p['unit'] }}</td>
     {% for w in warehouses %}<td>{{ row['stock'].get(w['id'],0)|int }}</td>{% endfor %}
     <td><strong>{{ row['total']|int }}</strong></td>
-    <td>£{{ "{:,.2f}".format(p['cost']) }}</td>
+    <td>£{{ "{:,.2f}".format(p['cost'] or 0) }}</td>
     <td>£{{ "{:,.0f}".format(row['value']) }}</td>
     <td style="color:#888">{{ row['sold']|int }}</td>
-  </tr>{% endfor %}
+  </tr>
+  {% endfor %}
   </tbody></table>
   </div>
 </div>
