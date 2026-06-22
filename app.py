@@ -122,6 +122,10 @@ def init_db():
             description TEXT DEFAULT '',
             in_catalog  INTEGER DEFAULT 1
         )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS catalog_tokens (
+            token      TEXT PRIMARY KEY,
+            expires_at DOUBLE PRECISION NOT NULL
+        )""")
         db.execute("""CREATE TABLE IF NOT EXISTS catalog_category_order (
             category   TEXT PRIMARY KEY,
             sort_order INTEGER DEFAULT 0
@@ -843,13 +847,12 @@ def catalog_render():
     """Token-gated, auth-free render used by Chrome headless for PDF export."""
     token = request.args.get('token', '')
     now = time.time()
-    # Clean up expired tokens
-    expired = [k for k, v in _catalog_tokens.items() if v < now]
-    for k in expired:
-        _catalog_tokens.pop(k, None)
-    if token not in _catalog_tokens:
-        return 'Forbidden', 403
-    _catalog_tokens.pop(token, None)
+    with get_db() as db:
+        db.execute("DELETE FROM catalog_tokens WHERE expires_at < %s", (now,))
+        row = db.execute("SELECT token FROM catalog_tokens WHERE token=%s AND expires_at >= %s", (token, now)).fetchone()
+        if not row:
+            return 'Forbidden', 403
+        db.execute("DELETE FROM catalog_tokens WHERE token=%s", (token,))
     products, categories = _catalog_data()
     return render_template('product_catalog.html',
                            products=products,
@@ -865,9 +868,10 @@ def catalog_pdf_download():
         flash('Chrome not found — cannot generate PDF.', 'error')
         return redirect(url_for('product_catalog'))
 
-    # Issue a one-time token (valid 90 s)
+    # Issue a one-time token (valid 90 s) stored in DB so any worker can validate it
     token = str(uuid.uuid4())
-    _catalog_tokens[token] = time.time() + 90
+    with get_db() as db:
+        db.execute("INSERT INTO catalog_tokens (token, expires_at) VALUES (%s, %s)", (token, time.time() + 90))
 
     port = request.environ.get('SERVER_PORT', 5001)
     render_url = f'http://127.0.0.1:{port}/products/catalog/render?token={token}'
@@ -896,7 +900,8 @@ def catalog_pdf_download():
             data = f.read()
     finally:
         os.unlink(pdf_path)
-        _catalog_tokens.pop(token, None)  # remove if unused
+        with get_db() as db:
+            db.execute("DELETE FROM catalog_tokens WHERE token=%s", (token,))
 
     fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
     response = send_file(io.BytesIO(data), mimetype='application/pdf',
