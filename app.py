@@ -2271,7 +2271,7 @@ def bulk_sales():
 def export_sale_pdf(sid):
     with get_db() as db:
         s = dict(db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone())
-        items = [dict(r) for r in db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
+        items = [dict(r) for r in db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
             row = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
@@ -2360,7 +2360,7 @@ def email_invoice(sid):
             return redirect(url_for('sales'))
         s = dict(s_row)
         items = [dict(r) for r in db.execute(
-            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s",
+            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s",
             (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
@@ -2621,7 +2621,7 @@ def export_quote_pdf(qid):
     with get_db() as db:
         q = dict(db.execute("SELECT * FROM quotes WHERE id=%s", (qid,)).fetchone())
         items = [dict(r) for r in db.execute(
-            "SELECT qi.*, pr.name as product_name, pr.unit FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
+            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
             (qid,)).fetchall()]
         customer = None
         if q.get('customer_id'):
@@ -3424,6 +3424,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+    from reportlab.graphics.barcode import code128
 
     ACCENT   = colors.HexColor('#1a1a2e')
     ACCENT2  = colors.HexColor('#e8e6df')
@@ -3572,7 +3573,16 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     for i in items:
         ctn_qty = i.get('carton_qty') or 0
         line_total = i['qty'] * i['price'] * (1 - i.get('discount_pct', 0) / 100)
-        row = [i['product_name'], f"{i['qty']:g}", i.get('unit', '')]
+        bc_val = str(i.get('barcode') or '').strip()
+        if bc_val:
+            try:
+                prod_bc = code128.Code128(bc_val, barHeight=5*mm, barWidth=0.5, humanReadable=True, fontSize=6)
+                desc_cell = [Paragraph(i['product_name'], normal), prod_bc]
+            except Exception:
+                desc_cell = Paragraph(i['product_name'], normal)
+        else:
+            desc_cell = Paragraph(i['product_name'], normal)
+        row = [desc_cell, f"{i['qty']:g}", i.get('unit', '')]
         if has_ctns:
             row.append(f"{int(ctn_qty)}" if ctn_qty > 0 else '—')
             row.append(f"{i['qty']/ctn_qty:g}" if ctn_qty > 0 else '—')
@@ -3642,8 +3652,6 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         elements.append(Paragraph(f"<b>Notes:</b> {sale['notes']}", small_m))
 
     # ── FOOTER: bank details + barcode ────────────────────────────────────────
-    from reportlab.graphics.barcode import code128
-
     bank_parts = []
     if co.get('co_bank_name'):      bank_parts.append(('Bank', co['co_bank_name']))
     if co.get('co_sort_code'):      bank_parts.append(('Sort Code', co['co_sort_code']))
