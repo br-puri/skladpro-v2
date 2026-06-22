@@ -1210,6 +1210,28 @@ def bulk_products():
     return redirect(url_for('products'))
 
 
+@app.route('/products/labels')
+def product_labels():
+    ids_str = request.args.get('ids', '')
+    with get_db() as db:
+        if ids_str:
+            ids = [int(i) for i in ids_str.split(',') if i.strip().isdigit()]
+            if not ids:
+                flash('No products selected', 'error')
+                return redirect(url_for('products'))
+            placeholders = ','.join(['%s'] * len(ids))
+            products = [dict(r) for r in db.execute(
+                f"SELECT id, name, sku, barcode FROM products WHERE id IN ({placeholders}) ORDER BY name", ids).fetchall()]
+        else:
+            products = [dict(r) for r in db.execute(
+                "SELECT id, name, sku, barcode FROM products ORDER BY name").fetchall()]
+    if not products:
+        flash('No products found', 'error')
+        return redirect(url_for('products'))
+    return send_file(io.BytesIO(generate_labels_pdf(products)),
+        mimetype='application/pdf', download_name='product-labels.pdf', as_attachment=True)
+
+
 @app.route('/products/import-template')
 @admin_required
 def products_import_template():
@@ -1546,6 +1568,27 @@ def view_customer(cid):
     return render_template('customer_view.html', customer=c, history=history, sales=sales,
                            purchases=purchases, outstanding=outstanding,
                            products_bought=products_bought, date_from=date_from, date_till=date_till)
+
+
+@app.route('/customers/<int:cid>/statement')
+def customer_statement(cid):
+    with get_db() as db:
+        c = db.execute("SELECT * FROM contacts WHERE id=%s", (cid,)).fetchone()
+        if not c:
+            flash('Customer not found', 'error')
+            return redirect(url_for('customers'))
+        cname = c['name']
+        invoices = [dict(r) for r in db.execute("""
+            SELECT s.id, s.num, s.doc_date, s.total,
+                   COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0) as paid_amount
+            FROM sales s
+            WHERE (s.customer_id=%s OR (s.customer_id IS NULL AND s.customer=%s))
+              AND s.archived=0 AND s.status='completed'
+            ORDER BY s.doc_date
+        """, (cid, cname)).fetchall()]
+    company = get_settings()
+    return send_file(io.BytesIO(generate_statement_pdf(dict(c), invoices, company)),
+        mimetype='application/pdf', download_name=f"Statement-{c['company'] or c['name']}.pdf", as_attachment=True)
 
 
 @app.route('/customers/<int:cid>/note', methods=['POST'])
@@ -2281,6 +2324,21 @@ def export_sale_pdf(sid):
     return send_file(io.BytesIO(generate_invoice_pdf(s, items, customer, company)), mimetype='application/pdf', download_name=f"Invoice-{s['num']}.pdf", as_attachment=True)
 
 
+@app.route('/sales/<int:sid>/delivery-note')
+def export_delivery_note(sid):
+    with get_db() as db:
+        s = dict(db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone())
+        items = [dict(r) for r in db.execute(
+            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
+        customer = None
+        if s.get('customer_id'):
+            row = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
+            if row: customer = dict(row)
+    company = get_settings()
+    return send_file(io.BytesIO(generate_delivery_note_pdf(s, items, customer, company)),
+        mimetype='application/pdf', download_name=f"DeliveryNote-{s['num']}.pdf", as_attachment=True)
+
+
 def _send_email(to_addr, subject, body, attachments=None, settings_dict=None):
     """Send an email via the configured SMTP server. Returns (ok, error_message)."""
     s = settings_dict or get_settings()
@@ -2499,7 +2557,12 @@ def view_quote(qid):
         items = db.execute(
             "SELECT qi.*, pr.name as product_name, pr.unit, w.name as wh_name FROM quote_items qi JOIN products pr ON pr.id=qi.product_id JOIN warehouses w ON w.id=qi.warehouse_id WHERE qi.quote_id=%s",
             (qid,)).fetchall()
-    return render_template('quote_view.html', quote=q, items=items)
+        customer = None
+        if q and q['customer_id']:
+            row = db.execute("SELECT * FROM contacts WHERE id=%s", (q['customer_id'],)).fetchone()
+            if row: customer = dict(row)
+    company = get_settings()
+    return render_template('quote_view.html', quote=q, items=items, customer=customer, company=company)
 
 
 @app.route('/quotes/<int:qid>/edit', methods=['GET', 'POST'])
@@ -2631,6 +2694,50 @@ def export_quote_pdf(qid):
         company = get_settings()
     return send_file(io.BytesIO(generate_invoice_pdf(q, items, customer, company, doc_title='QUOTE')),
         mimetype='application/pdf', download_name=f"{q['num']}.pdf", as_attachment=True)
+
+
+@app.route('/quotes/<int:qid>/email', methods=['POST'])
+@admin_required
+def email_quote(qid):
+    with get_db() as db:
+        q_row = db.execute("SELECT * FROM quotes WHERE id=%s", (qid,)).fetchone()
+        if not q_row:
+            flash('Quote not found', 'error')
+            return redirect(url_for('quotes'))
+        q = dict(q_row)
+        items = [dict(r) for r in db.execute(
+            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode, pr.sku FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
+            (qid,)).fetchall()]
+        customer = None
+        if q.get('customer_id'):
+            row = db.execute("SELECT * FROM contacts WHERE id=%s", (q['customer_id'],)).fetchone()
+            if row: customer = dict(row)
+    company = get_settings()
+    to_addr = (request.form.get('to') or '').strip()
+    if not to_addr:
+        to_addr = (customer or {}).get('email', '').strip()
+    if not to_addr:
+        flash('No recipient email — add one to the customer or enter it manually.', 'error')
+        return redirect(url_for('view_quote', qid=qid))
+    subject = request.form.get('subject') or f"Quote {q.get('num', '')} from {company.get('co_company', 'us')}"
+    body = request.form.get('body') or (
+        f"Hello,\n\nPlease find attached our quote {q.get('num', '')} dated {q.get('doc_date', '')}.\n\n"
+        f"Total: £{q.get('total', 0):.2f}\n\nValid until: {q.get('expiry_date', 'on request')}\n\n"
+        f"Please do not hesitate to contact us if you have any questions.\n\n"
+        f"{company.get('co_company') or company.get('co_name') or ''}"
+    )
+    pdf_bytes = generate_invoice_pdf(q, items, customer, company, doc_title='QUOTE')
+    ok, err = _send_email(to_addr, subject=subject, body=body,
+                          attachments=[(f"{q.get('num','')}.pdf", pdf_bytes, 'application/pdf')],
+                          settings_dict=company)
+    if ok:
+        flash(f'Quote emailed to {to_addr}', 'success')
+        with get_db() as db:
+            db.execute("UPDATE quotes SET status='sent' WHERE id=%s AND status='draft'", (qid,))
+            db.commit()
+    else:
+        flash(f'Failed to send email: {err}', 'error')
+    return redirect(url_for('view_quote', qid=qid))
 
 
 # ── TTNs ─────────────────────────────────────────────────────────────────────
@@ -3689,6 +3796,365 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     elements.append(footer_row)
 
     pdf.build(elements)
+    return buf.getvalue()
+
+
+def generate_delivery_note_pdf(sale, items, customer=None, company=None):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.graphics.barcode import code128
+
+    ACCENT   = colors.HexColor('#1a1a2e')
+    ACCENT2  = colors.HexColor('#e8e6df')
+    MUTED    = colors.HexColor('#666666')
+    WHITE    = colors.white
+    LIGHT_BG = colors.HexColor('#f8f8f6')
+
+    buf = io.BytesIO()
+    pdf = SimpleDocTemplate(buf, pagesize=A4, topMargin=14*mm, bottomMargin=20*mm, leftMargin=18*mm, rightMargin=18*mm)
+
+    styles = getSampleStyleSheet()
+    def ps(name, **kw):
+        return ParagraphStyle(name, parent=styles['Normal'], **kw)
+
+    normal   = ps('dn_n',  fontSize=9,  leading=13)
+    normal_r = ps('dn_nr', fontSize=9,  leading=13, alignment=TA_RIGHT)
+    small_m  = ps('dn_sm', fontSize=8,  leading=11, textColor=MUTED)
+    label_s  = ps('dn_lb', fontSize=7,  leading=10, textColor=MUTED, fontName='Helvetica-Bold', spaceAfter=1)
+    inv_title= ps('dn_it', fontSize=28, fontName='Helvetica-Bold', textColor=ACCENT, alignment=TA_RIGHT)
+    co_name_s= ps('dn_cn', fontSize=11, fontName='Helvetica-Bold', textColor=ACCENT, leading=14)
+    bill_name= ps('dn_bn', fontSize=9,  fontName='Helvetica-Bold', leading=13)
+
+    co = company or {}
+    elements = []
+
+    logo_cell = ''
+    logo_key = co.get('co_logo', '')
+    if logo_key:
+        logo_path = os.path.normpath(os.path.join(UPLOAD_FOLDER, '..', logo_key))
+        if os.path.exists(logo_path):
+            try:
+                img = Image(logo_path); img._restrictSize(55*mm, 22*mm); logo_cell = img
+            except Exception:
+                pass
+    banner = Table([[logo_cell, Paragraph('DELIVERY NOTE', inv_title)]], colWidths=[90*mm, 80*mm])
+    banner.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 0)]))
+    elements.append(banner)
+    elements.append(Spacer(1, 3*mm))
+    elements.append(HRFlowable(width='100%', thickness=2, color=ACCENT))
+    elements.append(Spacer(1, 5*mm))
+
+    co_block = []
+    if co.get('co_company'): co_block.append(Paragraph(co['co_company'], co_name_s))
+    for line in filter(None, [co.get('co_address'), co.get('co_address2')]): co_block.append(Paragraph(line, small_m))
+    addr_parts = ' '.join(filter(None, [co.get('co_city',''), co.get('co_postcode','')]))
+    if addr_parts: co_block.append(Paragraph(addr_parts, small_m))
+    if co.get('co_country'): co_block.append(Paragraph(co['co_country'], small_m))
+
+    meta_table = Table([
+        [Paragraph('<font color="#888888" size="7">DELIVERY NOTE NO</font>', label_s), Paragraph(f"<b>{sale['num']}</b>", normal_r)],
+        [Paragraph('<font color="#888888" size="7">DATE</font>', label_s), Paragraph(sale['doc_date'], normal_r)],
+    ], colWidths=[38*mm, 32*mm])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 3),  ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+    ]))
+    info_table = Table([[co_block, meta_table]], colWidths=[100*mm, 70*mm])
+    info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('PADDING', (0,0), (-1,-1), 0)]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 6*mm))
+
+    elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
+    elements.append(Spacer(1, 4*mm))
+    bill_block = [Paragraph('<font color="#888888" size="7">DELIVER TO</font>', label_s)]
+    if customer:
+        if customer.get('company'): bill_block.append(Paragraph(customer['company'], bill_name))
+        for line in filter(None, [customer.get('address'), customer.get('address2')]): bill_block.append(Paragraph(line, small_m))
+        if customer.get('city'):     bill_block.append(Paragraph(customer['city'], small_m))
+        if customer.get('postcode'): bill_block.append(Paragraph(customer['postcode'], small_m))
+        if customer.get('country'):  bill_block.append(Paragraph(customer['country'], small_m))
+    else:
+        bill_block.append(Paragraph(str(sale.get('customer', '')), bill_name))
+    elements.append(Table([[bill_block]], colWidths=[170*mm]))
+    elements.append(Spacer(1, 6*mm))
+
+    has_ctns = any((i.get('carton_qty') or 0) > 0 for i in items)
+    hdr = ['Description', 'SKU', 'Qty', 'Unit']
+    col_w = [0, 30*mm, 18*mm, 14*mm]
+    if has_ctns:
+        hdr += ['Pcs/CTN', 'CTNs']
+        col_w += [16*mm, 14*mm]
+    col_w[0] = 170*mm - sum(col_w[1:])
+
+    data = [hdr]
+    for i in items:
+        ctn_qty = i.get('carton_qty') or 0
+        bc_val = str(i.get('barcode') or '').strip()
+        if bc_val:
+            try:
+                prod_bc = code128.Code128(bc_val, barHeight=5*mm, barWidth=0.5, humanReadable=True, fontSize=6)
+                desc_cell = [Paragraph(i['product_name'], normal), prod_bc]
+            except Exception:
+                desc_cell = Paragraph(i['product_name'], normal)
+        else:
+            desc_cell = Paragraph(i['product_name'], normal)
+        row = [desc_cell, i.get('sku', ''), f"{i['qty']:g}", i.get('unit', '')]
+        if has_ctns:
+            row.append(f"{int(ctn_qty)}" if ctn_qty > 0 else '—')
+            row.append(f"{i['qty']/ctn_qty:g}" if ctn_qty > 0 else '—')
+        data.append(row)
+
+    n = len(items)
+    if has_ctns:
+        total_c = sum(i['qty'] / i['carton_qty'] for i in items if (i.get('carton_qty') or 0) > 0)
+        data.append([''] * (len(hdr) - 2) + [Paragraph('<b>Total CTNs</b>', normal_r), Paragraph(f"<b>{total_c:g}</b>", normal_r)])
+
+    t = Table(data, colWidths=col_w, repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), ACCENT), ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,0), 8.5),
+        ('BOTTOMPADDING', (0,0), (-1,0), 7), ('TOPPADDING', (0,0), (-1,0), 7),
+        ('FONTSIZE', (0,1), (-1,n), 9), ('ROWBACKGROUNDS', (0,1), (-1,n), [WHITE, LIGHT_BG]),
+        ('LINEBELOW', (0,1), (-1,n), 0.3, ACCENT2), ('TOPPADDING', (0,1), (-1,n), 6), ('BOTTOMPADDING', (0,1), (-1,n), 6),
+        ('ALIGN', (2,0), (-1,-1), 'RIGHT'), ('LEFTPADDING', (0,0), (-1,-1), 6), ('RIGHTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    elements.append(t)
+
+    if sale.get('notes'):
+        elements.append(Spacer(1, 5*mm))
+        elements.append(Paragraph(f"<b>Notes:</b> {sale['notes']}", small_m))
+
+    elements.append(Spacer(1, 8*mm))
+    elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
+    elements.append(Spacer(1, 3*mm))
+    bc = code128.Code128(sale['num'], barHeight=10*mm, barWidth=0.85, humanReadable=True, fontSize=7)
+    bc_label = Paragraph('<font color="#888888" size="7">DELIVERY REF</font>', label_s)
+    footer_row = Table([['', [bc_label, bc]]], colWidths=[110*mm, 60*mm])
+    footer_row.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'), ('ALIGN', (1,0), (1,0), 'RIGHT'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+    ]))
+    elements.append(footer_row)
+    pdf.build(elements)
+    return buf.getvalue()
+
+
+def generate_statement_pdf(customer, invoices, company=None):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib.enums import TA_RIGHT
+    from datetime import date as _dt_date
+
+    ACCENT   = colors.HexColor('#1a1a2e')
+    ACCENT2  = colors.HexColor('#e8e6df')
+    MUTED    = colors.HexColor('#666666')
+    WHITE    = colors.white
+    LIGHT_BG = colors.HexColor('#f8f8f6')
+
+    buf = io.BytesIO()
+    pdf = SimpleDocTemplate(buf, pagesize=A4, topMargin=14*mm, bottomMargin=20*mm, leftMargin=18*mm, rightMargin=18*mm)
+
+    styles = getSampleStyleSheet()
+    def ps(name, **kw):
+        return ParagraphStyle(name, parent=styles['Normal'], **kw)
+
+    normal   = ps('st_n',  fontSize=9,  leading=13)
+    normal_r = ps('st_nr', fontSize=9,  leading=13, alignment=TA_RIGHT)
+    small_m  = ps('st_sm', fontSize=8,  leading=11, textColor=MUTED)
+    label_s  = ps('st_lb', fontSize=7,  leading=10, textColor=MUTED, fontName='Helvetica-Bold', spaceAfter=1)
+    inv_title= ps('st_it', fontSize=28, fontName='Helvetica-Bold', textColor=ACCENT, alignment=TA_RIGHT)
+    co_name_s= ps('st_cn', fontSize=11, fontName='Helvetica-Bold', textColor=ACCENT, leading=14)
+    bill_name= ps('st_bn', fontSize=9,  fontName='Helvetica-Bold', leading=13)
+
+    co = company or {}
+    elements = []
+
+    logo_cell = ''
+    logo_key = co.get('co_logo', '')
+    if logo_key:
+        logo_path = os.path.normpath(os.path.join(UPLOAD_FOLDER, '..', logo_key))
+        if os.path.exists(logo_path):
+            try:
+                img = Image(logo_path); img._restrictSize(55*mm, 22*mm); logo_cell = img
+            except Exception:
+                pass
+    banner = Table([[logo_cell, Paragraph('STATEMENT', inv_title)]], colWidths=[90*mm, 80*mm])
+    banner.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 0)]))
+    elements.append(banner)
+    elements.append(Spacer(1, 3*mm))
+    elements.append(HRFlowable(width='100%', thickness=2, color=ACCENT))
+    elements.append(Spacer(1, 5*mm))
+
+    co_block = []
+    if co.get('co_company'): co_block.append(Paragraph(co['co_company'], co_name_s))
+    for line in filter(None, [co.get('co_address'), co.get('co_address2')]): co_block.append(Paragraph(line, small_m))
+    addr_parts = ' '.join(filter(None, [co.get('co_city',''), co.get('co_postcode','')]))
+    if addr_parts: co_block.append(Paragraph(addr_parts, small_m))
+    if co.get('co_country'): co_block.append(Paragraph(co['co_country'], small_m))
+    if co.get('co_vat'):     co_block.append(Paragraph(f"VAT No: {co['co_vat']}", small_m))
+
+    meta_table = Table([
+        [Paragraph('<font color="#888888" size="7">STATEMENT DATE</font>', label_s), Paragraph(_dt_date.today().isoformat(), normal_r)],
+    ], colWidths=[40*mm, 30*mm])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 3),  ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+    ]))
+    info_table = Table([[co_block, meta_table]], colWidths=[100*mm, 70*mm])
+    info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('PADDING', (0,0), (-1,-1), 0)]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 6*mm))
+
+    elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
+    elements.append(Spacer(1, 4*mm))
+    bill_block = [Paragraph('<font color="#888888" size="7">ACCOUNT</font>', label_s)]
+    cname = customer.get('company') or customer.get('name', '')
+    bill_block.append(Paragraph(cname, bill_name))
+    for line in filter(None, [customer.get('address'), customer.get('address2')]): bill_block.append(Paragraph(line, small_m))
+    if customer.get('city'):     bill_block.append(Paragraph(customer['city'], small_m))
+    if customer.get('postcode'): bill_block.append(Paragraph(customer['postcode'], small_m))
+    if customer.get('email'):    bill_block.append(Paragraph(customer['email'], small_m))
+    if customer.get('vat_number'): bill_block.append(Paragraph(f"VAT No: {customer['vat_number']}", small_m))
+    elements.append(Table([[bill_block]], colWidths=[170*mm]))
+    elements.append(Spacer(1, 6*mm))
+
+    hdr = ['Invoice No', 'Date', 'Total', 'Paid', 'Outstanding']
+    col_w = [40*mm, 28*mm, 34*mm, 34*mm, 34*mm]
+    data = [hdr]
+    total_invoiced = total_paid_sum = total_out = 0.0
+    for inv in invoices:
+        inv_total = float(inv.get('total', 0))
+        paid_amt  = float(inv.get('paid_amount', 0))
+        out_amt   = max(0.0, inv_total - paid_amt)
+        total_invoiced += inv_total; total_paid_sum += paid_amt; total_out += out_amt
+        out_color = '#c0392b' if out_amt > 0 else '#1a8a4a'
+        data.append([
+            inv.get('num', ''),
+            inv.get('doc_date', ''),
+            Paragraph(f"£{inv_total:,.2f}", normal_r),
+            Paragraph(f"£{paid_amt:,.2f}", normal_r),
+            Paragraph(f"<font color='{out_color}'>£{out_amt:,.2f}</font>", normal_r),
+        ])
+
+    n = len(invoices)
+    out_color = '#c0392b' if total_out > 0 else '#1a8a4a'
+    data.append([
+        Paragraph('<b>TOTAL</b>', normal), '',
+        Paragraph(f"<b>£{total_invoiced:,.2f}</b>", normal_r),
+        Paragraph(f"<b>£{total_paid_sum:,.2f}</b>", normal_r),
+        Paragraph(f"<font color='{out_color}'><b>£{total_out:,.2f}</b></font>", normal_r),
+    ])
+
+    t = Table(data, colWidths=col_w, repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), ACCENT), ('TEXTCOLOR', (0,0), (-1,0), WHITE),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,0), 8.5),
+        ('BOTTOMPADDING', (0,0), (-1,0), 7), ('TOPPADDING', (0,0), (-1,0), 7),
+        ('FONTSIZE', (0,1), (-1,n), 9), ('ROWBACKGROUNDS', (0,1), (-1,n), [WHITE, LIGHT_BG]),
+        ('LINEBELOW', (0,1), (-1,n), 0.3, ACCENT2), ('TOPPADDING', (0,1), (-1,n), 6), ('BOTTOMPADDING', (0,1), (-1,n), 6),
+        ('BACKGROUND', (0,n+1), (-1,n+1), LIGHT_BG), ('LINEABOVE', (0,n+1), (-1,n+1), 1, ACCENT),
+        ('TOPPADDING', (0,n+1), (-1,n+1), 8), ('BOTTOMPADDING', (0,n+1), (-1,n+1), 8),
+        ('ALIGN', (2,0), (-1,-1), 'RIGHT'), ('LEFTPADDING', (0,0), (-1,-1), 6), ('RIGHTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    elements.append(t)
+
+    elements.append(Spacer(1, 8*mm))
+    out_color = '#c0392b' if total_out > 0 else '#1a8a4a'
+    label_text = 'TOTAL OUTSTANDING' if total_out > 0 else 'ACCOUNT STATUS'
+    value_text = f"£{total_out:,.2f}" if total_out > 0 else 'FULLY PAID'
+    summary = Table([[
+        Paragraph(f'<b>{label_text}</b>', normal),
+        Paragraph(f"<font color='{out_color}'><b>{value_text}</b></font>", normal_r),
+    ]], colWidths=[130*mm, 40*mm])
+    summary.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BG),
+        ('LEFTPADDING', (0,0), (-1,-1), 10), ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING', (0,0), (-1,-1), 10),  ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+    ]))
+    elements.append(summary)
+
+    bank_parts = []
+    if co.get('co_bank_name'):      bank_parts.append(('Bank', co['co_bank_name']))
+    if co.get('co_sort_code'):      bank_parts.append(('Sort Code', co['co_sort_code']))
+    if co.get('co_account_number'): bank_parts.append(('Account No', co['co_account_number']))
+    if bank_parts:
+        elements.append(Spacer(1, 6*mm))
+        elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
+        elements.append(Spacer(1, 3*mm))
+        bw = 170*mm / len(bank_parts)
+        bank_tbl = Table([[Paragraph(f"<font color='#888888' size='7'>{k}</font><br/><b>{v}</b>", normal) for k, v in bank_parts]],
+                         colWidths=[bw]*len(bank_parts))
+        bank_tbl.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
+        elements.append(bank_tbl)
+
+    pdf.build(elements)
+    return buf.getvalue()
+
+
+def generate_labels_pdf(products):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph
+    from reportlab.graphics.barcode import code128
+    from reportlab.pdfgen import canvas as _canvas
+
+    buf = io.BytesIO()
+    W, H = A4
+    COLS, ROWS = 3, 8
+    MARGIN_X, MARGIN_Y = 7*mm, 10*mm
+    GAP_X, GAP_Y = 3*mm, 2*mm
+    label_w = (W - 2*MARGIN_X - (COLS-1)*GAP_X) / COLS
+    label_h = (H - 2*MARGIN_Y - (ROWS-1)*GAP_Y) / ROWS
+
+    name_style = ParagraphStyle('ln', fontName='Helvetica-Bold', fontSize=7, leading=8, alignment=1)
+    sku_style  = ParagraphStyle('ls', fontName='Helvetica', fontSize=6, leading=7, alignment=1)
+
+    c = _canvas.Canvas(buf, pagesize=A4)
+    per_page = COLS * ROWS
+
+    for idx, p in enumerate(products):
+        if idx > 0 and idx % per_page == 0:
+            c.showPage()
+        col = idx % COLS
+        row = (idx % per_page) // COLS
+        x = MARGIN_X + col * (label_w + GAP_X)
+        y = H - MARGIN_Y - (row + 1) * label_h - row * GAP_Y
+
+        c.setStrokeColor(colors.HexColor('#d0d0d0'))
+        c.setLineWidth(0.3)
+        c.rect(x, y, label_w, label_h)
+
+        name = str(p.get('name', ''))
+        name_para = Paragraph(name, name_style)
+        nw, nh = name_para.wrap(label_w - 4*mm, label_h * 0.35)
+        name_para.drawOn(c, x + 2*mm, y + label_h - nh - 1.5*mm)
+
+        bc_val  = str(p.get('barcode') or '').strip()
+        sku_val = str(p.get('sku') or '').strip()
+        val = bc_val or sku_val
+        if val:
+            try:
+                bc = code128.Code128(val, barHeight=label_h * 0.38, barWidth=0.5, humanReadable=True, fontSize=5.5)
+                bc_x = x + (label_w - bc.width) / 2
+                bc.drawOn(c, bc_x, y + 1.5*mm)
+            except Exception:
+                c.setFont('Helvetica', 7)
+                c.setFillColor(colors.black)
+                c.drawCentredString(x + label_w/2, y + label_h/2 - 3*mm, val)
+
+    c.save()
     return buf.getvalue()
 
 

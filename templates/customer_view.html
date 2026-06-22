@@ -2,6 +2,9 @@
 {% block title %}{{ customer['company'] if customer['company'] else customer['name'] }}{% endblock %}
 {% block page_title %}{{ customer['company'] if customer['company'] else customer['name'] }}{% endblock %}
 {% block topbar_actions %}
+  {% if customer['type'] == 'customer' %}
+  <a href="{{ url_for('customer_statement', cid=customer['id']) }}" class="btn">↓ Statement PDF</a>
+  {% endif %}
   <a href="{{ url_for('edit_customer', cid=customer['id']) }}" class="btn">Edit</a>
   <a href="{{ url_for('customers') }}" class="back-link">← Back</a>
 {% endblock %}

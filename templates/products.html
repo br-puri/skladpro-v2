@@ -94,7 +94,7 @@
 
 <div id="bulk-bar" class="bulk-bar">
   <span id="bulk-count">0 selected</span>
-  <select id="bulk-action"><option value="">— Action —</option><option value="edit">Edit</option><option value="catalog">View Catalog</option><option value="delete">Delete</option></select>
+  <select id="bulk-action"><option value="">— Action —</option><option value="edit">Edit</option><option value="catalog">View Catalog</option><option value="labels">Print Labels</option><option value="delete">Delete</option></select>
   <button id="bulk-submit" class="btn btn-sm btn-primary">Apply</button>
   <button id="bulk-cancel" class="btn btn-sm" style="background:#444;border-color:#444;color:#fff">Cancel</button>
 </div>
@@ -127,6 +127,13 @@ document.getElementById('bulk-submit').addEventListener('click', function(e) {
     const checked = document.querySelectorAll('.bulk-cb:checked');
     const ids = Array.from(checked).map(cb => cb.value).join(',');
     window.open("{{ url_for('product_catalog') }}" + (ids ? '?ids=' + ids : ''), '_blank');
+    return;
+  }
+  if (action === 'labels') {
+    e.stopImmediatePropagation();
+    const checked = document.querySelectorAll('.bulk-cb:checked');
+    const ids = Array.from(checked).map(cb => cb.value).join(',');
+    window.open("{{ url_for('product_labels') }}" + (ids ? '?ids=' + ids : ''), '_blank');
     return;
   }
   if (action !== 'edit') return;

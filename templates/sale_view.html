@@ -2,7 +2,8 @@
 {% block title %}{{ sale['num'] }}{% endblock %}
 {% block page_title %}{{ sale['num'] }}{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('export_sale_pdf', sid=sale['id']) }}" class="btn btn-primary">↓ Download PDF</a>
+  <a href="{{ url_for('export_sale_pdf', sid=sale['id']) }}" class="btn btn-primary">↓ Invoice PDF</a>
+  <a href="{{ url_for('export_delivery_note', sid=sale['id']) }}" class="btn">↓ Delivery Note</a>
   <button type="button" class="btn" onclick="openEmailDialog()">✉ Email Invoice</button>
   <a href="{{ url_for('export_sale_excel', sid=sale['id']) }}" class="btn">↓ Excel</a>
   {% if sale['status'] != 'cancelled' %}
