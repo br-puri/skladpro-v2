@@ -4,149 +4,296 @@
 {% block content %}
 
 <style>
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.kpi-card {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow .15s, transform .15s;
+}
+.kpi-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.07); transform: translateY(-1px); }
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 10px 10px 0 0;
+}
+.kpi-card.t-blue::after   { background: #2563eb; }
+.kpi-card.t-slate::after  { background: #94a3b8; }
+.kpi-card.t-violet::after { background: #7c3aed; }
+.kpi-card.t-green::after  { background: #059669; }
+.kpi-card.t-red::after    { background: #dc2626; }
+.kpi-card.t-amber::after  { background: #d97706; }
+.kpi-icon {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 10px;
+}
+.kpi-icon.i-blue   { background: #eff6ff; }
+.kpi-icon.i-slate  { background: #f8fafc; }
+.kpi-icon.i-violet { background: #f5f3ff; }
+.kpi-icon.i-green  { background: #ecfdf5; }
+.kpi-icon.i-red    { background: #fef2f2; }
+.kpi-icon.i-amber  { background: #fffbeb; }
+.kpi-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9ba8b9;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+.kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0d1b2a;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+.kpi-value.v-green  { color: #059669; }
+.kpi-value.v-red    { color: #dc2626; }
+.kpi-value.v-amber  { color: #d97706; }
+
+/* Charts */
 .chart-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
 }
-.chart-grid .chart-wide {
-  grid-column: span 2;
-}
-.chart-card {
+.dash-card {
   background: #fff;
-  border: 1px solid #e8e6df;
-  border-radius: 12px;
-  padding: 20px 22px 16px;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  padding: 16px 18px 12px;
 }
-.chart-card h3 {
-  font-size: 13px;
+.dash-card-label {
+  font-size: 10.5px;
   font-weight: 700;
-  color: #475569;
+  color: #6b7a90;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 16px;
+  letter-spacing: 0.07em;
+  margin-bottom: 14px;
 }
-.chart-wrap { position: relative; }
+
+/* Bottom grid */
+.dash-bottom {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 12px;
+}
+.dash-section {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dash-section-head {
+  padding: 11px 16px;
+  border-bottom: 1px solid #f1f4f8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafbfc;
+}
+.dash-section-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #6b7a90;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.dash-section table td,
+.dash-section table th { padding: 8px 12px; }
+
+@media (max-width: 1100px) {
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+}
 @media (max-width: 768px) {
-  .chart-grid { grid-template-columns: 1fr; }
-  .chart-grid .chart-wide { grid-column: span 1; }
-  .chart-card { padding: 14px 14px 12px; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .chart-grid, .dash-bottom { grid-template-columns: 1fr; }
 }
 </style>
 
-<!-- KPI metrics -->
-<div class="metrics" style="margin-bottom:16px">
-  <a href="{{ url_for('products') }}" class="metric metric-link">
-    <div class="metric-label">Products</div>
-    <div class="metric-value blue">{{ product_count }}</div>
+<!-- KPI Row -->
+<div class="kpi-grid">
+
+  <a href="{{ url_for('products') }}" class="kpi-card t-blue">
+    <div class="kpi-icon i-blue">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+    </div>
+    <div class="kpi-label">Products</div>
+    <div class="kpi-value">{{ product_count }}</div>
   </a>
-  <a href="{{ url_for('warehouses') }}" class="metric metric-link">
-    <div class="metric-label">Warehouses</div>
-    <div class="metric-value">{{ warehouse_count }}</div>
+
+  <a href="{{ url_for('warehouses') }}" class="kpi-card t-slate">
+    <div class="kpi-icon i-slate">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    </div>
+    <div class="kpi-label">Warehouses</div>
+    <div class="kpi-value">{{ warehouse_count }}</div>
   </a>
-  <a href="{{ url_for('report_stock') }}" class="metric metric-link">
-    <div class="metric-label">Stock Value</div>
-    <div class="metric-value">£{{ "{:,.0f}".format(stock_value) }}</div>
+
+  <a href="{{ url_for('report_stock') }}" class="kpi-card t-violet">
+    <div class="kpi-icon i-violet">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    </div>
+    <div class="kpi-label">Stock Value</div>
+    <div class="kpi-value">£{{ "{:,.0f}".format(stock_value) }}</div>
   </a>
-  <a href="{{ url_for('sales') }}" class="metric metric-link">
-    <div class="metric-label">Sales Revenue</div>
-    <div class="metric-value green">£{{ "{:,.0f}".format(completed_revenue) }}</div>
+
+  <a href="{{ url_for('sales') }}" class="kpi-card t-green">
+    <div class="kpi-icon i-green">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+    </div>
+    <div class="kpi-label">Sales Revenue</div>
+    <div class="kpi-value v-green">£{{ "{:,.0f}".format(completed_revenue) }}</div>
   </a>
-  <a href="{{ url_for('finance') }}" class="metric metric-link">
-    <div class="metric-label">Net Cash</div>
-    <div class="metric-value {% if net_cash >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(net_cash) }}</div>
+
+  <a href="{{ url_for('finance') }}" class="kpi-card {% if net_cash >= 0 %}t-green{% else %}t-red{% endif %}">
+    <div class="kpi-icon {% if net_cash >= 0 %}i-green{% else %}i-red{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{% if net_cash >= 0 %}#059669{% else %}#dc2626{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    </div>
+    <div class="kpi-label">Net Cash</div>
+    <div class="kpi-value {% if net_cash >= 0 %}v-green{% else %}v-red{% endif %}">£{{ "{:,.0f}".format(net_cash) }}</div>
   </a>
-  <a href="{{ url_for('sales') }}?status=pending" class="metric metric-link">
-    <div class="metric-label">Pending Sales</div>
-    <div class="metric-value {% if pending_sales > 0 %}red{% endif %}">{{ pending_sales }}</div>
+
+  <a href="{{ url_for('sales') }}?status=pending" class="kpi-card {% if pending_sales > 0 %}t-amber{% else %}t-slate{% endif %}">
+    <div class="kpi-icon {% if pending_sales > 0 %}i-amber{% else %}i-slate{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{% if pending_sales > 0 %}#d97706{% else %}#94a3b8{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div class="kpi-label">Pending Sales</div>
+    <div class="kpi-value {% if pending_sales > 0 %}v-amber{% endif %}">{{ pending_sales }}</div>
   </a>
+
 </div>
 
-<!-- Charts row -->
+<!-- Charts -->
 <div class="chart-grid">
-
-  <!-- Monthly Revenue (wide) -->
-  <div class="chart-card chart-wide">
-    <h3>Monthly Revenue</h3>
-    <div class="chart-wrap"><canvas id="revenueChart" height="110"></canvas></div>
+  <div class="dash-card">
+    <div class="dash-card-label">Monthly Revenue</div>
+    <canvas id="revenueChart" height="115"></canvas>
   </div>
-
-  <!-- Sales Status doughnut -->
-  <div class="chart-card">
-    <h3>Sales by Status</h3>
-    <div class="chart-wrap"><canvas id="statusChart" height="160"></canvas></div>
+  <div class="dash-card">
+    <div class="dash-card-label">Sales by Status</div>
+    <canvas id="statusChart" height="170"></canvas>
   </div>
-
 </div>
 
-<!-- Top products (full width) -->
-<div class="chart-card" style="margin-bottom:16px">
-  <h3>Top Products by Revenue</h3>
-  <div class="chart-wrap"><canvas id="topProductsChart" height="60"></canvas></div>
+<div class="dash-card" style="margin-bottom:12px">
+  <div class="dash-card-label">Top Products by Revenue</div>
+  <canvas id="topProductsChart" height="58"></canvas>
 </div>
 
-<!-- Bottom row: recent sales + low stock -->
-<div class="two-col">
-  <div class="card">
-    <div class="card-header"><span class="card-title">Recent Sales</span><a href="{{ url_for('sales') }}" class="btn btn-sm">View all</a></div>
+<!-- Recent Sales + Low Stock -->
+<div class="dash-bottom">
+
+  <div class="dash-section">
+    <div class="dash-section-head">
+      <span class="dash-section-title">Recent Sales</span>
+      <a href="{{ url_for('sales') }}" class="btn btn-sm">View all</a>
+    </div>
     {% if recent_sales %}
-    <div class="table-wrap"><table><thead><tr><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead><tbody>
-    {% for s in recent_sales %}
-    <tr>
-      <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ s['num'] }}</a></td>
-      <td>{{ s['doc_date'] }}</td>
-      <td>{{ s['customer'] }}</td>
-      <td>£{{ "{:,.0f}".format(s['total']) }}</td>
-      <td><span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}">{{ s['status'] }}</span></td>
-    </tr>
-    {% endfor %}
-    </tbody></table></div>
-    {% else %}<div class="empty">No sales yet — <a href="{{ url_for('add_sale') }}">create one</a></div>{% endif %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for s in recent_sales %}
+        <tr>
+          <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="mono" style="color:#2563eb;text-decoration:none;font-weight:500">{{ s['num'] }}</a></td>
+          <td style="color:#8a96a8;font-size:12px">{{ s['doc_date'] }}</td>
+          <td style="font-size:13px">{{ s['customer'] }}</td>
+          <td style="font-weight:600;font-size:13px">£{{ "{:,.0f}".format(s['total']) }}</td>
+          <td><span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}">{{ s['status'] }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">No sales yet — <a href="{{ url_for('add_sale') }}">create one</a></div>
+    {% endif %}
   </div>
 
-  <div class="card">
-    <div class="card-header"><span class="card-title">Low Stock Alerts</span><a href="{{ url_for('report_stock') }}" class="btn btn-sm">Stock report</a></div>
+  <div class="dash-section">
+    <div class="dash-section-head">
+      <span class="dash-section-title">Low Stock Alerts</span>
+      <a href="{{ url_for('report_low_stock') }}" class="btn btn-sm">Full report</a>
+    </div>
     {% if low_stock %}
-    <table><thead><tr><th>Product</th><th>Current</th><th>Min</th><th>Unit</th></tr></thead><tbody>
-    {% for item in low_stock %}
-    <tr>
-      <td>{{ item['name'] }}</td>
-      <td><span class="badge {% if item['qty'] == 0 %}badge-danger{% else %}badge-warning{% endif %}">{{ item['qty'] }}</span></td>
-      <td style="color:#aaa">{{ item['min_stock'] }}</td>
-      <td>{{ item['unit'] }}</td>
-    </tr>
-    {% endfor %}
-    </tbody></table>
-    {% else %}<div class="empty" style="padding:24px">All products well stocked ✓</div>{% endif %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Product</th><th>Qty</th><th>Min</th></tr></thead>
+        <tbody>
+        {% for item in low_stock %}
+        <tr>
+          <td style="font-size:13px">{{ item['name'] }}</td>
+          <td><span class="badge {% if item['qty'] == 0 %}badge-danger{% else %}badge-warning{% endif %}">{{ item['qty'] }}</span></td>
+          <td style="color:#9ba8b9;font-size:12px">{{ item['min_stock'] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:36px 24px;text-align:center">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 8px;display:block"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <div style="font-size:13px;color:#6b7a90;font-weight:500">All products well stocked</div>
+    </div>
+    {% endif %}
   </div>
+
 </div>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-Chart.defaults.color = '#64748b';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#8a96a8';
 
-// ── 1. Monthly Revenue Bar Chart ─────────────────────────────────────────────
+const _tip = {
+  backgroundColor: '#0d1b2a',
+  titleColor: '#8a96a8',
+  bodyColor: '#f1f5f9',
+  borderColor: 'rgba(255,255,255,0.06)',
+  borderWidth: 1,
+  padding: 10,
+  cornerRadius: 6,
+  displayColors: false
+};
+
+// Monthly Revenue
 const monthlyData = {{ monthly_sales | tojson }};
 const monthLabels = monthlyData.map(m => {
   const [y, mo] = m.month.split('-');
   return new Date(y, mo - 1).toLocaleString('default', { month: 'short', year: '2-digit' });
 });
-const monthTotals = monthlyData.map(m => parseFloat(m.total || 0).toFixed(2));
+const monthTotals = monthlyData.map(m => parseFloat(m.total || 0));
 
 new Chart(document.getElementById('revenueChart'), {
   type: 'bar',
   data: {
     labels: monthLabels.length ? monthLabels : ['No data'],
     datasets: [{
-      label: 'Revenue (£)',
       data: monthTotals.length ? monthTotals : [0],
-      backgroundColor: 'rgba(26,110,245,0.18)',
-      borderColor: '#1a6ef5',
-      borderWidth: 2,
-      borderRadius: 6,
+      backgroundColor: 'rgba(37,99,235,0.10)',
+      borderColor: '#2563eb',
+      borderWidth: 1.5,
+      borderRadius: 4,
       borderSkipped: false,
     }]
   },
@@ -154,29 +301,26 @@ new Chart(document.getElementById('revenueChart'), {
     responsive: true,
     plugins: {
       legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: ctx => ' £' + parseFloat(ctx.parsed.y).toLocaleString('en-GB', {minimumFractionDigits:2})
-        }
-      }
+      tooltip: { ..._tip, callbacks: { label: ctx => ' £' + ctx.parsed.y.toLocaleString('en-GB') } }
     },
     scales: {
       y: {
         beginAtZero: true,
-        grid: { color: '#f1f5f9' },
-        ticks: { callback: v => '£' + Number(v).toLocaleString() }
+        grid: { color: '#f1f4f8' },
+        border: { display: false },
+        ticks: { callback: v => '£' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
       },
-      x: { grid: { display: false } }
+      x: { grid: { display: false }, border: { display: false } }
     }
   }
 });
 
-// ── 2. Sales Status Doughnut ──────────────────────────────────────────────────
+// Sales Status Doughnut
 const statusData = {{ status_counts | tojson }};
-const statusColors = { completed: '#22c55e', pending: '#f59e0b', cancelled: '#ef4444', archived: '#94a3b8' };
+const statusColors = { completed: '#10b981', pending: '#f59e0b', cancelled: '#f87171', archived: '#cbd5e1' };
 const statusLabels = statusData.map(s => s.status.charAt(0).toUpperCase() + s.status.slice(1));
 const statusCounts = statusData.map(s => s.cnt);
-const statusBg = statusData.map(s => statusColors[s.status] || '#94a3b8');
+const statusBg = statusData.map(s => statusColors[s.status] || '#e2e8f0');
 
 new Chart(document.getElementById('statusChart'), {
   type: 'doughnut',
@@ -185,43 +329,34 @@ new Chart(document.getElementById('statusChart'), {
     datasets: [{
       data: statusCounts.length ? statusCounts : [1],
       backgroundColor: statusBg.length ? statusBg : ['#e2e8f0'],
-      borderWidth: 2,
-      borderColor: '#fff',
-      hoverOffset: 6
+      borderWidth: 0,
+      hoverOffset: 4
     }]
   },
   options: {
     responsive: true,
-    cutout: '68%',
+    cutout: '72%',
     plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { padding: 14, boxWidth: 12, font: { size: 12 } }
-      },
-      tooltip: {
-        callbacks: {
-          label: ctx => ` ${ctx.label}: ${ctx.parsed} invoice${ctx.parsed !== 1 ? 's' : ''}`
-        }
-      }
+      legend: { position: 'bottom', labels: { padding: 14, boxWidth: 10, font: { size: 11 } } },
+      tooltip: { ..._tip, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
     }
   }
 });
 
-// ── 3. Top Products Horizontal Bar ───────────────────────────────────────────
+// Top Products
 const topData = {{ top_products | tojson }};
-const topLabels = topData.map(p => p.name);
-const topRevenue = topData.map(p => parseFloat(p.revenue || 0).toFixed(2));
-const barColors = ['#1a6ef5','#3b82f6','#60a5fa','#93c5fd','#bfdbfe','#dbeafe'];
+const topLabels = topData.map(p => p.name.length > 34 ? p.name.slice(0,34)+'…' : p.name);
+const topRevenue = topData.map(p => parseFloat(p.revenue || 0));
 
 new Chart(document.getElementById('topProductsChart'), {
   type: 'bar',
   data: {
     labels: topLabels.length ? topLabels : ['No data'],
     datasets: [{
-      label: 'Revenue (£)',
       data: topRevenue.length ? topRevenue : [0],
-      backgroundColor: barColors.slice(0, topLabels.length || 1),
-      borderRadius: 6,
+      backgroundColor: '#2563eb',
+      hoverBackgroundColor: '#1d4ed8',
+      borderRadius: 3,
       borderSkipped: false,
     }]
   },
@@ -230,19 +365,16 @@ new Chart(document.getElementById('topProductsChart'), {
     responsive: true,
     plugins: {
       legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: ctx => ' £' + parseFloat(ctx.parsed.x).toLocaleString('en-GB', {minimumFractionDigits:2})
-        }
-      }
+      tooltip: { ..._tip, callbacks: { label: ctx => ' £' + ctx.parsed.x.toLocaleString('en-GB') } }
     },
     scales: {
       x: {
         beginAtZero: true,
-        grid: { color: '#f1f5f9' },
-        ticks: { callback: v => '£' + Number(v).toLocaleString() }
+        grid: { color: '#f1f4f8' },
+        border: { display: false },
+        ticks: { callback: v => '£' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
       },
-      y: { grid: { display: false } }
+      y: { grid: { display: false }, border: { display: false } }
     }
   }
 });
