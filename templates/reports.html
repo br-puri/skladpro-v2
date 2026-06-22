@@ -43,6 +43,13 @@
       <div style="font-size:12px;color:#64748b">Intake vs sales vs write-offs per product</div>
     </div>
   </a>
+  <a href="{{ url_for('report_stock_by_category') }}" style="text-decoration:none;color:inherit">
+    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:24px;margin-bottom:8px">🗂️</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Stock by Category</div>
+      <div style="font-size:12px;color:#64748b">Units and value grouped by product category</div>
+    </div>
+  </a>
   <a href="{{ url_for('report_low_stock') }}" style="text-decoration:none;color:inherit">
     <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:24px;margin-bottom:8px">⚠️</div>

@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Stock by Category{% endblock %}
+{% block page_title %}Stock by Category{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Reports</a>{% endblock %}
+{% block content %}
+
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-label">Total Stock Value</div>
+    <div class="metric-value">£{{ "{:,.0f}".format(grand_value) }}</div>
+    <div class="metric-sub">at cost price</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Total Units</div>
+    <div class="metric-value">{{ "{:,}".format(grand_qty|int) }}</div>
+    <div class="metric-sub">across all warehouses</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Categories</div>
+    <div class="metric-value">{{ categories|length }}</div>
+    <div class="metric-sub">with stock</div>
+  </div>
+</div>
+
+{% for cat_name, cat in categories.items() %}
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px 10px;border-bottom:1px solid #f1f5f9">
+    <div>
+      <span style="font-weight:700;font-size:15px">{{ cat_name }}</span>
+      <span style="margin-left:10px;font-size:12px;color:#94a3b8">{{ cat['products']|length }} product{{ 's' if cat['products']|length != 1 else '' }}</span>
+    </div>
+    <div style="display:flex;gap:24px;text-align:right">
+      <div>
+        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Total Units</div>
+        <div style="font-weight:700;font-size:15px">{{ "{:,}".format(cat['total_qty']|int) }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Stock Value</div>
+        <div style="font-weight:700;font-size:15px;color:#1a6ef5">£{{ "{:,.0f}".format(cat['total_value']) }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">% of Total</div>
+        <div style="font-weight:700;font-size:15px">{{ "{:.1f}".format(cat['total_value'] / grand_value * 100 if grand_value else 0) }}%</div>
+      </div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Product</th>
+          <th>Unit</th>
+          {% for w in warehouses %}<th>{{ w['name'] }}</th>{% endfor %}
+          <th>Total</th>
+          <th>Cost</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in cat['products'] %}
+        {% set p = row['product'] %}
+        <tr>
+          <td class="mono">{{ p['sku'] }}</td>
+          <td><a href="{{ url_for('product_detail', pid=p['id']) }}" style="color:inherit;text-decoration:none">{{ p['name'] }}</a></td>
+          <td>{{ p['unit'] }}</td>
+          {% for w in warehouses %}
+          <td>{{ row['stock'].get(w['id'], 0)|int }}</td>
+          {% endfor %}
+          <td><strong>{{ row['total_qty']|int }}</strong></td>
+          <td>£{{ "{:,.2f}".format(p['cost'] or 0) }}</td>
+          <td>£{{ "{:,.0f}".format(row['value']) }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background:#f8fafc;font-weight:600;color:#475569">
+          <td colspan="{{ 3 + warehouses|length }}">Category total</td>
+          <td>{{ cat['total_qty']|int }}</td>
+          <td></td>
+          <td>£{{ "{:,.0f}".format(cat['total_value']) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

@@ -2853,6 +2853,44 @@ def report_stock():
     return render_template('report_stock.html', rows=rows, warehouses=warehouses, total_value=total_value)
 
 
+@app.route('/reports/stock-by-category')
+def report_stock_by_category():
+    with get_db() as db:
+        warehouses = db.execute("SELECT * FROM warehouses ORDER BY name").fetchall()
+        products   = db.execute("SELECT * FROM products ORDER BY category, subcategory, name").fetchall()
+
+        categories = {}
+        grand_qty, grand_value = 0, 0
+
+        for p in products:
+            cat = p['category'] or 'Uncategorised'
+            if cat not in categories:
+                categories[cat] = {'products': [], 'total_qty': 0, 'total_value': 0}
+
+            stock_by_wh, total_qty = {}, 0
+            for w in warehouses:
+                r = db.execute(
+                    "SELECT qty FROM stock WHERE product_id=%s AND warehouse_id=%s",
+                    (p['id'], w['id'])
+                ).fetchone()
+                q = r['qty'] if r else 0
+                stock_by_wh[w['id']] = q
+                total_qty += q
+
+            value = total_qty * (p['cost'] or 0)
+            categories[cat]['products'].append({
+                'product': p, 'stock': stock_by_wh, 'total_qty': total_qty, 'value': value
+            })
+            categories[cat]['total_qty']   += total_qty
+            categories[cat]['total_value'] += value
+            grand_qty   += total_qty
+            grand_value += value
+
+    return render_template('report_stock_by_category.html',
+                           categories=categories, warehouses=warehouses,
+                           grand_qty=grand_qty, grand_value=grand_value)
+
+
 @app.route('/reports/turnover')
 def report_turnover():
     with get_db() as db:
