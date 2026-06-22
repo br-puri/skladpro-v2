@@ -2271,7 +2271,7 @@ def bulk_sales():
 def export_sale_pdf(sid):
     with get_db() as db:
         s = dict(db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone())
-        items = [dict(r) for r in db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
+        items = [dict(r) for r in db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
             row = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
@@ -2360,7 +2360,7 @@ def email_invoice(sid):
             return redirect(url_for('sales'))
         s = dict(s_row)
         items = [dict(r) for r in db.execute(
-            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s",
+            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s",
             (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
@@ -2621,7 +2621,7 @@ def export_quote_pdf(qid):
     with get_db() as db:
         q = dict(db.execute("SELECT * FROM quotes WHERE id=%s", (qid,)).fetchone())
         items = [dict(r) for r in db.execute(
-            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
+            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode, pr.sku FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
             (qid,)).fetchall()]
         customer = None
         if q.get('customer_id'):
@@ -3573,7 +3573,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     for i in items:
         ctn_qty = i.get('carton_qty') or 0
         line_total = i['qty'] * i['price'] * (1 - i.get('discount_pct', 0) / 100)
-        bc_val = str(i.get('barcode') or '').strip()
+        bc_val = str(i.get('barcode') or i.get('sku') or '').strip()
         if bc_val:
             try:
                 prod_bc = code128.Code128(bc_val, barHeight=5*mm, barWidth=0.5, humanReadable=True, fontSize=6)
