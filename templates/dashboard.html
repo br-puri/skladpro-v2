@@ -149,9 +149,7 @@
   </a>
 
   <a href="{{ url_for('report_stock') }}" class="kpi-card t-violet">
-    <div class="kpi-icon i-violet">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-    </div>
+    <div class="kpi-icon i-violet" style="font-size:15px;font-weight:700;color:#7c3aed;line-height:1">£</div>
     <div class="kpi-label">Stock Value</div>
     <div class="kpi-value">£{{ "{:,.0f}".format(stock_value) }}</div>
   </a>
