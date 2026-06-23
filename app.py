@@ -892,7 +892,7 @@ def catalog_pdf_download():
     with get_db() as db:
         db.execute("INSERT INTO catalog_tokens (token, expires_at) VALUES (%s, %s)", (token, time.time() + 90))
 
-    port = request.environ.get('SERVER_PORT', 5001)
+    port = os.environ.get('PORT', '5001')
     render_url = f'http://127.0.0.1:{port}/products/catalog/render?token={token}'
 
     pdf_fd, pdf_path = tempfile.mkstemp(suffix='.pdf')
