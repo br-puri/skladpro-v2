@@ -112,6 +112,33 @@
   </script>
 
   <hr class="section">
+  <div style="font-weight:600;font-size:14px;margin-bottom:14px;color:#444">Payment Reminders <span style="font-weight:400;color:#888;font-size:12px">— auto-email customers with unpaid invoices</span></div>
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;margin-bottom:14px">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:10px">
+      <input type="checkbox" name="reminder_enabled" value="1" {{ 'checked' if s.get('reminder_enabled','1') == '1' else '' }} style="width:16px;height:16px;accent-color:#1a6ef5">
+      <span style="font-size:13px;font-weight:600;color:#1e293b">Send weekly reminders automatically</span>
+    </label>
+    <div style="font-size:12px;color:#64748b;margin-bottom:12px;padding-left:26px">
+      Every 7 days, customers with outstanding invoices older than 7 days will receive a reminder email listing all unpaid amounts. Each invoice is reminded at most once per week.
+    </div>
+    {% if s.get('reminder_last_run') %}
+    <div style="font-size:12px;color:#475569;padding-left:26px">Last sent: <strong>{{ s.get('reminder_last_run') }}</strong></div>
+    {% else %}
+    <div style="font-size:12px;color:#94a3b8;padding-left:26px">No reminders sent yet.</div>
+    {% endif %}
+  </div>
+  <div style="margin-bottom:18px">
+    <button type="submit" class="btn btn-primary" style="margin-right:8px">Save Settings</button>
+    <span style="font-size:12px;color:#94a3b8">Save first to update the reminder toggle, then use the button below to send now.</span>
+  </div>
+  <form method="post" action="{{ url_for('admin_send_reminders') }}" onsubmit="return confirm('Send payment reminders now to all customers with outstanding invoices?')">
+    <button type="submit" class="btn" style="background:#f0fdf4;border-color:#bbf7d0;color:#15803d;font-size:13px">
+      ✉ Send Reminders Now
+    </button>
+    <span style="font-size:12px;color:#94a3b8;margin-left:8px">Sends immediately regardless of schedule</span>
+  </form>
+
+  <hr class="section">
   <div style="font-weight:600;font-size:14px;margin-bottom:14px;color:#444">Bank Details <span style="font-weight:400;color:#888;font-size:12px">(shown on invoice)</span></div>
   <div class="form-row">
     <div class="form-group"><label class="form-label">Bank Name</label><input name="co_bank_name" class="form-control" value="{{ s.get('co_bank_name','') }}" placeholder="e.g. Barclays"></div>

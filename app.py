@@ -10,7 +10,8 @@ import tempfile
 import time
 import uuid
 from email.message import EmailMessage
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+import threading
 from functools import wraps
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -453,10 +454,22 @@ def init_db():
                 notes        TEXT DEFAULT '',
                 created_at   TEXT
             )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS payment_reminders (
+                id      SERIAL PRIMARY KEY,
+                sale_id INTEGER REFERENCES sales(id),
+                sent_at TEXT NOT NULL,
+                sent_to TEXT NOT NULL
+            )""")
         db.commit()
         # Migrations — safe to run on existing DBs
         try:
             db.execute("ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS fetched_at TEXT")
+            db.commit()
+        except Exception:
+            db.rollback()
+        try:
+            db.execute("INSERT INTO settings(key,value) VALUES('reminder_enabled','1') ON CONFLICT(key) DO NOTHING")
+            db.execute("INSERT INTO settings(key,value) VALUES('reminder_last_run','') ON CONFLICT(key) DO NOTHING")
             db.commit()
         except Exception:
             db.rollback()
@@ -676,6 +689,8 @@ def settings_page():
         with get_db() as db:
             db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
                        ('co_hide_stock', '1' if request.form.get('co_hide_stock') else ''))
+            db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
+                       ('reminder_enabled', '1' if request.form.get('reminder_enabled') else ''))
         with get_db() as db:
             for f in fields:
                 db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
@@ -2380,6 +2395,93 @@ def _send_email(to_addr, subject, body, attachments=None, settings_dict=None):
         return False, str(e)
 
 
+def send_payment_reminders():
+    """Email outstanding-invoice reminders to customers. Returns (sent_count, failed_count)."""
+    from collections import defaultdict
+    try:
+        week_ago_str = (datetime.now() - timedelta(days=6)).strftime('%Y-%m-%d %H:%M:%S')
+        with get_db() as db:
+            rows = db.execute("""
+                SELECT s.id, s.num, s.doc_date, s.total, s.customer, s.customer_id,
+                       c.email, c.name AS cname, c.company,
+                       COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0) AS paid_amount
+                FROM sales s
+                LEFT JOIN contacts c ON c.id = s.customer_id
+                WHERE s.status='completed' AND s.archived=0
+                  AND (c.email IS NOT NULL AND c.email != '')
+                  AND s.doc_date <= (CURRENT_DATE - INTERVAL '7 days')::TEXT
+                  AND s.total > COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0)
+                ORDER BY c.email, s.doc_date
+            """).fetchall()
+
+        if not rows:
+            return 0, 0
+
+        company = get_settings()
+        co_name = company.get('co_company', 'NEON')
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        by_email = defaultdict(list)
+        for r in rows:
+            by_email[r['email']].append(dict(r))
+
+        sent = 0
+        failed = 0
+
+        for email, invoices in by_email.items():
+            # Only include invoices not already reminded in the last 6 days
+            with get_db() as db:
+                to_remind = []
+                for inv in invoices:
+                    already = db.execute(
+                        "SELECT 1 FROM payment_reminders WHERE sale_id=%s AND sent_at>%s",
+                        (inv['id'], week_ago_str)
+                    ).fetchone()
+                    if not already:
+                        to_remind.append(inv)
+
+            if not to_remind:
+                continue
+
+            customer_name = (to_remind[0].get('company') or to_remind[0].get('cname') or
+                             to_remind[0].get('customer') or 'Valued Customer')
+            total_outstanding = sum(inv['total'] - inv['paid_amount'] for inv in to_remind)
+
+            lines = '\n'.join(
+                f"  • Invoice {inv['num']} (dated {inv['doc_date']}) — \xa3{inv['total'] - inv['paid_amount']:,.2f} outstanding"
+                for inv in to_remind
+            )
+            body = (
+                f"Dear {customer_name},\n\n"
+                f"This is a friendly payment reminder. The following invoice(s) remain outstanding:\n\n"
+                f"{lines}\n\n"
+                f"Total Outstanding: \xa3{total_outstanding:,.2f}\n\n"
+                f"Please arrange payment at your earliest convenience. "
+                f"If you have already sent payment, please disregard this message.\n\n"
+                f"If you have any questions, please do not hesitate to contact us.\n\n"
+                f"Kind regards,\n{co_name}"
+            )
+            suffix = 's' if len(to_remind) > 1 else ''
+            subject = f"Payment Reminder — {len(to_remind)} Invoice{suffix} Outstanding | {co_name}"
+
+            ok, _ = _send_email(email, subject=subject, body=body)
+            if ok:
+                with get_db() as db:
+                    for inv in to_remind:
+                        db.execute(
+                            "INSERT INTO payment_reminders(sale_id,sent_at,sent_to) VALUES(%s,%s,%s)",
+                            (inv['id'], now_str, email)
+                        )
+                sent += 1
+            else:
+                failed += 1
+
+        return sent, failed
+    except Exception as e:
+        app.logger.error(f'send_payment_reminders error: {e}')
+        return 0, 0
+
+
 @app.route('/settings/email/test', methods=['POST'])
 @admin_required
 def settings_email_test():
@@ -2405,6 +2507,25 @@ def settings_email_test():
         flash(f'Test email sent to {to_addr}. Check your inbox AND spam folder.', 'success')
     else:
         flash(f'Test failed: {err}', 'error')
+    return redirect(url_for('settings_page'))
+
+
+@app.route('/admin/send-reminders', methods=['POST'])
+@admin_required
+def admin_send_reminders():
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    sent, failed = send_payment_reminders()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO settings(key,value) VALUES('reminder_last_run',%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
+            (now_str,)
+        )
+    if sent > 0:
+        flash(f'Sent {sent} reminder email(s).', 'success')
+    elif failed > 0:
+        flash(f'Sending failed for {failed} customer(s). Check SMTP settings.', 'error')
+    else:
+        flash('No reminders to send — all invoices are paid or recently reminded.', 'success')
     return redirect(url_for('settings_page'))
 
 
@@ -4593,6 +4714,34 @@ def api_customer(cid):
 
 
 init_db()
+
+
+def _payment_reminder_worker():
+    """Background daemon thread — sends payment reminders once per week."""
+    time.sleep(90)  # Let gunicorn fully start before first check
+    while True:
+        try:
+            s = get_settings()
+            if s.get('reminder_enabled', '1') == '1':
+                last_run = s.get('reminder_last_run', '')
+                threshold = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+                if not last_run or last_run < threshold:
+                    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    # Atomic claim — prevents double-fire across gunicorn workers
+                    with get_db() as db:
+                        cur = db.execute(
+                            "UPDATE settings SET value=%s WHERE key='reminder_last_run' AND (value='' OR value<%s)",
+                            (now_str, threshold)
+                        )
+                    if cur.rowcount > 0:
+                        send_payment_reminders()
+        except Exception as e:
+            app.logger.error(f'_payment_reminder_worker: {e}')
+        time.sleep(3600)  # Check every hour
+
+
+threading.Thread(target=_payment_reminder_worker, daemon=True).start()
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5001)
