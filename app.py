@@ -899,6 +899,24 @@ def catalog_pdf_download():
     return response
 
 
+@app.route('/products/catalog/pdf-debug')
+@admin_required
+def catalog_pdf_debug():
+    """Return the raw HTML that WeasyPrint would receive — for debugging blank PDFs."""
+    products, categories = _catalog_data()
+    co = get_settings()
+    html_string = render_template(
+        'catalog_pdf.html',
+        products=products,
+        categories=categories,
+        co=co,
+        now=date.today(),
+        total_products=len(products),
+        total_cats=len(categories),
+    )
+    return html_string, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
+
 @app.route('/products/catalog/manage', methods=['GET', 'POST'])
 @admin_required
 def catalog_manage():
