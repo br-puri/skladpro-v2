@@ -2145,7 +2145,7 @@ def add_sale():
             subtotal = sum(float(q)*float(p)*(1-float(d)/100) for q,p,d in zip(qtys,prices,disc_pcts) if q and p) * (1 - global_disc/100)
             tax_amount = subtotal * tax_pct / 100
             total = subtotal + tax_amount
-            num = next_num('SAL', 'sales')
+            num = next_num('INV', 'sales')
             customer_id = request.form.get('customer_id') or None
             cur = db.execute("INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (num, request.form['doc_date'], request.form['customer'], customer_id, subtotal, total, global_disc, tax_pct, tax_amount,
@@ -2758,7 +2758,7 @@ def convert_quote(qid):
         if errors:
             for e in errors: flash(e, 'error')
             return redirect(url_for('view_quote', qid=qid))
-        num = next_num('SAL', 'sales')
+        num = next_num('INV', 'sales')
         cur = db.execute(
             "INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (num, date.today().isoformat(), q['customer'], q['customer_id'], q['subtotal'], q['total'],
