@@ -24,6 +24,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'}
 PUBLIC_ROUTES = {'login', 'static', 'catalog_render'}
+CHROME_PATH = os.environ.get('CHROME_PATH', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
 
 @app.before_request
 def require_login():
@@ -877,293 +878,43 @@ def catalog_render():
 
 @app.route('/products/catalog/pdf')
 def catalog_pdf_download():
-    """Generate a product catalogue PDF using ReportLab, styled like the web catalog."""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.units import mm
-    from reportlab.lib.enums import TA_RIGHT, TA_CENTER
-    from PIL import Image as PILImage
+    """Render the catalog via Chrome headless and return a PDF."""
+    import secrets as _secrets
 
-    products, categories = _catalog_data()
-    co = get_settings()
+    # Issue a short-lived token so the renderer can load the page without a session
+    token = _secrets.token_urlsafe(32)
+    expires = time.time() + 90
+    with get_db() as db:
+        db.execute("INSERT INTO catalog_tokens(token, expires_at) VALUES(%s, %s)", (token, expires))
 
-    GOLD   = colors.HexColor('#d9a024')
-    NAVY   = colors.HexColor('#0f172a')
-    SLATE  = colors.HexColor('#64748b')
-    LIGHT  = colors.HexColor('#f1f5f9')
-    RED    = colors.HexColor('#dc2626')
-    GREEN  = colors.HexColor('#16a34a')
-    GREY   = colors.HexColor('#e2e8f0')
-    WHITE  = colors.white
-
-    def ps(name, **kw):
-        return ParagraphStyle(name, **kw)
-
-    # Cover styles (white text on gold)
-    s_cover_badge = ps('cl_cb', fontSize=7,  fontName='Helvetica-Bold', textColor=WHITE, leading=9)
-    s_cover_info  = ps('cl_ci', fontSize=8,  fontName='Helvetica',      textColor=colors.HexColor('#ffffffdd'), leading=12, alignment=TA_RIGHT)
-    s_cover_title = ps('cl_ct', fontSize=22, fontName='Helvetica-Bold', textColor=WHITE, leading=26)
-    s_cover_sub   = ps('cl_cs', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#ffffffcc'), leading=12)
-    s_stat_num    = ps('cl_sn', fontSize=24, fontName='Helvetica-Bold', textColor=WHITE, leading=28)
-    s_stat_lbl    = ps('cl_sl', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#ffffffaa'), leading=11)
-    # Body styles
-    s_cat         = ps('cl_cat',  fontSize=13, fontName='Helvetica-Bold', textColor=NAVY, leading=16)
-    s_subcat      = ps('cl_sub',  fontSize=9,  fontName='Helvetica-Bold', textColor=NAVY, leading=12)
-    s_cnt         = ps('cl_cnt',  fontSize=8,  fontName='Helvetica',      textColor=SLATE, leading=10, alignment=TA_RIGHT)
-    s_name        = ps('cl_nm',   fontSize=8,  fontName='Helvetica-Bold', textColor=NAVY, leading=10)
-    s_sku         = ps('cl_sku',  fontSize=6.5,fontName='Courier',        textColor=SLATE, leading=8)
-    s_price       = ps('cl_pr',   fontSize=12, fontName='Helvetica-Bold', textColor=NAVY, leading=15)
-    s_unit        = ps('cl_un',   fontSize=7,  fontName='Helvetica',      textColor=SLATE, leading=9)
-    s_ins         = ps('cl_ins',  fontSize=6.5,fontName='Helvetica-Bold', textColor=GREEN, leading=8)
-    s_oos         = ps('cl_oos',  fontSize=6.5,fontName='Helvetica-Bold', textColor=RED,   leading=8)
-    s_foot        = ps('cl_ft',   fontSize=7,  fontName='Helvetica',      textColor=SLATE, leading=10)
-
-    buf = io.BytesIO()
-    W, H = A4
-    LM = RM = 12*mm
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=LM, rightMargin=RM,
-                            topMargin=12*mm, bottomMargin=12*mm)
-    UW = W - LM - RM
-    story = []
-
-    # ── Cover ─────────────────────────────────────────────────────────────────
-    today_str = date.today().strftime('%d %B %Y')
-    co_name   = co.get('co_company', '')
-    CW = UW - 48   # inner width (24pt padding each side)
-
-    # Logo
-    logo_cell = Paragraph(f'<b>{co_name}</b>' if co_name else '', ps('cl_lg', fontSize=14, fontName='Helvetica-Bold', textColor=WHITE, leading=17))
-    logo_path = ''
-    if co.get('co_logo'):
-        lp = os.path.join(os.path.dirname(__file__), 'static', 'uploads', co['co_logo'])
-        if os.path.exists(lp):
-            logo_path = lp
-    if logo_path:
-        try:
-            pil = PILImage.open(logo_path)
-            lw, lh = pil.size
-            max_lw, max_lh = CW * 0.38, 22*mm
-            ratio = min(max_lw / lw, max_lh / lh)
-            logo_cell = Image(logo_path, width=lw*ratio, height=lh*ratio)
-        except Exception:
-            pass
-
-    # Company info (right side of cover top)
-    info_lines = []
-    if co.get('co_address'):
-        addr = ', '.join(x for x in [co.get('co_address',''), co.get('co_city',''), co.get('co_postcode','')] if x)
-        info_lines.append(f'Registered · {addr}')
-    if co.get('co_phone'):  info_lines.append(f'Tel · {co["co_phone"]}')
-    if co.get('co_email'):  info_lines.append(f'Email · {co["co_email"]}')
-    if co.get('co_vat'):    info_lines.append(f'VAT · {co["co_vat"]}')
-
-    top_tbl = Table([[logo_cell,
-                      Paragraph('<br/>'.join(info_lines), s_cover_info)]],
-                    colWidths=[CW * 0.45, CW * 0.55])
-    top_tbl.setStyle(TableStyle([
-        ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-        ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0),
-        ('TOPPADDING',(0,0),(-1,-1),0),  ('BOTTOMPADDING',(0,0),(-1,-1),0),
-    ]))
-
-    # Stats row  "31   7"
-    stats_tbl = Table([[
-        Paragraph(str(len(products)), s_stat_num),
-        Paragraph(str(len(categories)), s_stat_num),
-    ]], colWidths=[CW * 0.5, CW * 0.5])
-    stats_tbl.setStyle(TableStyle([
-        ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0),
-        ('TOPPADDING',(0,0),(-1,-1),0),  ('BOTTOMPADDING',(0,0),(-1,-1),0),
-    ]))
-    stats_lbl_tbl = Table([[
-        Paragraph('Products', s_stat_lbl),
-        Paragraph('Categories', s_stat_lbl),
-    ]], colWidths=[CW * 0.5, CW * 0.5])
-    stats_lbl_tbl.setStyle(TableStyle([
-        ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0),
-        ('TOPPADDING',(0,0),(-1,-1),0),  ('BOTTOMPADDING',(0,0),(-1,-1),0),
-    ]))
-
-    cover = Table([
-        [top_tbl],
-        [Paragraph('CATALOGUE', s_cover_badge)],
-        [Paragraph('Product Catalogue', s_cover_title)],
-        [Paragraph(f'{today_str}  ·  GBP (£)  ·  All prices subject to confirmation', s_cover_sub)],
-        [stats_tbl],
-        [stats_lbl_tbl],
-    ], colWidths=[UW])
-    cover.setStyle(TableStyle([
-        ('BACKGROUND',    (0,0),(-1,-1), GOLD),
-        ('ROUNDEDCORNERS',[8]),
-        ('LEFTPADDING',   (0,0),(-1,-1), 24),
-        ('RIGHTPADDING',  (0,0),(-1,-1), 24),
-        ('TOPPADDING',    (0,0),(0,0),   18),
-        ('BOTTOMPADDING', (0,0),(0,0),   10),
-        ('TOPPADDING',    (0,1),(0,1),    8),
-        ('BOTTOMPADDING', (0,1),(0,1),    2),
-        ('TOPPADDING',    (0,2),(0,2),    4),
-        ('BOTTOMPADDING', (0,2),(0,2),    4),
-        ('TOPPADDING',    (0,3),(0,3),    2),
-        ('BOTTOMPADDING', (0,3),(0,3),   10),
-        ('TOPPADDING',    (0,4),(0,4),    8),
-        ('BOTTOMPADDING', (0,4),(0,4),    0),
-        ('TOPPADDING',    (0,5),(0,5),    2),
-        ('BOTTOMPADDING', (0,5),(0,5),   18),
-    ]))
-    story.append(cover)
-    story.append(Spacer(1, 5*mm))
-
-    # ── Product grid — 4 columns ───────────────────────────────────────────────
-    NCOLS  = 4
-    GAP    = 2.5*mm
-    COL_W  = (UW - (NCOLS - 1) * GAP) / NCOLS
-    IMG_H  = 28*mm
-    CARD_P = 4   # inner padding points
-
-    def _img_cell(photo):
-        """Fixed-height image area: product photo or plain light-grey box."""
-        iw = COL_W - 2 * CARD_P
-        ih = IMG_H
-        img_path = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products', photo) if photo else ''
-        if photo and os.path.exists(img_path):
-            try:
-                pil = PILImage.open(img_path)
-                pw, ph = pil.size
-                ratio = min(iw / pw, ih / ph)
-                img = Image(img_path, width=pw*ratio, height=ph*ratio)
-                t = Table([[img]], colWidths=[iw], rowHeights=[ih])
-                t.setStyle(TableStyle([
-                    ('ALIGN',  (0,0),(-1,-1),'CENTER'),
-                    ('VALIGN', (0,0),(-1,-1),'MIDDLE'),
-                    ('BACKGROUND',(0,0),(-1,-1), LIGHT),
-                    ('TOPPADDING',(0,0),(-1,-1),2),
-                    ('BOTTOMPADDING',(0,0),(-1,-1),2),
-                    ('LEFTPADDING',(0,0),(-1,-1),2),
-                    ('RIGHTPADDING',(0,0),(-1,-1),2),
-                ]))
-                return t
-            except Exception:
-                pass
-        # grey placeholder
-        t = Table([['']], colWidths=[iw], rowHeights=[ih])
-        t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1), LIGHT)]))
-        return t
-
-    def _product_card(p):
-        iw = COL_W - 2 * CARD_P
-        rows = [
-            [_img_cell(p.get('photo') or '')],
-            [Spacer(1, 2)],
-            [Paragraph((p.get('name') or '')[:50], s_name)],
+    out_pdf = os.path.join(tempfile.gettempdir(), f'catalog_{token[:8]}.pdf')
+    try:
+        url = f'http://127.0.0.1:8080/products/catalog/render?token={token}'
+        cmd = [
+            CHROME_PATH,
+            '--headless=old',
+            '--no-sandbox',
+            '--disable-gpu',
+            '--disable-dev-shm-usage',
+            '--run-all-compositor-stages-before-draw',
+            '--print-to-pdf-no-header',
+            f'--print-to-pdf={out_pdf}',
+            url,
         ]
-        if p.get('sku'):
-            rows.append([Paragraph(p['sku'], s_sku)])
-        rows.append([Spacer(1, 2)])
-        unit_txt = f'<font size="7" color="#64748b"> / {p["unit"]}</font>' if p.get('unit') else ''
-        rows.append([Paragraph(f'£{p["price"]:.2f}{unit_txt}', s_price)])
-        in_stock = (p.get('stock_total') or 0) > 0
-        rows.append([Paragraph('In stock' if in_stock else 'Out of stock',
-                                s_ins if in_stock else s_oos)])
+        result = subprocess.run(cmd, timeout=45, capture_output=True)
+        if result.returncode != 0 or not os.path.exists(out_pdf) or os.path.getsize(out_pdf) < 1000:
+            app.logger.error('Chrome failed: %s', result.stderr.decode(errors='replace')[:500])
+            return 'PDF generation failed — Chrome error', 500
 
-        inner = Table(rows, colWidths=[iw])
-        inner.setStyle(TableStyle([
-            ('LEFTPADDING',  (0,0),(-1,-1), 0),
-            ('RIGHTPADDING', (0,0),(-1,-1), 0),
-            ('TOPPADDING',   (0,0),(-1,-1), 1),
-            ('BOTTOMPADDING',(0,0),(-1,-1), 1),
-        ]))
-        card = Table([[inner]], colWidths=[COL_W])
-        card.setStyle(TableStyle([
-            ('BOX',          (0,0),(-1,-1), 0.5, GREY),
-            ('ROUNDEDCORNERS',[4]),
-            ('BACKGROUND',   (0,0),(-1,-1), WHITE),
-            ('VALIGN',       (0,0),(-1,-1), 'TOP'),
-            ('LEFTPADDING',  (0,0),(-1,-1), CARD_P),
-            ('RIGHTPADDING', (0,0),(-1,-1), CARD_P),
-            ('TOPPADDING',   (0,0),(-1,-1), CARD_P),
-            ('BOTTOMPADDING',(0,0),(-1,-1), CARD_P),
-        ]))
-        return card
+        with open(out_pdf, 'rb') as f:
+            pdf_bytes = f.read()
+    finally:
+        if os.path.exists(out_pdf):
+            os.unlink(out_pdf)
 
-    def _make_grid(prods):
-        rows = []
-        for i in range(0, len(prods), NCOLS):
-            row = [_product_card(p) for p in prods[i:i+NCOLS]]
-            while len(row) < NCOLS:
-                row.append('')
-            rows.append(row)
-        grid = Table(rows, colWidths=[COL_W] * NCOLS)
-        grid.setStyle(TableStyle([
-            ('VALIGN',       (0,0),(-1,-1), 'TOP'),
-            ('LEFTPADDING',  (0,0),(-1,-1), GAP / 2),
-            ('RIGHTPADDING', (0,0),(-1,-1), GAP / 2),
-            ('TOPPADDING',   (0,0),(-1,-1), GAP / 2),
-            ('BOTTOMPADDING',(0,0),(-1,-1), GAP / 2),
-        ]))
-        return grid
-
-    # ── Categories ────────────────────────────────────────────────────────────
-    for cat in categories:
-        cat_prods = [p for p in products if (p.get('category') or 'Uncategorised') == cat]
-        if not cat_prods:
-            continue
-
-        story.append(Spacer(1, 3*mm))
-        hdr = Table([[Paragraph(cat, s_cat), Paragraph(f'{len(cat_prods)} items', s_cnt)]],
-                    colWidths=[UW * 0.8, UW * 0.2])
-        hdr.setStyle(TableStyle([
-            ('VALIGN',       (0,0),(-1,-1), 'BOTTOM'),
-            ('LINEBELOW',    (0,0),(-1,-1), 1, GREY),
-            ('BOTTOMPADDING',(0,0),(-1,-1), 4),
-            ('LEFTPADDING',  (0,0),(0,0),   0),
-            ('TOPPADDING',   (0,0),(-1,-1), 0),
-        ]))
-        story.append(hdr)
-        story.append(Spacer(1, 3*mm))
-
-        subcats = list(dict.fromkeys((p.get('subcategory') or '') for p in cat_prods))
-        for sub in subcats:
-            sub_prods = [p for p in cat_prods if (p.get('subcategory') or '') == sub]
-            if not sub_prods:
-                continue
-            if sub:
-                # Gold bar + subcategory name (matches web style)
-                bar = Table([['']], colWidths=[3], rowHeights=[11])
-                bar.setStyle(TableStyle([
-                    ('BACKGROUND',(0,0),(-1,-1), GOLD),
-                    ('TOPPADDING',(0,0),(-1,-1),0),
-                    ('BOTTOMPADDING',(0,0),(-1,-1),0),
-                ]))
-                sh = Table([[bar, Paragraph(sub, s_subcat),
-                             Paragraph(f'{len(sub_prods)} items', s_cnt)]],
-                           colWidths=[6, UW * 0.75, UW * 0.25 - 6])
-                sh.setStyle(TableStyle([
-                    ('VALIGN',      (0,0),(-1,-1),'MIDDLE'),
-                    ('LEFTPADDING', (0,0),(-1,-1), 0),
-                    ('RIGHTPADDING',(0,0),(-1,-1), 0),
-                    ('TOPPADDING',  (0,0),(-1,-1), 0),
-                    ('BOTTOMPADDING',(0,0),(-1,-1),4),
-                ]))
-                story.append(sh)
-                story.append(Spacer(1, 2*mm))
-            story.append(_make_grid(sub_prods))
-            story.append(Spacer(1, 4*mm))
-
-    # ── Footer ────────────────────────────────────────────────────────────────
-    story.append(HRFlowable(width=UW, color=GREY))
-    story.append(Spacer(1, 2*mm))
-    foot = co_name
-    if co.get('co_vat'):
-        foot += f'  ·  VAT {co["co_vat"]}'
-    foot += f'  ·  Prices subject to change without notice  ·  Generated {today_str}'
-    story.append(Paragraph(foot, s_foot))
-
-    doc.build(story)
-    buf.seek(0)
     fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
-    resp = send_file(buf, mimetype='application/pdf', download_name=fname, as_attachment=False)
+    resp = send_file(io.BytesIO(pdf_bytes), mimetype='application/pdf',
+                     download_name=fname, as_attachment=False)
     resp.headers['Content-Disposition'] = f'inline; filename="{fname}"'
     return resp
 
