@@ -880,227 +880,230 @@ def catalog_pdf_download():
     """Generate a product catalogue PDF using ReportLab."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
-    from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
-                                     Paragraph, Spacer, HRFlowable, Image, KeepTogether)
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
+    from reportlab.lib.enums import TA_RIGHT
     from PIL import Image as PILImage
 
     products, categories = _catalog_data()
     co = get_settings()
-    GOLD = colors.HexColor('#d9a024')
-    NAVY = colors.HexColor('#0f172a')
+
+    GOLD  = colors.HexColor('#d9a024')
+    NAVY  = colors.HexColor('#0f172a')
     SLATE = colors.HexColor('#64748b')
     LIGHT = colors.HexColor('#f1f5f9')
-    RED = colors.HexColor('#ef4444')
+    RED   = colors.HexColor('#ef4444')
+    GREY  = colors.HexColor('#e2e8f0')
 
-    base = getSampleStyleSheet()
-    def sty(name, **kw):
-        s = ParagraphStyle(f'cat_{name}', parent=base['Normal'], **kw)
-        return s
+    def ps(name, **kw):
+        return ParagraphStyle(name, **kw)
 
-    s_title  = sty('title',  fontSize=22, fontName='Helvetica-Bold', textColor=colors.white, leading=26)
-    s_sub    = sty('sub',    fontSize=9,  fontName='Helvetica',       textColor=colors.HexColor('#ffffffaa'), leading=12)
-    s_rinfo  = sty('rinfo',  fontSize=8,  fontName='Helvetica',       textColor=colors.HexColor('#ffffffbb'), leading=13, alignment=TA_RIGHT)
-    s_cat    = sty('cat',    fontSize=13, fontName='Helvetica-Bold',   textColor=NAVY, leading=16)
-    s_subcat = sty('subcat', fontSize=10, fontName='Helvetica-Bold',   textColor=NAVY, leading=13)
-    s_name   = sty('name',   fontSize=8.5,fontName='Helvetica-Bold',   textColor=NAVY, leading=11, wordWrap='CJK')
-    s_sku    = sty('sku',    fontSize=7,  fontName='Courier',          textColor=SLATE, leading=9)
-    s_price  = sty('price',  fontSize=11, fontName='Helvetica-Bold',   textColor=NAVY, leading=14)
-    s_unit   = sty('unit',   fontSize=7,  fontName='Helvetica',        textColor=SLATE, leading=9)
-    s_oos    = sty('oos',    fontSize=7,  fontName='Helvetica-Bold',   textColor=RED, leading=9)
-    s_desc   = sty('desc',   fontSize=7,  fontName='Helvetica',        textColor=SLATE, leading=9, wordWrap='CJK')
-    s_foot   = sty('foot',   fontSize=7,  fontName='Helvetica',        textColor=SLATE)
+    s_badge  = ps('cl_badge',  fontSize=7,   fontName='Helvetica-Bold', textColor=colors.white, leading=9)
+    s_rinfo  = ps('cl_rinfo',  fontSize=8,   fontName='Helvetica',      textColor=colors.HexColor('#ffffffcc'), leading=13, alignment=TA_RIGHT)
+    s_title  = ps('cl_title',  fontSize=20,  fontName='Helvetica-Bold', textColor=colors.white, leading=24)
+    s_sub    = ps('cl_sub',    fontSize=8.5, fontName='Helvetica',      textColor=colors.HexColor('#ffffffcc'), leading=11)
+    s_cat    = ps('cl_cat',    fontSize=13,  fontName='Helvetica-Bold', textColor=NAVY, leading=16)
+    s_subcat = ps('cl_subcat', fontSize=10,  fontName='Helvetica-Bold', textColor=NAVY, leading=13)
+    s_name   = ps('cl_name',   fontSize=8.5, fontName='Helvetica-Bold', textColor=NAVY, leading=11)
+    s_sku    = ps('cl_sku',    fontSize=7,   fontName='Courier',        textColor=SLATE, leading=9)
+    s_price  = ps('cl_price',  fontSize=11,  fontName='Helvetica-Bold', textColor=NAVY, leading=14)
+    s_oos    = ps('cl_oos',    fontSize=7,   fontName='Helvetica-Bold', textColor=RED,  leading=9)
+    s_desc   = ps('cl_desc',   fontSize=7,   fontName='Helvetica',      textColor=SLATE, leading=9)
+    s_cnt    = ps('cl_cnt',    fontSize=8,   fontName='Helvetica',      textColor=SLATE, leading=10, alignment=TA_RIGHT)
+    s_scnt   = ps('cl_scnt',   fontSize=7,   fontName='Helvetica',      textColor=SLATE, leading=9,  alignment=TA_RIGHT)
+    s_foot   = ps('cl_foot',   fontSize=7,   fontName='Helvetica',      textColor=SLATE, leading=10)
 
     buf = io.BytesIO()
     W, H = A4
     LM = RM = 14*mm
-    TM = BM = 14*mm
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=LM, rightMargin=RM,
-                            topMargin=TM, bottomMargin=BM)
-    usable_w = W - LM - RM
+                            topMargin=14*mm, bottomMargin=14*mm)
+    UW = W - LM - RM   # usable width
     story = []
 
-    # ── Cover banner ──────────────────────────────────────────────────────────
-    cover_data = [['']]
-    cover_table = Table(cover_data, colWidths=[usable_w], rowHeights=[52*mm])
-    cover_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), GOLD),
-        ('ROUNDEDCORNERS', [6]),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-    ]))
-    # Overlay text by building a nested table inside the gold box
-    co_name = co.get('co_company', '')
-    addr_parts = [p for p in [co.get('co_address',''), co.get('co_city',''), co.get('co_postcode','')] if p]
-    right_lines = [f'<b>{co_name}</b>'] if co_name else []
-    if addr_parts: right_lines.append(', '.join(addr_parts))
-    if co.get('co_phone'): right_lines.append(f"Tel · {co['co_phone']}")
-    if co.get('co_email'): right_lines.append(f"Email · {co['co_email']}")
-    if co.get('co_vat'):   right_lines.append(f"VAT · {co['co_vat']}")
-
-    cover_inner = Table([[
-        Paragraph('CATALOGUE', sty('badge', fontSize=7, fontName='Helvetica-Bold',
-                                   textColor=colors.white, leading=9)),
-        Paragraph('<br/>'.join(right_lines), s_rinfo),
-    ]], colWidths=[usable_w*0.6, usable_w*0.4])
-    cover_inner.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'), ('LEFTPADDING',(0,0),(-1,-1),0), ('RIGHTPADDING',(0,0),(-1,-1),0)]))
-
+    # ── Cover banner (gold box, 4 rows × 1 col) ───────────────────────────────
     today_str = date.today().strftime('%d %B %Y')
-    stats_line = f'{len(products)} Products  ·  {len(categories)} Categories  ·  {today_str}  ·  GBP (£)'
-    cover_full = Table([[
-        Table([[
-            cover_inner,
-            Paragraph(f'<b>Product Catalogue</b>', s_title),
-            Paragraph(f'{today_str} &nbsp;·&nbsp; GBP (£) &nbsp;·&nbsp; All prices subject to confirmation', s_sub),
-            Paragraph(f'<b>{len(products)}</b> Products  &nbsp;&nbsp;  <b>{len(categories)}</b> Categories', s_sub),
-        ]], colWidths=[usable_w], rowHeights=None)
-    ]], colWidths=[usable_w], rowHeights=[52*mm])
-    cover_full.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), GOLD),
-        ('ROUNDEDCORNERS', [6]),
-        ('TOPPADDING', (0,0), (-1,-1), 16),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 16),
-        ('LEFTPADDING', (0,0), (-1,-1), 20),
-        ('RIGHTPADDING', (0,0), (-1,-1), 20),
+    co_name   = co.get('co_company', '')
+    addr_parts = [x for x in [co.get('co_address',''), co.get('co_city',''), co.get('co_postcode','')] if x]
+    right_lines = ([f'<b>{co_name}</b>'] if co_name else []) + \
+                  ([', '.join(addr_parts)] if addr_parts else []) + \
+                  ([f"Tel · {co['co_phone']}"] if co.get('co_phone') else []) + \
+                  ([f"Email · {co['co_email']}"] if co.get('co_email') else []) + \
+                  ([f"VAT · {co['co_vat']}"]   if co.get('co_vat')   else [])
+
+    # Top row: CATALOGUE badge (left) + company info (right)
+    top_row_tbl = Table([[
+        Paragraph('CATALOGUE', s_badge),
+        Paragraph('<br/>'.join(right_lines) if right_lines else '', s_rinfo),
+    ]], colWidths=[UW * 0.55, UW * 0.45])
+    top_row_tbl.setStyle(TableStyle([
+        ('VALIGN',      (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING',(0,0), (-1,-1), 0),
+        ('TOPPADDING',  (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING',(0,0),(-1,-1), 0),
     ]))
-    story.append(cover_full)
+
+    cover = Table([
+        [top_row_tbl],
+        [Paragraph('Product Catalogue', s_title)],
+        [Paragraph(f'{today_str}  ·  GBP (£)  ·  All prices subject to confirmation', s_sub)],
+        [Paragraph(f'<b>{len(products)}</b> Products  ·  <b>{len(categories)}</b> Categories', s_sub)],
+    ], colWidths=[UW])
+    cover.setStyle(TableStyle([
+        ('BACKGROUND',   (0,0), (-1,-1), GOLD),
+        ('ROUNDEDCORNERS', [6]),
+        ('LEFTPADDING',  (0,0), (-1,-1), 20),
+        ('RIGHTPADDING', (0,0), (-1,-1), 20),
+        ('TOPPADDING',   (0,0), (0,0),   14),
+        ('BOTTOMPADDING',(0,0), (0,0),    8),
+        ('TOPPADDING',   (0,1), (0,1),   10),
+        ('BOTTOMPADDING',(0,1), (0,1),    4),
+        ('TOPPADDING',   (0,2), (0,2),    3),
+        ('BOTTOMPADDING',(0,2), (0,2),    2),
+        ('TOPPADDING',   (0,3), (0,3),    3),
+        ('BOTTOMPADDING',(0,3), (0,3),   14),
+    ]))
+    story.append(cover)
     story.append(Spacer(1, 6*mm))
 
-    # ── Products by category ──────────────────────────────────────────────────
-    IMG_W = 47*mm
-    IMG_H = 35*mm
-    COL_W = (usable_w - 2*3*mm) / 3   # 3 columns, 3mm gap
+    # ── Product grid helpers ───────────────────────────────────────────────────
+    IMG_H = 33*mm
+    COL_W = (UW - 2*3*mm) / 3
 
-    def product_card(p):
-        """Return a list of flowables for one product card."""
-        card_items = []
-        # Image
-        photo = p.get('photo', '')
+    def _placeholder(w, h):
+        t = Table([['']], colWidths=[w - 4*mm], rowHeights=[h])
+        t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1), LIGHT)]))
+        return t
+
+    def _product_card(p):
+        rows = []
+        photo    = p.get('photo') or ''
         img_path = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products', photo) if photo else ''
         if photo and os.path.exists(img_path):
             try:
-                pil = PILImage.open(img_path)
+                pil  = PILImage.open(img_path)
                 pw, ph = pil.size
-                ratio = min(IMG_W/pw, IMG_H/ph)
-                img = Image(img_path, width=pw*ratio, height=ph*ratio)
-                img_cell = Table([[img]], colWidths=[COL_W-4*mm], rowHeights=[IMG_H])
-                img_cell.setStyle(TableStyle([
-                    ('ALIGN',(0,0),(-1,-1),'CENTER'), ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-                    ('BACKGROUND',(0,0),(-1,-1),LIGHT),
-                    ('TOPPADDING',(0,0),(-1,-1),3), ('BOTTOMPADDING',(0,0),(-1,-1),3),
+                ratio = min((COL_W - 4*mm) / pw, IMG_H / ph)
+                img  = Image(img_path, width=pw*ratio, height=ph*ratio)
+                it   = Table([[img]], colWidths=[COL_W - 4*mm], rowHeights=[IMG_H])
+                it.setStyle(TableStyle([
+                    ('ALIGN',  (0,0),(-1,-1),'CENTER'),
+                    ('VALIGN', (0,0),(-1,-1),'MIDDLE'),
+                    ('BACKGROUND',(0,0),(-1,-1), LIGHT),
+                    ('TOPPADDING',   (0,0),(-1,-1), 3),
+                    ('BOTTOMPADDING',(0,0),(-1,-1), 3),
                 ]))
-                card_items.append(img_cell)
+                rows.append([it])
             except Exception:
-                card_items.append(_placeholder_img(COL_W, IMG_H))
+                rows.append([_placeholder(COL_W, IMG_H)])
         else:
-            card_items.append(_placeholder_img(COL_W, IMG_H))
+            rows.append([_placeholder(COL_W, IMG_H)])
 
-        card_items.append(Spacer(1, 2*mm))
-        name = (p.get('name') or '')[:55]
-        card_items.append(Paragraph(name, s_name))
+        rows.append([Spacer(1, 2*mm)])
+        rows.append([Paragraph((p.get('name') or '')[:55], s_name)])
         if p.get('sku'):
-            card_items.append(Paragraph(p['sku'], s_sku))
-        price_txt = f'£{p["price"]:.2f}'
-        unit_txt  = f' / {p["unit"]}' if p.get('unit') else ''
-        card_items.append(Paragraph(f'{price_txt}<font size="7" color="#64748b">{unit_txt}</font>', s_price))
+            rows.append([Paragraph(p['sku'], s_sku)])
+        unit_part = f'<font size="7" color="#64748b"> / {p["unit"]}</font>' if p.get('unit') else ''
+        rows.append([Paragraph(f'£{p["price"]:.2f}{unit_part}', s_price)])
         if (p.get('stock_total') or 0) <= 0:
-            card_items.append(Paragraph('Out of stock', s_oos))
+            rows.append([Paragraph('Out of stock', s_oos)])
         if p.get('description'):
-            desc = (p['description'] or '')[:80]
-            card_items.append(Paragraph(desc, s_desc))
-        return card_items
+            rows.append([Paragraph((p['description'] or '')[:80], s_desc)])
 
-    def _placeholder_img(w, h):
-        ph = Table([['']], colWidths=[w-4*mm], rowHeights=[h])
-        ph.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),LIGHT)]))
-        return ph
+        inner = Table(rows, colWidths=[COL_W - 4*mm])
+        inner.setStyle(TableStyle([
+            ('LEFTPADDING',  (0,0),(-1,-1), 2),
+            ('RIGHTPADDING', (0,0),(-1,-1), 2),
+            ('TOPPADDING',   (0,0),(-1,-1), 1),
+            ('BOTTOMPADDING',(0,0),(-1,-1), 1),
+        ]))
+        card = Table([[inner]], colWidths=[COL_W])
+        card.setStyle(TableStyle([
+            ('BOX',           (0,0),(-1,-1), 0.5, GREY),
+            ('ROUNDEDCORNERS',[4]),
+            ('BACKGROUND',    (0,0),(-1,-1), colors.white),
+            ('VALIGN',        (0,0),(-1,-1), 'TOP'),
+            ('LEFTPADDING',   (0,0),(-1,-1), 2),
+            ('RIGHTPADDING',  (0,0),(-1,-1), 2),
+            ('TOPPADDING',    (0,0),(-1,-1), 2),
+            ('BOTTOMPADDING', (0,0),(-1,-1), 2),
+        ]))
+        return card
 
-    def make_grid(prods):
-        """Lay products into rows of 3."""
-        rows = []
+    def _make_grid(prods):
+        grid_rows = []
         for i in range(0, len(prods), 3):
             chunk = prods[i:i+3]
-            row = []
-            for p in chunk:
-                inner = Table([[item] for item in product_card(p)],
-                              colWidths=[COL_W-4*mm])
-                inner.setStyle(TableStyle([
-                    ('LEFTPADDING',(0,0),(-1,-1),2), ('RIGHTPADDING',(0,0),(-1,-1),2),
-                    ('TOPPADDING',(0,0),(-1,-1),1), ('BOTTOMPADDING',(0,0),(-1,-1),1),
-                ]))
-                cell = Table([[inner]], colWidths=[COL_W],)
-                cell.setStyle(TableStyle([
-                    ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
-                    ('ROUNDEDCORNERS',[4]),
-                    ('LEFTPADDING',(0,0),(-1,-1),2), ('RIGHTPADDING',(0,0),(-1,-1),2),
-                    ('TOPPADDING',(0,0),(-1,-1),2), ('BOTTOMPADDING',(0,0),(-1,-1),2),
-                    ('BACKGROUND',(0,0),(-1,-1),colors.white),
-                    ('VALIGN',(0,0),(-1,-1),'TOP'),
-                ]))
-                row.append(cell)
-            # Pad to 3 cols
+            row   = [_product_card(p) for p in chunk]
             while len(row) < 3:
                 row.append('')
-            rows.append(row)
-        grid = Table(rows, colWidths=[COL_W]*3, hAlign='LEFT')
+            grid_rows.append(row)
+        grid = Table(grid_rows, colWidths=[COL_W]*3)
         grid.setStyle(TableStyle([
-            ('VALIGN',(0,0),(-1,-1),'TOP'),
-            ('LEFTPADDING',(0,0),(-1,-1),3), ('RIGHTPADDING',(0,0),(-1,-1),3),
-            ('TOPPADDING',(0,0),(-1,-1),3), ('BOTTOMPADDING',(0,0),(-1,-1),3),
+            ('VALIGN',       (0,0),(-1,-1),'TOP'),
+            ('LEFTPADDING',  (0,0),(-1,-1), 3),
+            ('RIGHTPADDING', (0,0),(-1,-1), 3),
+            ('TOPPADDING',   (0,0),(-1,-1), 3),
+            ('BOTTOMPADDING',(0,0),(-1,-1), 3),
         ]))
         return grid
 
+    # ── Categories ────────────────────────────────────────────────────────────
     for cat in categories:
         cat_prods = [p for p in products if (p.get('category') or 'Uncategorised') == cat]
         if not cat_prods:
             continue
-        # Category header
+
         story.append(Spacer(1, 2*mm))
-        hdr = Table([[
-            Paragraph(cat, s_cat),
-            Paragraph(f'{len(cat_prods)} items', sty('cnt', fontSize=8, fontName='Helvetica',
-                                                      textColor=SLATE, leading=10)),
-        ]], colWidths=[usable_w*0.82, usable_w*0.18])
+        hdr = Table([[Paragraph(cat, s_cat), Paragraph(f'{len(cat_prods)} items', s_cnt)]],
+                    colWidths=[UW * 0.82, UW * 0.18])
         hdr.setStyle(TableStyle([
-            ('VALIGN',(0,0),(-1,-1),'BOTTOM'),
-            ('LINEBELOW',(0,0),(-1,-1),1,colors.HexColor('#e2e8f0')),
-            ('BOTTOMPADDING',(0,0),(-1,-1),4),
-            ('LEFTPADDING',(0,0),(0,0),0),
+            ('VALIGN',       (0,0),(-1,-1),'BOTTOM'),
+            ('LINEBELOW',    (0,0),(-1,-1), 1, GREY),
+            ('BOTTOMPADDING',(0,0),(-1,-1), 4),
+            ('LEFTPADDING',  (0,0),(0,0),   0),
+            ('TOPPADDING',   (0,0),(-1,-1), 0),
         ]))
         story.append(hdr)
         story.append(Spacer(1, 3*mm))
 
-        # Subcategories
-        subcats = list(dict.fromkeys(p.get('subcategory') or '' for p in cat_prods))
+        subcats = list(dict.fromkeys((p.get('subcategory') or '') for p in cat_prods))
         for sub in subcats:
             sub_prods = [p for p in cat_prods if (p.get('subcategory') or '') == sub]
             if not sub_prods:
                 continue
             if sub:
-                story.append(Table([[
-                    Table([['']], colWidths=[2.5], rowHeights=[12]),
-                    Paragraph(sub, s_subcat),
-                    Paragraph(f'{len(sub_prods)} items', sty('scnt', fontSize=7, fontName='Helvetica', textColor=SLATE, leading=9)),
-                ]], colWidths=[4, usable_w*0.7, usable_w*0.3-4]))
+                sub_hdr = Table([[Paragraph(f'— {sub}', s_subcat),
+                                  Paragraph(f'{len(sub_prods)} items', s_scnt)]],
+                                colWidths=[UW * 0.8, UW * 0.2])
+                sub_hdr.setStyle(TableStyle([
+                    ('VALIGN',      (0,0),(-1,-1),'BOTTOM'),
+                    ('LEFTPADDING', (0,0),(0,0),   4),
+                    ('TOPPADDING',  (0,0),(-1,-1), 0),
+                    ('BOTTOMPADDING',(0,0),(-1,-1),3),
+                ]))
+                story.append(sub_hdr)
                 story.append(Spacer(1, 2*mm))
-            story.append(make_grid(sub_prods))
+            story.append(_make_grid(sub_prods))
             story.append(Spacer(1, 4*mm))
 
-    # Footer
-    story.append(HRFlowable(width=usable_w, color=colors.HexColor('#e2e8f0')))
+    # ── Footer ────────────────────────────────────────────────────────────────
+    story.append(HRFlowable(width=UW, color=GREY))
     story.append(Spacer(1, 2*mm))
-    foot_txt = f'{co_name}'
-    if co.get('co_vat'): foot_txt += f'  ·  VAT {co["co_vat"]}'
-    foot_txt += f'  ·  Prices subject to change without notice  ·  Generated {today_str}'
-    story.append(Paragraph(foot_txt, s_foot))
+    foot = co_name
+    if co.get('co_vat'):
+        foot += f'  ·  VAT {co["co_vat"]}'
+    foot += f'  ·  Prices subject to change without notice  ·  Generated {today_str}'
+    story.append(Paragraph(foot, s_foot))
 
     doc.build(story)
     buf.seek(0)
     fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
-    response = send_file(buf, mimetype='application/pdf', download_name=fname, as_attachment=False)
-    response.headers['Content-Disposition'] = f'inline; filename="{fname}"'
-    return response
+    resp = send_file(buf, mimetype='application/pdf', download_name=fname, as_attachment=False)
+    resp.headers['Content-Disposition'] = f'inline; filename="{fname}"'
+    return resp
 
 
 
