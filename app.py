@@ -501,14 +501,13 @@ def init_db():
 
 
 def next_num(prefix, table):
-    ym = date.today().strftime('%Y%m')
     with get_db() as db:
         for _ in range(50):
             n = random.randint(1000, 9999)
-            num = f"{prefix}-{ym}-{n}"
+            num = f"{prefix}-{n}"
             if not db.execute(f"SELECT 1 FROM {table} WHERE num=%s", (num,)).fetchone():
                 return num
-    return f"{prefix}-{ym}-{random.randint(10000, 99999)}"
+    return f"{prefix}-{random.randint(10000, 99999)}"
 
 
 def get_settings():
