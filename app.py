@@ -933,10 +933,12 @@ def catalog_pdf_download():
                   ([f"VAT · {co['co_vat']}"]   if co.get('co_vat')   else [])
 
     # Top row: CATALOGUE badge (left) + company info (right)
+    # Cover has 20pt left+right padding, so inner width = UW - 40
+    CW = UW - 40
     top_row_tbl = Table([[
         Paragraph('CATALOGUE', s_badge),
         Paragraph('<br/>'.join(right_lines) if right_lines else '', s_rinfo),
-    ]], colWidths=[UW * 0.55, UW * 0.45])
+    ]], colWidths=[CW * 0.5, CW * 0.5])
     top_row_tbl.setStyle(TableStyle([
         ('VALIGN',      (0,0), (-1,-1), 'TOP'),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -972,11 +974,6 @@ def catalog_pdf_download():
     IMG_H = 33*mm
     COL_W = (UW - 2*3*mm) / 3
 
-    def _placeholder(w, h):
-        t = Table([['']], colWidths=[w - 4*mm], rowHeights=[h])
-        t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1), LIGHT)]))
-        return t
-
     def _product_card(p):
         rows = []
         photo    = p.get('photo') or ''
@@ -996,12 +993,10 @@ def catalog_pdf_download():
                     ('BOTTOMPADDING',(0,0),(-1,-1), 3),
                 ]))
                 rows.append([it])
+                rows.append([Spacer(1, 2*mm)])
             except Exception:
-                rows.append([_placeholder(COL_W, IMG_H)])
-        else:
-            rows.append([_placeholder(COL_W, IMG_H)])
-
-        rows.append([Spacer(1, 2*mm)])
+                pass
+        # no placeholder for missing images — just show text directly
         rows.append([Paragraph((p.get('name') or '')[:55], s_name)])
         if p.get('sku'):
             rows.append([Paragraph(p['sku'], s_sku)])
