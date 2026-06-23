@@ -23,8 +23,12 @@ app.secret_key = os.environ.get('SECRET_KEY', 'skladpro-secret-2026')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'}
-PUBLIC_ROUTES = {'login', 'static', 'catalog_render'}
 CHROME_PATH = os.environ.get('CHROME_PATH', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
+
+# One-time tokens for headless catalog rendering (no auth needed for the renderer)
+_catalog_tokens: dict = {}
+
+PUBLIC_ROUTES = {'login', 'static', 'catalog_render'}
 
 @app.before_request
 def require_login():
@@ -878,45 +882,51 @@ def catalog_render():
 
 @app.route('/products/catalog/pdf')
 def catalog_pdf_download():
-    """Render the catalog via Chrome headless and return a PDF."""
-    import secrets as _secrets
+    """Generate a PDF of the catalog using Chrome headless and serve it."""
+    if not os.path.exists(CHROME_PATH):
+        flash('Chrome not found — cannot generate PDF.', 'error')
+        return redirect(url_for('product_catalog'))
 
-    # Issue a short-lived token so the renderer can load the page without a session
-    token = _secrets.token_urlsafe(32)
-    expires = time.time() + 90
+    # Issue a one-time token (valid 90 s) stored in DB so any worker can validate it
+    token = str(uuid.uuid4())
     with get_db() as db:
-        db.execute("INSERT INTO catalog_tokens(token, expires_at) VALUES(%s, %s)", (token, expires))
+        db.execute("INSERT INTO catalog_tokens (token, expires_at) VALUES (%s, %s)", (token, time.time() + 90))
 
-    out_pdf = os.path.join(tempfile.gettempdir(), f'catalog_{token[:8]}.pdf')
+    port = request.environ.get('SERVER_PORT', 5001)
+    render_url = f'http://127.0.0.1:{port}/products/catalog/render?token={token}'
+
+    pdf_fd, pdf_path = tempfile.mkstemp(suffix='.pdf')
+    os.close(pdf_fd)
+
     try:
-        url = f'http://127.0.0.1:8080/products/catalog/render?token={token}'
-        cmd = [
-            CHROME_PATH,
-            '--headless=old',
-            '--no-sandbox',
-            '--disable-gpu',
-            '--disable-dev-shm-usage',
-            '--run-all-compositor-stages-before-draw',
-            '--print-to-pdf-no-header',
-            f'--print-to-pdf={out_pdf}',
-            url,
-        ]
-        result = subprocess.run(cmd, timeout=45, capture_output=True)
-        if result.returncode != 0 or not os.path.exists(out_pdf) or os.path.getsize(out_pdf) < 1000:
-            app.logger.error('Chrome failed: %s', result.stderr.decode(errors='replace')[:500])
-            return 'PDF generation failed — Chrome error', 500
-
-        with open(out_pdf, 'rb') as f:
-            pdf_bytes = f.read()
+        subprocess.run(
+            [
+                CHROME_PATH,
+                '--headless',
+                '--disable-gpu',
+                '--no-sandbox',
+                '--run-all-compositor-stages-before-draw',
+                '--no-pdf-header-footer',
+                '--window-size=794,1123',
+                '--print-to-pdf-no-header',
+                f'--print-to-pdf={pdf_path}',
+                render_url,
+            ],
+            capture_output=True,
+            timeout=60,
+        )
+        with open(pdf_path, 'rb') as f:
+            data = f.read()
     finally:
-        if os.path.exists(out_pdf):
-            os.unlink(out_pdf)
+        os.unlink(pdf_path)
+        with get_db() as db:
+            db.execute("DELETE FROM catalog_tokens WHERE token=%s", (token,))
 
     fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
-    resp = send_file(io.BytesIO(pdf_bytes), mimetype='application/pdf',
-                     download_name=fname, as_attachment=False)
-    resp.headers['Content-Disposition'] = f'inline; filename="{fname}"'
-    return resp
+    response = send_file(io.BytesIO(data), mimetype='application/pdf',
+                         download_name=fname, as_attachment=False)
+    response.headers['Content-Disposition'] = f'inline; filename="{fname}"'
+    return response
 
 
 
