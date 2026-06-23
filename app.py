@@ -23,11 +23,6 @@ app.secret_key = os.environ.get('SECRET_KEY', 'skladpro-secret-2026')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'}
-CHROME_PATH = os.environ.get('CHROME_PATH', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
-
-# One-time tokens for headless catalog rendering (no auth needed for the renderer)
-_catalog_tokens: dict = {}
-
 PUBLIC_ROUTES = {'login', 'static', 'catalog_render'}
 
 @app.before_request
@@ -882,54 +877,23 @@ def catalog_render():
 
 @app.route('/products/catalog/pdf')
 def catalog_pdf_download():
-    """Generate a PDF of the catalog using Chrome headless and serve it."""
-    if not os.path.exists(CHROME_PATH):
-        flash('Chrome not found — cannot generate PDF.', 'error')
-        return redirect(url_for('product_catalog'))
-
-    # Issue a one-time token (valid 90 s) stored in DB so any worker can validate it
-    token = str(uuid.uuid4())
-    with get_db() as db:
-        db.execute("INSERT INTO catalog_tokens (token, expires_at) VALUES (%s, %s)", (token, time.time() + 90))
-
-    # On Render, gunicorn binds to 8080 internally; locally Flask runs on 5001.
-    # request.environ SERVER_PORT returns the proxy-facing port (443), not the real one.
-    if os.environ.get('CHROME_PATH'):   # set in production env
-        port = 8080
-    else:
-        port = 5001
-    render_url = f'http://127.0.0.1:{port}/products/catalog/render?token={token}'
-
-    pdf_fd, pdf_path = tempfile.mkstemp(suffix='.pdf')
-    os.close(pdf_fd)
-
-    try:
-        result = subprocess.run(
-            [
-                CHROME_PATH,
-                '--headless=old',          # old mode supports --print-to-pdf via CLI
-                '--disable-gpu',
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-                '--no-pdf-header-footer',
-                '--window-size=794,1123',
-                f'--print-to-pdf={pdf_path}',
-                render_url,
-            ],
-            capture_output=True,
-            timeout=60,
-        )
-        if result.returncode != 0:
-            app.logger.error('Chromium PDF stderr: %s', result.stderr.decode(errors='replace'))
-        with open(pdf_path, 'rb') as f:
-            data = f.read()
-    finally:
-        os.unlink(pdf_path)
-        with get_db() as db:
-            db.execute("DELETE FROM catalog_tokens WHERE token=%s", (token,))
-
+    """Generate a PDF of the catalog using WeasyPrint and serve it."""
+    from weasyprint import HTML as WeasyHTML
+    products, categories = _catalog_data()
+    co = get_settings()
+    html_string = render_template(
+        'catalog_pdf.html',
+        products=products,
+        categories=categories,
+        co=co,
+        now=date.today(),
+        total_products=len(products),
+        total_cats=len(categories),
+    )
+    base_url = f"file://{os.path.abspath('.')}/"
+    pdf_data = WeasyHTML(string=html_string, base_url=base_url).write_pdf()
     fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
-    response = send_file(io.BytesIO(data), mimetype='application/pdf',
+    response = send_file(io.BytesIO(pdf_data), mimetype='application/pdf',
                          download_name=fname, as_attachment=False)
     response.headers['Content-Disposition'] = f'inline; filename="{fname}"'
     return response

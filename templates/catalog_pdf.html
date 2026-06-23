@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: A4; margin: 12mm 12mm 14mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, Helvetica, sans-serif; color: #1e293b; font-size: 11px; line-height: 1.4; }
+
+/* Cover */
+.cover {
+  background: #d9a024;
+  color: #fff;
+  padding: 28px 30px 24px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.cover-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.cover-logo { height: 36px; max-width: 140px; background: #fff; padding: 5px 10px; border-radius: 6px; }
+.cover-right { text-align: right; font-size: 10px; color: rgba(255,255,255,.75); line-height: 1.9; }
+.cover-right strong { color: #fff; }
+.cover-badge {
+  display: inline-block; background: rgba(0,0,0,.2); color: #fff;
+  padding: 2px 10px; border-radius: 99px; font-size: 9px;
+  font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin: 12px 0 6px;
+}
+.cover-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.cover-sub { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 5px; }
+.cover-stats { display: flex; gap: 24px; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.2); }
+.cover-stat-val { font-size: 20px; font-weight: 700; }
+.cover-stat-lbl { font-size: 9.5px; color: rgba(255,255,255,.5); margin-top: 1px; }
+
+/* Section */
+.section { margin-bottom: 24px; page-break-inside: avoid; }
+.section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.section-title { font-size: 14px; font-weight: 700; color: #0f172a; }
+.section-count { background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 99px; font-size: 9px; font-weight: 600; }
+.section-line { flex: 1; height: 1px; background: #e2e8f0; }
+
+/* Subcategory */
+.subsection { margin-bottom: 16px; }
+.subheader { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+.subheader-bar { width: 3px; height: 13px; background: #d9a024; border-radius: 2px; }
+.subheader-title { font-size: 11.5px; font-weight: 700; color: #1e293b; }
+.subheader-count { font-size: 9.5px; color: #94a3b8; }
+
+/* Grid — 3 columns */
+.grid { display: table; width: 100%; border-collapse: separate; border-spacing: 8px; }
+.grid-row { display: table-row; }
+.grid-cell { display: table-cell; width: 33.33%; vertical-align: top; }
+
+/* Card */
+.card {
+  border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;
+  background: #fff; page-break-inside: avoid;
+}
+.card-img-wrap { width: 100%; height: 90px; background: #f8fafc; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.card-img { max-width: 100%; max-height: 90px; object-fit: contain; }
+.card-img-placeholder { width: 36px; height: 36px; opacity: .2; }
+.card-body { padding: 8px 9px 9px; }
+.card-name { font-size: 10.5px; font-weight: 700; color: #1e293b; line-height: 1.3; margin-bottom: 5px; }
+.card-sku { font-size: 9px; color: #94a3b8; font-family: monospace; margin-bottom: 4px; }
+.card-price { font-size: 13px; font-weight: 800; color: #0f172a; }
+.card-unit { font-size: 9px; color: #94a3b8; }
+.card-stock-out { font-size: 9px; color: #ef4444; font-weight: 600; margin-top: 3px; }
+.card-desc { font-size: 9px; color: #64748b; margin-top: 4px; line-height: 1.4; }
+
+/* Footer */
+.footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<div class="cover">
+  <div class="cover-top">
+    {% if co.get('co_logo') %}
+    <img class="cover-logo" src="/static/uploads/{{ co['co_logo'] }}" alt="Logo">
+    {% else %}
+    <div style="height:36px;line-height:36px;font-size:18px;font-weight:800;color:#fff;">{{ co.get('co_company', '') }}</div>
+    {% endif %}
+    <div class="cover-right">
+      {% if co.get('co_address') %}<strong>{{ co.get('co_company', '') }}</strong><br>{{ co.get('co_address', '') }}{% if co.get('co_city') %}, {{ co['co_city'] }}{% endif %}{% if co.get('co_postcode') %} {{ co['co_postcode'] }}{% endif %}<br>{% endif %}
+      {% if co.get('co_phone') %}Tel · {{ co['co_phone'] }}<br>{% endif %}
+      {% if co.get('co_email') %}Email · {{ co['co_email'] }}<br>{% endif %}
+      {% if co.get('co_vat') %}VAT · {{ co['co_vat'] }}{% endif %}
+    </div>
+  </div>
+  <div>
+    <div class="cover-badge">Catalogue</div>
+    <div class="cover-title">Product Catalogue</div>
+    <div class="cover-sub">{{ now.strftime('%d %B %Y') }} &nbsp;·&nbsp; GBP (£) &nbsp;·&nbsp; All prices subject to confirmation</div>
+  </div>
+  <div class="cover-stats">
+    <div><div class="cover-stat-val">{{ total_products }}</div><div class="cover-stat-lbl">Products</div></div>
+    <div><div class="cover-stat-val">{{ total_cats }}</div><div class="cover-stat-lbl">Categories</div></div>
+  </div>
+</div>
+
+{% for cat in categories %}
+{% set cat_products = products | selectattr('category', 'equalto', cat) | list %}
+{% if cat_products %}
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">{{ cat }}</span>
+    <span class="section-count">{{ cat_products | length }} items</span>
+    <span class="section-line"></span>
+  </div>
+
+  {# Group by subcategory #}
+  {% set subcats = [] %}
+  {% for p in cat_products %}{% if p['subcategory'] and p['subcategory'] not in subcats %}{% set _ = subcats.append(p['subcategory']) %}{% endif %}{% endfor %}
+  {% if not subcats %}{% set subcats = [''] %}{% endif %}
+
+  {% for sub in subcats %}
+  {% set sub_products = cat_products | selectattr('subcategory', 'equalto', sub) | list if sub else cat_products | selectattr('subcategory', 'none') | list %}
+  {% if not sub_products %}{% set sub_products = cat_products | selectattr('subcategory', 'equalto', sub) | list %}{% endif %}
+  {% if sub_products %}
+  <div class="subsection">
+    {% if sub %}
+    <div class="subheader">
+      <span class="subheader-bar"></span>
+      <span class="subheader-title">{{ sub }}</span>
+      <span class="subheader-count">{{ sub_products | length }} items</span>
+    </div>
+    {% endif %}
+
+    {# Render in rows of 3 #}
+    <table style="width:100%;border-collapse:separate;border-spacing:6px">
+    {% for i in range(0, sub_products | length, 3) %}
+    <tr>
+      {% for p in sub_products[i:i+3] %}
+      <td style="width:33%;vertical-align:top">
+        <div class="card">
+          <div class="card-img-wrap">
+            {% if p.get('photo') %}
+            <img class="card-img" src="/static/uploads/products/{{ p['photo'] }}" alt="{{ p['name'] }}">
+            {% else %}
+            <svg class="card-img-placeholder" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            <div class="card-name">{{ p['name'] }}</div>
+            {% if p.get('sku') %}<div class="card-sku">{{ p['sku'] }}</div>{% endif %}
+            <div class="card-price">£{{ '%.2f'|format(p['price']) }} <span class="card-unit">/ {{ p['unit'] }}</span></div>
+            {% if p.get('stock_total', 0) <= 0 %}<div class="card-stock-out">Out of stock</div>{% endif %}
+            {% if p.get('description') %}<div class="card-desc">{{ p['description'][:80] }}{% if p['description']|length > 80 %}…{% endif %}</div>{% endif %}
+          </div>
+        </div>
+      </td>
+      {% endfor %}
+      {# Pad remaining cells #}
+      {% for _ in range(3 - (sub_products[i:i+3]|length)) %}
+      <td style="width:33%"></td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+
+<div class="footer">
+  <span>{{ co.get('co_company', '') }}{% if co.get('co_vat') %} · VAT {{ co['co_vat'] }}{% endif %}</span>
+  <span>Generated {{ now.strftime('%d %B %Y') }} · Prices subject to change without notice</span>
+</div>
+
+</body>
+</html>
