@@ -882,7 +882,7 @@ def catalog_pdf_download():
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
     from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.units import mm, pt
+    from reportlab.lib.units import mm
     from reportlab.lib.enums import TA_RIGHT, TA_CENTER
     from PIL import Image as PILImage
 
