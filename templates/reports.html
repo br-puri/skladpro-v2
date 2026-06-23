@@ -2,85 +2,266 @@
 {% block title %}Reports{% endblock %}
 {% block page_title %}Reports & Analytics{% endblock %}
 {% block content %}
-<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin:4px 0 12px">Sales & Profit</div>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
-  <a href="{{ url_for('report_sales') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">📊</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Sales Analytics</div>
-      <div style="font-size:12px;color:#64748b">Revenue by product and customer, profit margins</div>
+
+<style>
+.rep-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.rep-section-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.rep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 32px;
+}
+.rep-card {
+  background: #fff;
+  border: 1px solid #e8e6df;
+  border-radius: 10px;
+  padding: 0;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow .15s, transform .15s;
+  cursor: pointer;
+}
+.rep-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.09);
+  text-decoration: none;
+  color: inherit;
+}
+.rep-card-accent {
+  height: 4px;
+  width: 100%;
+}
+.rep-card-body {
+  padding: 18px 20px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rep-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rep-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+}
+.rep-card-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  flex: 1;
+}
+.rep-card-arrow {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 6px;
+  transition: color .15s, transform .15s;
+  display: inline-block;
+}
+.rep-card:hover .rep-card-arrow {
+  color: inherit;
+  transform: translateX(3px);
+}
+</style>
+
+<!-- Sales & Profit -->
+<div class="rep-section-label">
+  <span class="rep-section-pill" style="background:#eff6ff;color:#1d4ed8">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+    Sales &amp; Profit
+  </span>
+  <div style="flex:1;height:1px;background:#f1f5f9"></div>
+</div>
+
+<div class="rep-grid">
+  <a href="{{ url_for('report_sales') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#1a6ef5"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#eff6ff">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#1a6ef5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Sales Analytics</div>
+        <div class="rep-card-desc">Revenue by product and customer, profit margins, and period comparison</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#1a6ef5">View report →</div>
     </div>
   </a>
-  <a href="{{ url_for('report_profit') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">💰</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Profit Report</div>
-      <div style="font-size:12px;color:#64748b">Revenue vs cost, profit per order</div>
+
+  <a href="{{ url_for('report_profit') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#0ea5e9"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#f0f9ff">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/><path d="M16 8h-3a2 2 0 000 4h3"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Profit Report</div>
+        <div class="rep-card-desc">Revenue vs cost, gross profit per order, margin breakdown by product</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#0ea5e9">View report →</div>
     </div>
   </a>
-  <a href="{{ url_for('report_top_customers') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">🏆</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Top Customers</div>
-      <div style="font-size:12px;color:#64748b">Ranked by revenue, paid vs unpaid</div>
+
+  <a href="{{ url_for('report_top_customers') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#6366f1"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#f5f3ff">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Top Customers</div>
+        <div class="rep-card-desc">Customers ranked by revenue, paid vs unpaid balances, purchase frequency</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#6366f1">View report →</div>
     </div>
   </a>
 </div>
 
-<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin:4px 0 12px">Inventory</div>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
-  <a href="{{ url_for('report_stock') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">📦</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Stock Report</div>
-      <div style="font-size:12px;color:#64748b">Current balances, stock value by warehouse</div>
+<!-- Inventory -->
+<div class="rep-section-label">
+  <span class="rep-section-pill" style="background:#f0fdf4;color:#15803d">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+    Inventory
+  </span>
+  <div style="flex:1;height:1px;background:#f1f5f9"></div>
+</div>
+
+<div class="rep-grid">
+  <a href="{{ url_for('report_stock') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#16a34a"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#f0fdf4">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Stock Report</div>
+        <div class="rep-card-desc">Current stock balances and total value per warehouse across all products</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#16a34a">View report →</div>
     </div>
   </a>
-  <a href="{{ url_for('report_turnover') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">🔄</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Stock Turnover</div>
-      <div style="font-size:12px;color:#64748b">Intake vs sales vs write-offs per product</div>
+
+  <a href="{{ url_for('report_turnover') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#059669"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#ecfdf5">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Stock Turnover</div>
+        <div class="rep-card-desc">Intake vs sales vs write-offs per product — how fast stock moves</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#059669">View report →</div>
     </div>
   </a>
-  <a href="{{ url_for('report_stock_by_category') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">🗂️</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Stock by Category</div>
-      <div style="font-size:12px;color:#64748b">Units and value grouped by product category</div>
+
+  <a href="{{ url_for('report_stock_by_category') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#0d9488"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#f0fdfa">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="18" y="13" width="4" height="8"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Stock by Category</div>
+        <div class="rep-card-desc">Units and value grouped by product category with percentage breakdown</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#0d9488">View report →</div>
     </div>
   </a>
-  <a href="{{ url_for('report_low_stock') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">⚠️</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Low Stock Alerts</div>
-      <div style="font-size:12px;color:#64748b">Products below their minimum stock level</div>
+
+  <a href="{{ url_for('report_low_stock') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#f59e0b"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#fffbeb">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Low Stock Alerts</div>
+        <div class="rep-card-desc">Products below their minimum stock threshold — reorder urgency view</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#f59e0b">View report →</div>
     </div>
   </a>
 </div>
 
-<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin:4px 0 12px">Finance</div>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
-  <a href="{{ url_for('report_receivables') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">📅</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Aged Receivables</div>
-      <div style="font-size:12px;color:#64748b">Outstanding invoices by age (30/60/90+)</div>
+<!-- Finance -->
+<div class="rep-section-label">
+  <span class="rep-section-pill" style="background:#faf5ff;color:#7e22ce">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    Finance
+  </span>
+  <div style="flex:1;height:1px;background:#f1f5f9"></div>
+</div>
+
+<div class="rep-grid">
+  <a href="{{ url_for('report_receivables') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#dc2626"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#fef2f2">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Aged Receivables</div>
+        <div class="rep-card-desc">Outstanding invoices bucketed by age — 0–30, 31–60, 61–90, 90+ days</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#dc2626">View report →</div>
     </div>
   </a>
-  <a href="{{ url_for('report_cashflow') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">💵</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Cash Flow</div>
-      <div style="font-size:12px;color:#64748b">Income vs expenses, monthly breakdown</div>
+
+  <a href="{{ url_for('report_cashflow') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#7c3aed"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#faf5ff">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">Cash Flow</div>
+        <div class="rep-card-desc">Monthly income vs expenses breakdown, net cash position over time</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#7c3aed">View report →</div>
     </div>
   </a>
-  <a href="{{ url_for('report_vat') }}" style="text-decoration:none;color:inherit">
-    <div class="card" style="padding:22px;cursor:pointer;margin-bottom:0;transition:all .15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:24px;margin-bottom:8px">🧾</div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">VAT Report</div>
-      <div style="font-size:12px;color:#64748b">Net, VAT and gross sales for tax filing</div>
+
+  <a href="{{ url_for('report_vat') }}" class="rep-card">
+    <div class="rep-card-accent" style="background:#9333ea"></div>
+    <div class="rep-card-body">
+      <div class="rep-card-icon" style="background:#fdf4ff">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <div>
+        <div class="rep-card-title">VAT Report</div>
+        <div class="rep-card-desc">Net, VAT, and gross sales totals formatted for HMRC tax return filing</div>
+      </div>
+      <div class="rep-card-arrow" style="color:#9333ea">View report →</div>
     </div>
   </a>
 </div>
+
 {% endblock %}
