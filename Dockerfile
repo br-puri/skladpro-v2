@@ -5,8 +5,7 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=8080
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      fonts-liberation libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b \
-      libfontconfig1 libcairo2 libgdk-pixbuf2.0-0 \
+      fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
