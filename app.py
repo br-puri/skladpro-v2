@@ -904,15 +904,13 @@ def catalog_pdf_download():
     os.close(pdf_fd)
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             [
                 CHROME_PATH,
-                '--headless=new',
+                '--headless=old',          # old mode supports --print-to-pdf via CLI
                 '--disable-gpu',
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
-                '--run-all-compositor-stages-before-draw',
-                '--virtual-time-budget=5000',
                 '--no-pdf-header-footer',
                 '--window-size=794,1123',
                 f'--print-to-pdf={pdf_path}',
@@ -921,6 +919,8 @@ def catalog_pdf_download():
             capture_output=True,
             timeout=60,
         )
+        if result.returncode != 0:
+            app.logger.error('Chromium PDF stderr: %s', result.stderr.decode(errors='replace'))
         with open(pdf_path, 'rb') as f:
             data = f.read()
     finally:
