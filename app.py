@@ -892,7 +892,12 @@ def catalog_pdf_download():
     with get_db() as db:
         db.execute("INSERT INTO catalog_tokens (token, expires_at) VALUES (%s, %s)", (token, time.time() + 90))
 
-    port = request.environ.get('SERVER_PORT', 5001)
+    # On Render, gunicorn binds to 8080 internally; locally Flask runs on 5001.
+    # request.environ SERVER_PORT returns the proxy-facing port (443), not the real one.
+    if os.environ.get('CHROME_PATH'):   # set in production env
+        port = 8080
+    else:
+        port = 5001
     render_url = f'http://127.0.0.1:{port}/products/catalog/render?token={token}'
 
     pdf_fd, pdf_path = tempfile.mkstemp(suffix='.pdf')
@@ -902,13 +907,14 @@ def catalog_pdf_download():
         subprocess.run(
             [
                 CHROME_PATH,
-                '--headless',
+                '--headless=new',
                 '--disable-gpu',
                 '--no-sandbox',
+                '--disable-dev-shm-usage',
                 '--run-all-compositor-stages-before-draw',
+                '--virtual-time-budget=5000',
                 '--no-pdf-header-footer',
-                '--window-size=794,1123',   # A4 at 96 dpi (210×297 mm)
-                '--print-to-pdf-no-header',
+                '--window-size=794,1123',
                 f'--print-to-pdf={pdf_path}',
                 render_url,
             ],
