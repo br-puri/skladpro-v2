@@ -2344,10 +2344,10 @@ def add_sale():
             total = subtotal + tax_amount
             num = next_num('INV', 'sales')
             customer_id = request.form.get('customer_id') or None
-            cur = db.execute("INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            cur = db.execute("INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 (num, request.form['doc_date'], request.form['customer'], customer_id, subtotal, total, global_disc, tax_pct, tax_amount,
                  request.form.get('currency','GBP'), 'completed', request.form.get('notes','')))
-            sale_id = cur.lastrowid
+            sale_id = cur.fetchone()['id']
             for pid, wid, qty, price, disc in zip(pids, wids, qtys, prices, disc_pcts):
                 if pid and float(qty) > 0:
                     db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct) VALUES(%s,%s,%s,%s,%s,%s)",
