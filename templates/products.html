@@ -1,142 +1,212 @@
 {% extends 'base.html' %}
 {% block title %}Products{% endblock %}
-{% block page_title %}Products{% endblock %}
+{% block page_title %}Items{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('product_labels') }}" class="btn">Labels</a>
   <a href="{{ url_for('import_products') }}" class="btn">Import</a>
-  <a href="{{ url_for('add_product') }}" class="btn btn-primary">+ New Item</a>
+  <a href="{{ url_for('add_product') }}" class="btn btn-primary" style="gap:5px">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
+    New Item
+  </a>
 {% endblock %}
 {% block content %}
 
-{% set total_count = products | length %}
-{% set low_count = products | selectattr('low') | list | length %}
-{% set in_stock_count = products | selectattr('total', '>', 0) | list | length %}
+{% set total_count   = products | length %}
+{% set low_list      = products | selectattr('low') | list %}
+{% set out_list      = products | selectattr('total', '<=', 0) | list %}
+{% set low_count     = low_list | length %}
+{% set out_count     = out_list | length %}
+{% set active_count  = products | selectattr('total', '>', 0) | list | length %}
 
-<!-- Summary strip -->
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">All Items</div>
-    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ total_count }}</div>
+{% set view = request.args.get('view','all') %}
+
+<!-- Page header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+  <!-- Status tabs -->
+  <div style="display:flex;gap:2px;background:#f1f5f9;border-radius:9px;padding:3px">
+    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='all') }}"
+       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
+              {% if view=='all' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
+      All <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;background:{% if view=='all' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b">{{ total_count }}</span>
+    </a>
+    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='active') }}"
+       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
+              {% if view=='active' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
+      In Stock <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;background:{% if view=='active' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b">{{ active_count }}</span>
+    </a>
+    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='low') }}"
+       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
+              {% if view=='low' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
+      Low Stock <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;{% if low_count>0 %}background:#fef3c7;color:#92400e{% else %}background:{% if view=='low' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b{% endif %}">{{ low_count }}</span>
+    </a>
+    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='out') }}"
+       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
+              {% if view=='out' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
+      Out of Stock <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;{% if out_count>0 %}background:#fee2e2;color:#dc2626{% else %}background:{% if view=='out' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b{% endif %}">{{ out_count }}</span>
+    </a>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">In Stock</div>
-    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ in_stock_count }}</div>
-  </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Low Stock</div>
-    <div style="font-size:26px;font-weight:700;color:{% if low_count > 0 %}#dc2626{% else %}#1a1a1a{% endif %}">{{ low_count }}</div>
+  <!-- Quick actions -->
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('product_labels') }}" class="btn" style="font-size:12.5px">Labels</a>
+    <a href="{{ url_for('product_catalog') }}" class="btn" style="font-size:12.5px">Catalog</a>
   </div>
 </div>
 
-<!-- Filter bar -->
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:14px 18px;margin-bottom:16px">
-  <form class="search-wrap" method="get" id="products-search-form" style="gap:10px;flex-wrap:wrap;align-items:center">
-    <input name="q" value="{{ q }}" class="form-control search-input" id="products-q"
-           placeholder="Search name, SKU or barcode…" autocomplete="off" style="min-width:220px;flex:1">
-    <select name="cat" id="filter-cat" class="form-control" style="width:170px" onchange="filterSubcatOptions();this.form.submit()">
+<!-- Search + filter bar -->
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:12px 16px;margin-bottom:14px">
+  <form class="search-wrap" method="get" id="products-search-form" style="padding:0;border:none;background:none;gap:10px;flex-wrap:wrap;align-items:center">
+    <input type="hidden" name="view" value="{{ view }}">
+    <div style="position:relative;flex:1;min-width:220px">
+      <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#94a3b8;pointer-events:none" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
+      <input name="q" value="{{ q }}" id="products-q" autocomplete="off"
+             placeholder="Search by name, SKU or barcode…"
+             style="width:100%;padding:8px 12px 8px 32px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;font-family:inherit;color:#0f172a;background:#f8fafc;transition:all .15s;outline:none"
+             onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,.1)';this.style.background='#fff'"
+             onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none';this.style.background='#f8fafc'">
+    </div>
+    <select name="cat" id="filter-cat" class="form-control" style="width:160px" onchange="filterSubcatOptions();this.form.submit()">
       <option value="">All categories</option>
       {% for c in categories %}<option value="{{ c['category'] }}" {{ 'selected' if cat==c['category'] }}>{{ c['category'] }}</option>{% endfor %}
     </select>
-    <select name="subcat" id="filter-subcat" class="form-control" style="width:170px" onchange="this.form.submit()">
+    <select name="subcat" id="filter-subcat" class="form-control" style="width:160px" onchange="this.form.submit()">
       <option value="">All subcategories</option>
       {% for s in subcategories %}<option value="{{ s['subcategory'] }}" data-cat="{{ s['category'] }}" {{ 'selected' if subcat==s['subcategory'] }}>{{ s['subcategory'] }}</option>{% endfor %}
     </select>
     {% if q or cat or subcat %}
-    <a href="{{ url_for('products') }}" class="btn" style="padding:7px 14px">Clear</a>
+    <a href="{{ url_for('products', view=view) }}" class="btn" style="font-size:12.5px">Clear</a>
     {% endif %}
   </form>
 </div>
 
-<!-- Products table -->
+{% set filtered = products %}
+{% if view == 'active' %}{% set filtered = products | selectattr('total', '>', 0) | list %}
+{% elif view == 'low' %}{% set filtered = products | selectattr('low') | list %}
+{% elif view == 'out' %}{% set filtered = products | selectattr('total', '<=', 0) | list %}
+{% endif %}
+
+<!-- Table -->
 <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
-  {% if products %}
+  {% if filtered %}
   <table style="width:100%;border-collapse:collapse;font-size:13px">
     <thead>
-      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
-        <th style="padding:11px 14px;width:32px"><input type="checkbox" id="select-all"></th>
-        <th style="padding:11px 14px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Item</th>
-        <th style="padding:11px 14px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Category</th>
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Cost</th>
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Price</th>
+      <tr style="background:#f8f7f4;border-bottom:2px solid #e8e6df">
+        <th style="padding:11px 16px;width:36px"><input type="checkbox" id="select-all"></th>
+        <th style="padding:11px 14px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;min-width:220px">Item Details</th>
+        <th style="padding:11px 14px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Category</th>
+        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Cost</th>
+        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Price</th>
         {% for w in warehouses %}
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">{{ w['name'] }}</th>
+        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">{{ w['name'] }}</th>
         {% endfor %}
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total</th>
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">CTNs</th>
-        <th style="padding:11px 14px;width:40px"></th>
+        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Stock</th>
+        <th style="padding:11px 14px;text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Status</th>
+        <th style="padding:11px 12px;width:44px"></th>
       </tr>
     </thead>
     <tbody>
-    {% for row in products %}{% set p = row['product'] %}
-    <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
-        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
-      <td style="padding:12px 14px"><input type="checkbox" class="bulk-cb" value="{{ p['id'] }}"></td>
+    {% for row in filtered %}{% set p = row['product'] %}
+    <tr style="border-bottom:1px solid #f1f5f9;transition:background .12s"
+        onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''">
 
-      <!-- Item cell: name + SKU + barcode -->
-      <td style="padding:12px 14px;max-width:260px">
-        <div style="font-weight:600;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-          {{ p['name'] }}
-          {% if row['low'] %}
-          <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;background:#fef3c7;color:#92400e;margin-left:6px">Low stock</span>
-          {% endif %}
-        </div>
-        <div style="margin-top:3px;display:flex;gap:10px;font-size:11px;color:#94a3b8">
-          {% if p['sku'] %}<span style="font-family:monospace">{{ p['sku'] }}</span>{% endif %}
-          {% if p['barcode'] %}<span style="font-family:monospace">{{ p['barcode'] }}</span>{% endif %}
-          <span>{{ p['unit'] }}</span>
+      <!-- Checkbox -->
+      <td style="padding:13px 16px"><input type="checkbox" class="bulk-cb" value="{{ p['id'] }}"></td>
+
+      <!-- Item details: icon + name + codes -->
+      <td style="padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <!-- Product icon placeholder -->
+          <div style="width:38px;height:38px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.3"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
+          </div>
+          <div style="min-width:0">
+            <a href="{{ url_for('edit_product', pid=p['id']) }}"
+               style="font-size:13.5px;font-weight:600;color:#1a1a1a;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px"
+               onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#1a1a1a'">
+              {{ p['name'] }}
+            </a>
+            <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">
+              {% if p['sku'] %}
+              <span style="font-size:11px;color:#94a3b8;font-family:'SF Mono','Fira Mono',monospace;background:#f8fafc;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0">{{ p['sku'] }}</span>
+              {% endif %}
+              {% if p['barcode'] %}
+              <span style="font-size:11px;color:#94a3b8;font-family:'SF Mono','Fira Mono',monospace">{{ p['barcode'] }}</span>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </td>
 
       <!-- Category -->
-      <td style="padding:12px 14px;color:#64748b;font-size:12.5px">
-        {{ p['category'] or '—' }}
+      <td style="padding:12px 14px">
+        {% if p['category'] %}
+        <span style="font-size:12px;color:#374151">{{ p['category'] }}</span>
         {% if p['subcategory'] %}<div style="font-size:11px;color:#94a3b8;margin-top:2px">{{ p['subcategory'] }}</div>{% endif %}
+        {% else %}
+        <span style="color:#cbd5e1;font-size:12px">—</span>
+        {% endif %}
       </td>
 
       <!-- Cost -->
       <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12.5px;white-space:nowrap">£{{ "{:,.2f}".format(p['cost']) }}</td>
 
-      <!-- Price -->
-      <td style="padding:12px 14px;text-align:right;font-weight:600;color:#1a1a1a;white-space:nowrap">£{{ "{:,.2f}".format(p['price']) }}</td>
+      <!-- Selling price -->
+      <td style="padding:12px 14px;text-align:right;white-space:nowrap">
+        <span style="font-size:13px;font-weight:600;color:#1a1a1a">£{{ "{:,.2f}".format(p['price']) }}</span>
+      </td>
 
-      <!-- Stock per warehouse -->
+      <!-- Per-warehouse stock -->
       {% for w in warehouses %}
-      <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12.5px">{{ row['stock'].get(w['id'], 0)|int }}</td>
+      <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12px">{{ row['stock'].get(w['id'], 0)|int }}</td>
       {% endfor %}
 
-      <!-- Total stock -->
-      <td style="padding:12px 14px;text-align:right;font-weight:700;color:{% if row['total'] <= 0 %}#dc2626{% elif row['low'] %}#d97706{% else %}#15803d{% endif %}">
-        {{ row['total']|int }}
+      <!-- Total stock with unit -->
+      <td style="padding:12px 14px;text-align:right">
+        <span style="font-size:14px;font-weight:700;color:{% if row['total'] <= 0 %}#dc2626{% elif row['low'] %}#d97706{% else %}#16a34a{% endif %}">
+          {{ row['total']|int }}
+        </span>
+        <span style="font-size:11px;color:#94a3b8;margin-left:2px">{{ p['unit'] }}</span>
+        {% if p['carton_qty'] and p['carton_qty'] > 0 %}
+        <div style="font-size:11px;color:#cbd5e1;margin-top:2px">{{ (row['total'] / p['carton_qty'])|round(1) }} CTN</div>
+        {% endif %}
       </td>
 
-      <!-- CTNs -->
-      <td style="padding:12px 14px;text-align:right;color:#94a3b8;font-size:12px">
-        {% if p['carton_qty'] and p['carton_qty'] > 0 %}{{ (row['total'] / p['carton_qty'])|round(1) }}{% else %}—{% endif %}
+      <!-- Status badge -->
+      <td style="padding:12px 14px;text-align:center">
+        {% if row['total'] <= 0 %}
+        <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fee2e2;color:#dc2626;white-space:nowrap">Out of Stock</span>
+        {% elif row['low'] %}
+        <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fef3c7;color:#92400e;white-space:nowrap">Low Stock</span>
+        {% else %}
+        <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#dcfce7;color:#15803d;white-space:nowrap">Active</span>
+        {% endif %}
       </td>
 
-      <!-- Action dropdown -->
+      <!-- Action menu -->
       <td style="padding:12px 10px">
         <div style="position:relative;display:inline-block" class="row-menu">
           <button onclick="toggleMenu(this)"
-                  style="font-size:13px;padding:4px 9px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;color:#64748b;line-height:1">
+                  style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;color:#64748b;font-size:16px;line-height:1;transition:all .15s"
+                  onmouseover="this.style.background='#f8fafc';this.style.borderColor='#cbd5e1'" onmouseout="this.style.background='#fff';this.style.borderColor='#e2e8f0'">
             ···
           </button>
-          <div class="row-dropdown" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:155px;z-index:100;overflow:hidden">
+          <div class="row-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:160px;z-index:100;overflow:hidden;padding:4px">
             <button onclick="showDetails({{ p['id'] }}, '{{ p['name']|e }}', {{ p['length'] or 0 }}, {{ p['width'] or 0 }}, {{ p['height'] or 0 }}, {{ p['weight'] or 0 }}, {{ p['cbm'] or 0 }}, {{ p['carton_qty']|int if p['carton_qty'] else 0 }}, {{ p['china_price'] or 0 }}, '{{ p['china_currency'] or 'RMB' }}')"
-                    style="display:block;width:100%;padding:9px 14px;font-size:13px;color:#1a1a1a;text-align:left;border:none;background:none;cursor:pointer;border-bottom:1px solid #f1f5f9"
-                    onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Details</button>
+                    style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
+                    onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+              Dimensions &amp; Details
+            </button>
             <a href="{{ url_for('stock_movements', pid=p['id']) }}"
-               style="display:block;padding:9px 14px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f1f5f9"
-               onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">History</a>
+               style="display:block;padding:8px 12px;font-size:12.5px;color:#374151;text-decoration:none;border-radius:6px"
+               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Stock History</a>
             <a href="{{ url_for('edit_product', pid=p['id']) }}"
-               style="display:block;padding:9px 14px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f1f5f9"
-               onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Edit</a>
+               style="display:block;padding:8px 12px;font-size:12.5px;color:#374151;text-decoration:none;border-radius:6px"
+               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Edit Item</a>
             <form method="post" action="{{ url_for('duplicate_product', pid=p['id']) }}">
-              <button style="display:block;width:100%;padding:9px 14px;font-size:13px;color:#1a1a1a;text-align:left;border:none;background:none;cursor:pointer;border-bottom:1px solid #f1f5f9"
-                      onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Duplicate</button>
+              <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
+                      onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Duplicate</button>
             </form>
-            <form method="post" action="{{ url_for('delete_product', pid=p['id']) }}" onsubmit="return confirm('Delete this product?')">
-              <button style="display:block;width:100%;padding:9px 14px;font-size:13px;color:#dc2626;text-align:left;border:none;background:none;cursor:pointer"
+            <div style="height:1px;background:#f1f5f9;margin:4px 0"></div>
+            <form method="post" action="{{ url_for('delete_product', pid=p['id']) }}" onsubmit="return confirm('Delete this item?')">
+              <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#dc2626;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
                       onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background=''">Delete</button>
             </form>
           </div>
@@ -147,127 +217,120 @@
     </tbody>
   </table>
 
+  <!-- Row count footer -->
+  <div style="padding:10px 18px;border-top:1px solid #f1f5f9;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
+    <span>{{ filtered | length }} item{% if filtered|length != 1 %}s{% endif %}</span>
+    {% if filtered | length < total_count %}
+    <a href="{{ url_for('products') }}" style="font-size:12px;color:#2563eb;text-decoration:none">Show all {{ total_count }}</a>
+    {% endif %}
+  </div>
+
   {% else %}
-  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
-    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No items found</div>
-    <div style="font-size:13px">
-      {% if q or cat or subcat %}
-        Try clearing your filters or <a href="{{ url_for('products') }}" style="color:#1a6ef5">view all items</a>.
-      {% else %}
-        <a href="{{ url_for('add_product') }}" style="color:#1a6ef5">Add your first item</a>
-      {% endif %}
+  <div style="text-align:center;padding:72px 20px;color:#94a3b8">
+    <div style="width:56px;height:56px;background:#f1f5f9;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+      <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="#cbd5e1" stroke-width="1.2"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
     </div>
+    <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">No items found</div>
+    <div style="font-size:13px;margin-bottom:20px">
+      {% if q or cat or subcat %}Try clearing your filters.
+      {% else %}Add your first inventory item to get started.{% endif %}
+    </div>
+    {% if q or cat or subcat %}
+    <a href="{{ url_for('products', view=view) }}" class="btn">Clear filters</a>
+    {% else %}
+    <a href="{{ url_for('add_product') }}" class="btn btn-primary">+ New Item</a>
+    {% endif %}
   </div>
   {% endif %}
-</div>
-
-<!-- Bulk edit modal -->
-<div id="bulk-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;align-items:center;justify-content:center">
-  <form id="bulk-form" method="post" action="{{ url_for('bulk_products') }}"
-        style="background:#fff;border-radius:12px;padding:24px 28px;min-width:340px;max-width:460px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.2);position:relative">
-    <input type="hidden" id="bulk-action-input" name="action" value="edit">
-    <button type="button" onclick="closeBulkEdit()" style="position:absolute;top:14px;right:18px;background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8">×</button>
-    <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1e293b">Edit Selected Items</h3>
-    <p id="bulk-edit-count" style="font-size:12px;color:#94a3b8;margin-bottom:6px"></p>
-    <p style="font-size:12px;color:#cbd5e1;margin-bottom:18px">Leave any field blank to keep existing values.</p>
-    <div class="form-group">
-      <label class="form-label">Category</label>
-      <select name="category" id="be-category" class="form-control" onchange="filterBeSubcats()">
-        <option value="">— Keep existing —</option>
-        {% for c in categories %}<option value="{{ c['category'] }}">{{ c['category'] }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Subcategory</label>
-      <select name="subcategory" id="be-subcategory" class="form-control">
-        <option value="">— Keep existing —</option>
-        {% for s in subcategories %}<option value="{{ s['subcategory'] }}">{{ s['subcategory'] }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Price &amp; Cost Adjustment (%)</label>
-      <input name="price_adj" type="number" step="0.1" class="form-control" placeholder="e.g. 10 to increase by 10%, -5 to decrease">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Min Stock</label>
-      <input name="min_stock" type="number" step="0.01" min="0" class="form-control" placeholder="— Keep existing —">
-    </div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button type="submit" class="btn btn-primary">Apply to Selected</button>
-      <button type="button" onclick="closeBulkEdit()" class="btn">Cancel</button>
-    </div>
-  </form>
 </div>
 
 <!-- Bulk bar -->
 <div id="bulk-bar" class="bulk-bar">
   <span id="bulk-count">0 selected</span>
   <select id="bulk-action">
-    <option value="">— Action —</option>
-    <option value="edit">Edit</option>
-    <option value="catalog">View Catalog</option>
+    <option value="">— Bulk action —</option>
+    <option value="edit">Edit fields</option>
+    <option value="catalog">View in Catalog</option>
     <option value="labels">Print Labels</option>
     <option value="delete">Delete</option>
   </select>
   <button id="bulk-submit" class="btn btn-sm btn-primary">Apply</button>
-  <button id="bulk-cancel" class="btn btn-sm" style="background:#444;border-color:#444;color:#fff">Cancel</button>
+  <button id="bulk-cancel" class="btn btn-sm" style="background:#334155;border-color:#334155;color:#fff">Clear</button>
+</div>
+<form id="bulk-form" method="post" style="display:none"><input type="hidden" id="bulk-action-input" name="action"></form>
+
+<!-- Bulk edit modal -->
+<div id="bulk-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px;width:100%;max-width:460px;box-shadow:0 24px 60px rgba(0,0,0,.22);position:relative">
+    <button onclick="closeBulkEdit()" style="position:absolute;top:16px;right:18px;background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1">×</button>
+    <h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#0f172a">Edit Selected Items</h3>
+    <p id="bulk-edit-count" style="font-size:12px;color:#94a3b8;margin-bottom:4px"></p>
+    <p style="font-size:12px;color:#cbd5e1;margin-bottom:20px">Leave any field blank to keep existing values.</p>
+    <form id="bulk-edit-form" method="post" action="{{ url_for('bulk_products') }}">
+      <input type="hidden" name="action" value="edit">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select name="category" id="be-category" class="form-control" onchange="filterBeSubcats()">
+          <option value="">— Keep existing —</option>
+          {% for c in categories %}<option value="{{ c['category'] }}">{{ c['category'] }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subcategory</label>
+        <select name="subcategory" id="be-subcategory" class="form-control">
+          <option value="">— Keep existing —</option>
+          {% for s in subcategories %}<option value="{{ s['subcategory'] }}">{{ s['subcategory'] }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Price &amp; Cost Adjustment (%)</label>
+        <input name="price_adj" type="number" step="0.1" class="form-control" placeholder="e.g. 10 = +10%, -5 = −5%">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Min Stock</label>
+        <input name="min_stock" type="number" step="0.01" min="0" class="form-control" placeholder="— Keep existing —">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary">Apply to Selected</button>
+        <button type="button" onclick="closeBulkEdit()" class="btn">Cancel</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- Details modal -->
-<div id="details-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:12px;padding:24px 28px;min-width:320px;max-width:420px;box-shadow:0 20px 50px rgba(0,0,0,.2);position:relative">
-    <button onclick="closeDetails()" style="position:absolute;top:14px;right:18px;background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8">×</button>
-    <h3 id="dm-name" style="margin:0 0 18px;font-size:15px;font-weight:700;color:#1e293b"></h3>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:8px 0;color:#94a3b8;width:55%">Length</td>
-        <td id="dm-length" style="padding:8px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-      </tr>
-      <tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:8px 0;color:#94a3b8">Width</td>
-        <td id="dm-width" style="padding:8px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-      </tr>
-      <tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:8px 0;color:#94a3b8">Height</td>
-        <td id="dm-height" style="padding:8px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-      </tr>
-      <tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:8px 0;color:#94a3b8">CBM (m³)</td>
-        <td id="dm-cbm" style="padding:8px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-      </tr>
-      <tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:8px 0;color:#94a3b8">Weight</td>
-        <td id="dm-weight" style="padding:8px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-      </tr>
-      <tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:8px 0;color:#94a3b8">Qty / Carton</td>
-        <td id="dm-carton" style="padding:8px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-      </tr>
-      <tr>
-        <td style="padding:8px 0;color:#94a3b8">China Purchase Price</td>
-        <td id="dm-china" style="padding:8px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-      </tr>
-    </table>
+<div id="details-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:400px;box-shadow:0 24px 60px rgba(0,0,0,.22);overflow:hidden">
+    <div style="padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+      <h3 id="dm-name" style="margin:0;font-size:14px;font-weight:700;color:#0f172a;max-width:310px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></h3>
+      <button onclick="closeDetails()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;flex-shrink:0">×</button>
+    </div>
+    <div style="padding:4px 24px 20px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+        {% set rows = [('Length','dm-length'),('Width','dm-width'),('Height','dm-height'),('CBM (m³)','dm-cbm'),('Weight','dm-weight'),('Qty / Carton','dm-carton'),('China Purchase Price','dm-china')] %}
+        {% for label, id in rows %}
+        <tr style="border-bottom:1px solid #f8fafc">
+          <td style="padding:9px 0;color:#94a3b8;font-size:12.5px">{{ label }}</td>
+          <td id="{{ id }}" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
   </div>
 </div>
 
 <script>
-initBulk("{{ url_for('bulk_products') }}", "Delete {n} product(s)? This cannot be undone.");
+initBulk("{{ url_for('bulk_products') }}", "Apply '{a}' to {n} item(s)?");
 
-// Auto-search on input
+// Auto-search
 (function() {
-  const qInput = document.getElementById('products-q');
-  qInput.focus();
-  const len = qInput.value.length;
-  qInput.setSelectionRange(len, len);
-  let timer;
-  qInput.addEventListener('input', function() {
-    clearTimeout(timer);
-    timer = setTimeout(() => document.getElementById('products-search-form').submit(), 350);
-  });
+  const q = document.getElementById('products-q');
+  q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+  let t;
+  q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => document.getElementById('products-search-form').submit(), 350); });
 })();
 
-// Subcategory filter
+// Subcategory filter sync
 const allSubcats = {{ subcategories | tojson }};
 function filterSubcatOptions() {
   const cat = document.getElementById('filter-cat').value;
@@ -276,10 +339,9 @@ function filterSubcatOptions() {
     if (!opt.value) return;
     opt.hidden = cat ? opt.dataset.cat !== cat : false;
   });
-  if (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].hidden) sel.value = '';
+  if (sel.options[sel.selectedIndex]?.hidden) sel.value = '';
 }
 filterSubcatOptions();
-
 function filterBeSubcats() {
   const cat = document.getElementById('be-category').value;
   const sel = document.getElementById('be-subcategory');
@@ -290,49 +352,47 @@ function filterBeSubcats() {
   sel.value = '';
 }
 
-// Row action dropdown
+// Row menu
 function toggleMenu(btn) {
-  const dropdown = btn.nextElementSibling;
-  document.querySelectorAll('.row-dropdown').forEach(d => { if (d !== dropdown) d.style.display = 'none'; });
-  dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+  const dd = btn.nextElementSibling;
+  document.querySelectorAll('.row-dropdown').forEach(d => { if (d !== dd) d.style.display='none'; });
+  dd.style.display = dd.style.display==='none' ? 'block' : 'none';
 }
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.row-menu')) {
-    document.querySelectorAll('.row-dropdown').forEach(d => d.style.display = 'none');
-  }
+document.addEventListener('click', e => {
+  if (!e.target.closest('.row-menu')) document.querySelectorAll('.row-dropdown').forEach(d => d.style.display='none');
 });
 
-// Bulk action overrides
+// Bulk overrides
 document.getElementById('bulk-submit').addEventListener('click', function(e) {
   const action = document.getElementById('bulk-action').value;
+  const checked = document.querySelectorAll('.bulk-cb:checked');
+  const ids = Array.from(checked).map(cb => cb.value).join(',');
   if (action === 'catalog') {
     e.stopImmediatePropagation();
-    const ids = Array.from(document.querySelectorAll('.bulk-cb:checked')).map(cb => cb.value).join(',');
-    window.open("{{ url_for('product_catalog') }}" + (ids ? '?ids=' + ids : ''), '_blank');
+    window.open("{{ url_for('product_catalog') }}" + (ids ? '?ids='+ids : ''), '_blank');
     return;
   }
   if (action === 'labels') {
     e.stopImmediatePropagation();
-    const ids = Array.from(document.querySelectorAll('.bulk-cb:checked')).map(cb => cb.value).join(',');
-    window.open("{{ url_for('product_labels') }}" + (ids ? '?ids=' + ids : ''), '_blank');
+    window.open("{{ url_for('product_labels') }}" + (ids ? '?ids='+ids : ''), '_blank');
     return;
   }
-  if (action !== 'edit') return;
-  e.stopImmediatePropagation();
-  const checked = document.querySelectorAll('.bulk-cb:checked');
-  if (!checked.length) return;
-  document.querySelectorAll('#bulk-form [name="ids[]"]').forEach(el => el.remove());
-  checked.forEach(cb => {
-    const inp = document.createElement('input');
-    inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = cb.value;
-    document.getElementById('bulk-form').appendChild(inp);
-  });
-  document.getElementById('bulk-edit-count').textContent = checked.length + ' item(s) selected';
-  document.getElementById('bulk-edit-modal').style.display = 'flex';
+  if (action === 'edit') {
+    e.stopImmediatePropagation();
+    if (!checked.length) return;
+    document.querySelectorAll('#bulk-edit-form [name="ids[]"]').forEach(el => el.remove());
+    checked.forEach(cb => {
+      const inp = document.createElement('input');
+      inp.type='hidden'; inp.name='ids[]'; inp.value=cb.value;
+      document.getElementById('bulk-edit-form').appendChild(inp);
+    });
+    document.getElementById('bulk-edit-count').textContent = checked.length + ' item(s) selected';
+    document.getElementById('bulk-edit-modal').style.display='flex';
+  }
 }, true);
 
-function closeBulkEdit() { document.getElementById('bulk-edit-modal').style.display = 'none'; }
-document.getElementById('bulk-edit-modal').addEventListener('click', function(e) { if (e.target === this) closeBulkEdit(); });
+function closeBulkEdit() { document.getElementById('bulk-edit-modal').style.display='none'; }
+document.getElementById('bulk-edit-modal').addEventListener('click', function(e) { if(e.target===this) closeBulkEdit(); });
 
 // Details modal
 function showDetails(id, name, l, w, h, weight, cbm, carton, chinaPrice, chinaCur) {
@@ -343,11 +403,11 @@ function showDetails(id, name, l, w, h, weight, cbm, carton, chinaPrice, chinaCu
   document.getElementById('dm-cbm').textContent = cbm.toFixed(6) + ' m³';
   document.getElementById('dm-weight').textContent = weight + ' kg';
   document.getElementById('dm-carton').textContent = carton + ' units';
-  const sym = chinaCur === 'USD' ? '$' : '¥';
+  const sym = chinaCur==='USD' ? '$' : '¥';
   document.getElementById('dm-china').textContent = chinaPrice > 0 ? (sym + chinaPrice.toFixed(3) + ' ' + chinaCur) : '—';
-  document.getElementById('details-modal').style.display = 'flex';
+  document.getElementById('details-modal').style.display='flex';
 }
-function closeDetails() { document.getElementById('details-modal').style.display = 'none'; }
-document.getElementById('details-modal').addEventListener('click', function(e) { if (e.target === this) closeDetails(); });
+function closeDetails() { document.getElementById('details-modal').style.display='none'; }
+document.getElementById('details-modal').addEventListener('click', function(e) { if(e.target===this) closeDetails(); });
 </script>
 {% endblock %}
