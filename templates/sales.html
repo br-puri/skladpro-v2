@@ -94,7 +94,7 @@
           <form method="post" action="{{ url_for('toggle_paid', sid=s['id']) }}" style="display:inline;margin:0">
             <button style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;border:none;cursor:pointer;
               {% if s['paid'] %}background:#dcfce7;color:#16a34a{% else %}background:#fee2e2;color:#dc2626{% endif %}">
-              {{ '✓ Paid' if s['paid'] else '✗ Unpaid' }}
+              {{ 'Paid' if s['paid'] else 'Unpaid' }}
             </button>
           </form>
         </div>
@@ -142,7 +142,7 @@
   </table>
   {% else %}
   <div style="text-align:center;padding:60px 20px;color:#94a3b8">
-    <div style="font-size:36px;margin-bottom:12px">📋</div>
+    <div style="font-size:36px;margin-bottom:12px"></div>
     <div style="font-size:15px;font-weight:500;margin-bottom:6px">No sales found</div>
     <div style="font-size:13px">
       {% if date_from or date_till or customer_id %}
