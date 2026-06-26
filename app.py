@@ -28,7 +28,7 @@ CHROME_PATH = os.environ.get('CHROME_PATH', '/Applications/Google Chrome.app/Con
 # One-time tokens for headless catalog rendering (no auth needed for the renderer)
 _catalog_tokens: dict = {}
 
-PUBLIC_ROUTES = {'login', 'static', 'catalog_render'}
+PUBLIC_ROUTES = {'login', 'static', 'catalog_render', 'invoice_pdf_public'}
 
 @app.before_request
 def require_login():
@@ -126,6 +126,11 @@ def init_db():
         )""")
         db.execute("""CREATE TABLE IF NOT EXISTS catalog_tokens (
             token      TEXT PRIMARY KEY,
+            expires_at DOUBLE PRECISION NOT NULL
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS invoice_tokens (
+            token      TEXT PRIMARY KEY,
+            sale_id    INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
             expires_at DOUBLE PRECISION NOT NULL
         )""")
         db.execute("""CREATE TABLE IF NOT EXISTS catalog_category_order (
@@ -2538,6 +2543,43 @@ def export_sale_pdf(sid):
                 customer = dict(row)
     company = get_settings()
     return send_file(io.BytesIO(generate_invoice_pdf(s, items, customer, company)), mimetype='application/pdf', download_name=f"Invoice-{s['num']}.pdf", as_attachment=True)
+
+
+@app.route('/sales/<int:sid>/whatsapp-link', methods=['POST'])
+@admin_required
+def whatsapp_invoice_link(sid):
+    token = str(uuid.uuid4())
+    expires_at = time.time() + 7 * 24 * 3600  # 7 days
+    with get_db() as db:
+        db.execute("DELETE FROM invoice_tokens WHERE expires_at < %s", (time.time(),))
+        db.execute("INSERT INTO invoice_tokens(token, sale_id, expires_at) VALUES(%s,%s,%s)", (token, sid, expires_at))
+        db.commit()
+    link = request.host_url.rstrip('/') + '/invoice/' + token
+    return jsonify({'link': link})
+
+
+@app.route('/invoice/<token>')
+def invoice_pdf_public(token):
+    now = time.time()
+    with get_db() as db:
+        db.execute("DELETE FROM invoice_tokens WHERE expires_at < %s", (now,))
+        row = db.execute("SELECT sale_id FROM invoice_tokens WHERE token=%s AND expires_at >= %s", (token, now)).fetchone()
+        if not row:
+            return 'Link expired or invalid', 404
+        sid = row['sale_id']
+        s = dict(db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone())
+        items = [dict(r) for r in db.execute(
+            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
+        customer = None
+        if s.get('customer_id'):
+            row2 = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
+            if row2:
+                customer = dict(row2)
+    company = get_settings()
+    return send_file(io.BytesIO(generate_invoice_pdf(s, items, customer, company)),
+                     mimetype='application/pdf',
+                     download_name=f"Invoice-{s['num']}.pdf",
+                     as_attachment=False)
 
 
 @app.route('/sales/<int:sid>/delivery-note')
