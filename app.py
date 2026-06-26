@@ -4244,7 +4244,10 @@ def generate_delivery_note_pdf(sale, items, customer=None, company=None):
     elements.append(Spacer(1, 4*mm))
     bill_block = [Paragraph('<font color="#888888" size="7">DELIVER TO</font>', label_s)]
     if customer:
-        if customer.get('company'): bill_block.append(Paragraph(customer['company'], bill_name))
+        display_name = customer.get('company') or customer.get('name', '')
+        if display_name: bill_block.append(Paragraph(display_name, bill_name))
+        if customer.get('company') and customer.get('name') and customer['name'] != customer['company']:
+            bill_block.append(Paragraph(customer['name'], small_m))
         for line in filter(None, [customer.get('address'), customer.get('address2')]): bill_block.append(Paragraph(line, small_m))
         if customer.get('city'):     bill_block.append(Paragraph(customer['city'], small_m))
         if customer.get('postcode'): bill_block.append(Paragraph(customer['postcode'], small_m))
