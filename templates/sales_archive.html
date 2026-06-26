@@ -3,22 +3,38 @@
 {% block page_title %}Sales Archive{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('sales') }}" class="back-link">← Back to Sales</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
   {% if sales %}
-  <table>
-    <thead><tr><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th><th></th></tr></thead>
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Document</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Customer</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
     <tbody>
     {% for s in sales %}
-    <tr>
-      <td class="mono">{{ s['num'] }}</td>
-      <td>{{ s['doc_date'] }}</td>
-      <td>{{ s['customer'] }}</td>
-      <td>£{{ "{:,.0f}".format(s['total']) }}</td>
-      <td><span class="badge badge-neutral">archived</span></td>
-      <td>
-        <form method="post" action="{{ url_for('delete_sale', sid=s['id']) }}" onsubmit="return confirm('Permanently delete this sale? This cannot be undone.')">
-          <button class="btn btn-sm btn-danger">Delete</button>
+    <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px">
+        <span style="font-family:monospace;font-size:13px;font-weight:600;color:#64748b;background:#f1f5f9;padding:3px 8px;border-radius:5px;white-space:nowrap">
+          {{ s['num'] }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a">{{ s['customer'] }}</td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ s['doc_date'] }}</td>
+      <td style="padding:13px 16px;text-align:right;font-weight:700;color:#1a1a1a">£{{ "{:,.2f}".format(s['total']) }}</td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;background:#f1f5f9;color:#64748b">Archived</span>
+      </td>
+      <td style="padding:13px 16px;text-align:right">
+        <form method="post" action="{{ url_for('delete_sale', sid=s['id']) }}" style="display:inline" onsubmit="return confirm('Permanently delete this sale? This cannot be undone.')">
+          <button style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#fff;border:1px solid #fecaca;color:#dc2626;cursor:pointer">Delete</button>
         </form>
       </td>
     </tr>
@@ -26,8 +42,9 @@
     </tbody>
   </table>
   {% else %}
-  <div class="empty">No archived sales</div>
-  {% endif %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500">No archived sales</div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

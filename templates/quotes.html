@@ -5,25 +5,86 @@
   <a href="{{ url_for('add_quote') }}" class="btn btn-primary">+ New Quote</a>
 {% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
+
+{% set accepted = quotes | selectattr('status', 'equalto', 'accepted') | list %}
+{% set pending = quotes | selectattr('status', 'in', ['draft', 'sent']) | list %}
+{% set total_val = quotes | sum(attribute='total') %}
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Quotes</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ quotes | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Value</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">£{{ "{:,.0f}".format(total_val) }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Accepted</div>
+    <div style="font-size:26px;font-weight:700;color:#16a34a">{{ accepted | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Open</div>
+    <div style="font-size:26px;font-weight:700;color:{{ '#ca8a04' if pending else '#64748b' }}">{{ pending | length }}</div>
+  </div>
+</div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
   {% if quotes %}
-  <table>
-    <thead><tr><th class="cb-col"><input type="checkbox" id="select-all"></th><th>Quote #</th><th>Date</th><th>Expiry</th><th>Customer</th><th>Total</th><th>Status</th><th></th></tr></thead>
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;width:32px">
+          <input type="checkbox" id="select-all">
+        </th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Quote #</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Customer</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Expiry</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
     <tbody>
     {% for q in quotes %}
-    <tr>
-      <td class="cb-col"><input type="checkbox" class="bulk-cb" value="{{ q['id'] }}"></td>
-      <td><a href="{{ url_for('view_quote', qid=q['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ q['num'] }}</a></td>
-      <td>{{ q['doc_date'] }}</td>
-      <td>{{ q['expiry_date'] or '—' }}</td>
-      <td>{{ q['customer'] }}</td>
-      <td>£{{ "{:,.3f}".format(q['total']) }}</td>
-      <td><span class="badge badge-{{ 'success' if q['status']=='accepted' else 'danger' if q['status'] in ('rejected','expired') else 'warning' if q['status']=='sent' else '' }}">{{ q['status'] }}</span></td>
-      <td>
-        <div class="btn-group">
-          <a href="{{ url_for('view_quote', qid=q['id']) }}" class="btn btn-sm">View</a>
-          <a href="{{ url_for('edit_quote', qid=q['id']) }}" class="btn btn-sm">Edit</a>
+    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="rowClick(event,'{{ url_for('view_quote', qid=q['id']) }}')"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px" onclick="event.stopPropagation()">
+        <input type="checkbox" class="bulk-cb" value="{{ q['id'] }}">
+      </td>
+      <td style="padding:13px 16px">
+        <a href="{{ url_for('view_quote', qid=q['id']) }}"
+           style="font-family:monospace;font-size:13px;font-weight:600;color:#7c3aed;text-decoration:none;background:#f5f3ff;padding:3px 8px;border-radius:5px;white-space:nowrap">
+          {{ q['num'] }}
+        </a>
+      </td>
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ q['customer'] or '—' }}
+      </td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ q['doc_date'] }}</td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">
+        {{ q['expiry_date'] or '—' }}
+      </td>
+      <td style="padding:13px 16px;text-align:right;font-weight:700;color:#1a1a1a;white-space:nowrap">
+        £{{ "{:,.2f}".format(q['total']) }}
+      </td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if q['status']=='accepted' %}background:#dcfce7;color:#16a34a
+          {% elif q['status'] in ('rejected','expired') %}background:#fee2e2;color:#dc2626
+          {% elif q['status']=='sent' %}background:#dbeafe;color:#1d4ed8
+          {% else %}background:#f1f5f9;color:#64748b{% endif %}">
+          {{ q['status'] | capitalize }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;text-align:right" onclick="event.stopPropagation()">
+        <div style="display:flex;gap:5px;justify-content:flex-end">
+          <a href="{{ url_for('view_quote', qid=q['id']) }}"
+             style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#7c3aed;color:#fff;text-decoration:none;white-space:nowrap">View</a>
+          <a href="{{ url_for('edit_quote', qid=q['id']) }}"
+             style="font-size:12px;font-weight:500;padding:5px 10px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none">Edit</a>
         </div>
       </td>
     </tr>
@@ -31,16 +92,32 @@
     </tbody>
   </table>
   {% else %}
-  <div class="empty">No quotes yet</div>
-  {% endif %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No quotes yet</div>
+    <div style="font-size:13px"><a href="{{ url_for('add_quote') }}" style="color:#7c3aed">Create your first quote</a></div>
   </div>
+  {% endif %}
 </div>
+
 <form id="bulk-form" method="post" style="display:none"><input type="hidden" id="bulk-action-input" name="action"></form>
 <div id="bulk-bar" class="bulk-bar">
   <span id="bulk-count">0 selected</span>
-  <select id="bulk-action"><option value="">— Action —</option><option value="delete">Delete</option><option value="sent">Mark as Sent</option><option value="accepted">Mark as Accepted</option><option value="rejected">Mark as Rejected</option><option value="expired">Mark as Expired</option></select>
+  <select id="bulk-action">
+    <option value="">— Action —</option>
+    <option value="delete">Delete</option>
+    <option value="sent">Mark as Sent</option>
+    <option value="accepted">Mark as Accepted</option>
+    <option value="rejected">Mark as Rejected</option>
+    <option value="expired">Mark as Expired</option>
+  </select>
   <button id="bulk-submit" class="btn btn-sm btn-primary">Apply</button>
   <button id="bulk-cancel" class="btn btn-sm" style="background:#444;border-color:#444;color:#fff">Cancel selection</button>
 </div>
-<script>initBulk("{{ url_for('bulk_quotes') }}", "Apply '{a}' to {n} quote(s)?");</script>
+<script>
+initBulk("{{ url_for('bulk_quotes') }}", "Apply '{a}' to {n} quote(s)?");
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form')) return;
+  window.location.href = url;
+}
+</script>
 {% endblock %}

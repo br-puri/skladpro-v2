@@ -7,35 +7,86 @@
   {% endif %}
 {% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Number</th><th>Date</th><th>Supplier</th><th>Warehouse</th>
-          <th>Total</th><th>Status</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for n in notes %}
-        <tr>
-          <td><a href="{{ url_for('view_debit_note', dnid=n['id']) }}" class="mono">{{ n['num'] }}</a></td>
-          <td>{{ n['doc_date'] }}</td>
-          <td>{{ n['supplier'] }}</td>
-          <td style="color:#64748b">{{ n['wh_name'] or '—' }}</td>
-          <td style="font-weight:600">£{{ "{:,.2f}".format(n['total']) }}</td>
-          <td>
-            <span class="badge {% if n['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">
-              {{ n['status'] }}
-            </span>
-          </td>
-          <td><a href="{{ url_for('view_debit_note', dnid=n['id']) }}" class="btn btn-sm">View</a></td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" class="empty">No debit notes yet</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+{% set applied = notes | selectattr('status', 'equalto', 'applied') | list %}
+{% set draft = notes | selectattr('status', 'equalto', 'draft') | list %}
+{% set total_val = notes | sum(attribute='total') %}
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Debit Notes</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ notes | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Value</div>
+    <div style="font-size:26px;font-weight:700;color:#d97706">£{{ "{:,.2f}".format(total_val) }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Pending</div>
+    <div style="font-size:26px;font-weight:700;color:{{ '#ca8a04' if draft else '#64748b' }}">{{ draft | length }}</div>
   </div>
 </div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+  {% if notes %}
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Number</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Supplier</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Warehouse</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for n in notes %}
+    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="rowClick(event,'{{ url_for('view_debit_note', dnid=n['id']) }}')"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px">
+        <a href="{{ url_for('view_debit_note', dnid=n['id']) }}"
+           style="font-family:monospace;font-size:13px;font-weight:600;color:#d97706;text-decoration:none;background:#fffbeb;padding:3px 8px;border-radius:5px;white-space:nowrap">
+          {{ n['num'] }}
+        </a>
+      </td>
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a">{{ n['supplier'] or '—' }}</td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ n['doc_date'] }}</td>
+      <td style="padding:13px 16px;color:#64748b">{{ n['wh_name'] or '—' }}</td>
+      <td style="padding:13px 16px;text-align:right;font-weight:700;color:#d97706;white-space:nowrap">
+        £{{ "{:,.2f}".format(n['total']) }}
+      </td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if n['status']=='applied' %}background:#dcfce7;color:#16a34a{% else %}background:#fef9c3;color:#ca8a04{% endif %}">
+          {{ n['status'] | capitalize }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;text-align:right" onclick="event.stopPropagation()">
+        <a href="{{ url_for('view_debit_note', dnid=n['id']) }}"
+           style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#d97706;color:#fff;text-decoration:none;white-space:nowrap">
+          View
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No debit notes yet</div>
+    {% if session.get('role')=='admin' %}
+    <div style="font-size:13px"><a href="{{ url_for('add_debit_note') }}" style="color:#d97706">Create a debit note</a></div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+<script>
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form')) return;
+  window.location.href = url;
+}
+</script>
 {% endblock %}

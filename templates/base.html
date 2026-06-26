@@ -476,17 +476,21 @@ function initBulk(submitUrl, confirmMsg) {
     <h1 style="flex-shrink:0">{% block page_title %}{% endblock %}</h1>
 
     <!-- Global search (desktop) -->
-    <form action="{{ url_for('global_search') }}" method="GET" class="topbar-search-form" style="flex:1;max-width:400px;position:relative">
-      <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#94a3b8;pointer-events:none" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-        <circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/>
-      </svg>
-      <input id="global-search-input" name="q" type="search" autocomplete="off"
-        value="{{ request.args.get('q','') if request.endpoint=='global_search' else '' }}"
-        placeholder="Search anything… (⌘K)"
-        style="width:100%;padding:7px 12px 7px 32px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#0f172a;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s"
-        onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,.12)';this.style.background='#fff'"
-        onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none';this.style.background='#f8fafc'">
-    </form>
+    <div class="topbar-search-form" style="flex:1;max-width:400px;position:relative">
+      <form id="gs-form" action="{{ url_for('global_search') }}" method="GET">
+        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#94a3b8;pointer-events:none;z-index:1" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/>
+        </svg>
+        <input id="global-search-input" name="q" type="search" autocomplete="off"
+          value="{{ request.args.get('q','') if request.endpoint=='global_search' else '' }}"
+          placeholder="Search anything… (⌘K)"
+          style="width:100%;padding:7px 12px 7px 32px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#0f172a;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s"
+          onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,.12)';this.style.background='#fff';gsOnFocus()"
+          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none';this.style.background='#f8fafc'">
+      </form>
+      <!-- Live search dropdown -->
+      <div id="gs-dropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.12);z-index:9999;max-height:420px;overflow-y:auto;font-size:13px"></div>
+    </div>
 
     <div class="topbar-actions" style="flex-shrink:0;display:flex;align-items:center;gap:8px">
       {% block topbar_actions %}{% endblock %}
@@ -551,15 +555,165 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// ── Global search live dropdown ─────────────────────────────────────────────
+(function() {
+  var inp = document.getElementById('global-search-input');
+  var drop = document.getElementById('gs-dropdown');
+  var timer, activeIdx = -1, lastResults = [];
+
+  var PAGES = [
+    {label:'Dashboard',    sub:'Overview & metrics',       url:'/'},
+    {label:'Products',     sub:'Browse inventory',         url:'/products'},
+    {label:'Sales',        sub:'Invoices & orders',        url:'/sales'},
+    {label:'Purchases',    sub:'Purchase orders',          url:'/purchases'},
+    {label:'Quotes',       sub:'Customer quotes',          url:'/quotes'},
+    {label:'Customers',    sub:'Customer list',            url:'/customers?type=customer'},
+    {label:'Suppliers',    sub:'Supplier list',            url:'/customers?type=supplier'},
+    {label:'Warehouses',   sub:'Stock locations',          url:'/warehouses'},
+    {label:'Transfers',    sub:'Inventory transfers',      url:'/transfers'},
+    {label:'Credit Notes', sub:'Issued credit notes',      url:'/credit-notes'},
+    {label:'Finance',      sub:'Transactions & cashflow',  url:'/finance'},
+    {label:'Reports',      sub:'Analytics & reports',      url:'/reports'},
+    {label:'Settings',     sub:'Company & preferences',    url:'/settings'},
+    {label:'Write-offs',   sub:'Stock write-offs',         url:'/writeoffs'},
+    {label:'Categories',   sub:'Product categories',       url:'/categories'},
+  ];
+
+  var TYPE_COLOURS = {
+    Product:  {bg:'#eff6ff', fg:'#1d4ed8'},
+    Contact:  {bg:'#f0fdf4', fg:'#15803d'},
+    Sale:     {bg:'#fef9c3', fg:'#a16207'},
+    Purchase: {bg:'#fff7ed', fg:'#c2410c'},
+    Quote:    {bg:'#faf5ff', fg:'#7e22ce'},
+    Page:     {bg:'#f1f5f9', fg:'#475569'},
+  };
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderDropdown(items) {
+    lastResults = items;
+    activeIdx = -1;
+    if (!items.length) { drop.style.display = 'none'; return; }
+
+    var html = '';
+    var lastType = null;
+    items.forEach(function(r, i) {
+      if (r.type !== lastType) {
+        if (lastType !== null) html += '<div style="height:1px;background:#f1f5f9;margin:4px 0"></div>';
+        lastType = r.type;
+      }
+      var c = TYPE_COLOURS[r.type] || TYPE_COLOURS.Page;
+      html += '<div class="gs-item" data-idx="' + i + '" data-url="' + esc(r.url) + '" '
+        + 'style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .1s">'
+        + '<span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap;background:' + c.bg + ';color:' + c.fg + '">' + esc(r.type.toUpperCase()) + '</span>'
+        + '<span style="flex:1;min-width:0"><span style="font-weight:500;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">' + esc(r.label) + '</span>'
+        + (r.sub ? '<span style="font-size:11px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">' + esc(r.sub) + '</span>' : '')
+        + '</span>'
+        + '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M2 6h8M7 3l3 3-3 3"/></svg>'
+        + '</div>';
+    });
+    html += '<div style="padding:8px 14px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">'
+      + '<span style="font-size:11px;color:#94a3b8">' + items.length + ' result' + (items.length===1?'':'s') + '</span>'
+      + '<a href="/search?q=' + encodeURIComponent(inp.value) + '" style="font-size:11px;color:#2563eb;text-decoration:none;font-weight:500">View all results →</a>'
+      + '</div>';
+
+    drop.innerHTML = html;
+    drop.style.display = 'block';
+
+    drop.querySelectorAll('.gs-item').forEach(function(el) {
+      el.addEventListener('mouseenter', function() { setActive(parseInt(el.dataset.idx)); });
+      el.addEventListener('mouseleave', function() { setActive(-1); });
+      el.addEventListener('mousedown', function(e) { e.preventDefault(); navigate(el.dataset.url); });
+    });
+  }
+
+  function setActive(idx) {
+    activeIdx = idx;
+    drop.querySelectorAll('.gs-item').forEach(function(el, i) {
+      el.style.background = i === idx ? '#f0f7ff' : '';
+    });
+  }
+
+  function navigate(url) {
+    window.location.href = url;
+  }
+
+  function closeDropdown() {
+    drop.style.display = 'none';
+    activeIdx = -1;
+  }
+
+  function matchPages(q) {
+    var ql = q.toLowerCase();
+    return PAGES.filter(function(p) { return p.label.toLowerCase().includes(ql); })
+               .slice(0, 3)
+               .map(function(p) { return {type:'Page', label:'Go to ' + p.label, sub:p.sub, url:p.url}; });
+  }
+
+  function doSearch(q) {
+    if (q.length < 2) { closeDropdown(); return; }
+    fetch('/api/search?q=' + encodeURIComponent(q))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var pages = matchPages(q);
+        var all = pages.concat(data);
+        if (!all.length) {
+          drop.innerHTML = '<div style="padding:14px;text-align:center;color:#94a3b8;font-size:12px">No results for <strong>' + esc(q) + '</strong></div>';
+          drop.style.display = 'block';
+        } else {
+          renderDropdown(all);
+        }
+      })
+      .catch(function() { closeDropdown(); });
+  }
+
+  if (inp) {
+    inp.addEventListener('input', function() {
+      clearTimeout(timer);
+      var q = inp.value.trim();
+      if (!q) { closeDropdown(); return; }
+      timer = setTimeout(function() { doSearch(q); }, 180);
+    });
+  }
+
+  window.gsOnFocus = function() {
+    if (inp && inp.value.trim().length >= 2) doSearch(inp.value.trim());
+  };
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#gs-dropdown') && e.target !== inp) closeDropdown();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (!inp || document.activeElement !== inp) return;
+    if (drop.style.display === 'none') return;
+    var items = drop.querySelectorAll('.gs-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive(Math.min(activeIdx + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive(Math.max(activeIdx - 1, -1));
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      navigate(lastResults[activeIdx].url);
+    }
+  });
+})();
+
 // ⌘K / Ctrl+K — global search bar; ⌘F / Ctrl+F — product search on forms
 document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    const inp = document.getElementById('global-search-input');
+    if (inp) { e.preventDefault(); inp.focus(); inp.select(); return; }
     const barcode = document.getElementById('barcodeInput');
     if (barcode) { e.preventDefault(); barcode.focus(); barcode.select(); }
   }
   if (e.key === 'Escape') {
     const inp = document.getElementById('global-search-input');
-    if (inp && document.activeElement === inp) inp.blur();
+    if (inp && document.activeElement === inp) { inp.blur(); document.getElementById('gs-dropdown').style.display='none'; }
     closeMobMenu();
   }
 });

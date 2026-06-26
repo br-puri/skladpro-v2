@@ -3,19 +3,73 @@
 {% block page_title %}Write-offs{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_writeoff') }}" class="btn btn-primary">+ New Write-off</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
-  {% if writeoffs %}
-  <table><thead><tr><th>Doc</th><th>Date</th><th>Warehouse</th><th>Reason</th><th>Total Cost</th><th></th></tr></thead><tbody>
-  {% for w in writeoffs %}
-  <tr>
-    <td><a href="{{ url_for('view_writeoff', wid=w['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ w['num'] }}</a></td>
-    <td>{{ w['doc_date'] }}</td><td>{{ w['wh_name'] or '—' }}</td><td>{{ w['reason'] or '—' }}</td>
-    <td style="color:#c0392b">£{{ "{:,.2f}".format(w['total_cost']) }}</td>
-    <td><a href="{{ url_for('view_writeoff', wid=w['id']) }}" class="btn btn-sm">View</a></td>
-  </tr>{% endfor %}
-  </tbody></table>
-  {% else %}<div class="empty">No write-offs yet</div>{% endif %}
+
+{% set total_cost = writeoffs | sum(attribute='total_cost') %}
+
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Write-offs</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ writeoffs | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Cost Written Off</div>
+    <div style="font-size:26px;font-weight:700;color:#dc2626">£{{ "{:,.2f}".format(total_cost) }}</div>
   </div>
 </div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+  {% if writeoffs %}
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Document</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Warehouse</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Reason</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total Cost</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for w in writeoffs %}
+    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="rowClick(event,'{{ url_for('view_writeoff', wid=w['id']) }}')"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px">
+        <a href="{{ url_for('view_writeoff', wid=w['id']) }}"
+           style="font-family:monospace;font-size:13px;font-weight:600;color:#64748b;text-decoration:none;background:#f1f5f9;padding:3px 8px;border-radius:5px;white-space:nowrap">
+          {{ w['num'] }}
+        </a>
+      </td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ w['doc_date'] }}</td>
+      <td style="padding:13px 16px;color:#64748b">{{ w['wh_name'] or '—' }}</td>
+      <td style="padding:13px 16px;color:#1a1a1a;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ w['reason'] or '—' }}
+      </td>
+      <td style="padding:13px 16px;text-align:right;font-weight:700;color:#dc2626;white-space:nowrap">
+        £{{ "{:,.2f}".format(w['total_cost']) }}
+      </td>
+      <td style="padding:13px 16px;text-align:right" onclick="event.stopPropagation()">
+        <a href="{{ url_for('view_writeoff', wid=w['id']) }}"
+           style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none;white-space:nowrap">
+          View
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No write-offs yet</div>
+    <div style="font-size:13px"><a href="{{ url_for('add_writeoff') }}" style="color:#1a6ef5">Create your first write-off</a></div>
+  </div>
+  {% endif %}
+</div>
+<script>
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form')) return;
+  window.location.href = url;
+}
+</script>
 {% endblock %}

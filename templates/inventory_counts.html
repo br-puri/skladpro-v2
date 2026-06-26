@@ -3,25 +3,85 @@
 {% block page_title %}Inventory Counts{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_inventory_count') }}" class="btn btn-primary">+ New Count</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
-  {% if counts %}
-  <table><thead><tr><th>Doc</th><th>Date</th><th>Warehouse</th><th>Status</th><th>Notes</th><th></th></tr></thead><tbody>
-  {% for c in counts %}
-  <tr>
-    <td class="mono">{{ c['num'] }}</td><td>{{ c['doc_date'] }}</td><td>{{ c['wh_name'] }}</td>
-    <td><span class="badge badge-{{ 'success' if c['status']=='applied' else 'warning' }}">{{ c['status'] }}</span></td>
-    <td style="color:#888">{{ c['notes'] or '—' }}</td>
-    <td><div class="btn-group" style="flex-wrap:nowrap">
-      {% if c['status']=='draft' %}<a href="{{ url_for('edit_inventory_count', cid=c['id']) }}" class="btn btn-sm">Edit</a>
-      {% else %}<a href="{{ url_for('edit_inventory_count', cid=c['id']) }}" class="btn btn-sm">View</a>{% endif %}
-      <form method="post" action="{{ url_for('delete_inventory_count', cid=c['id']) }}" style="display:inline" onsubmit="return confirm('Delete this inventory count?')">
-        <button class="btn btn-sm btn-danger">Del</button>
-      </form>
-    </div></td>
-  </tr>{% endfor %}
-  </tbody></table>
-  {% else %}<div class="empty">No inventory counts yet</div>{% endif %}
+
+{% set applied = counts | selectattr('status', 'equalto', 'applied') | list %}
+{% set draft = counts | selectattr('status', 'equalto', 'draft') | list %}
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Counts</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ counts | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Applied</div>
+    <div style="font-size:26px;font-weight:700;color:#16a34a">{{ applied | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Draft</div>
+    <div style="font-size:26px;font-weight:700;color:{{ '#ca8a04' if draft else '#64748b' }}">{{ draft | length }}</div>
   </div>
 </div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+  {% if counts %}
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Document</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Warehouse</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Notes</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in counts %}
+    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="rowClick(event,'{{ url_for('edit_inventory_count', cid=c['id']) }}')"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px">
+        <span style="font-family:monospace;font-size:13px;font-weight:600;color:#64748b;background:#f1f5f9;padding:3px 8px;border-radius:5px;white-space:nowrap">
+          {{ c['num'] }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ c['doc_date'] }}</td>
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a">{{ c['wh_name'] }}</td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if c['status']=='applied' %}background:#dcfce7;color:#16a34a{% else %}background:#fef9c3;color:#ca8a04{% endif %}">
+          {{ c['status'] | capitalize }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;color:#94a3b8;font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ c['notes'] or '—' }}
+      </td>
+      <td style="padding:13px 16px;text-align:right" onclick="event.stopPropagation()">
+        <div style="display:flex;gap:5px;justify-content:flex-end;align-items:center">
+          <a href="{{ url_for('edit_inventory_count', cid=c['id']) }}"
+             style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#1a6ef5;color:#fff;text-decoration:none;white-space:nowrap">
+            {{ 'Edit' if c['status']=='draft' else 'View' }}
+          </a>
+          <form method="post" action="{{ url_for('delete_inventory_count', cid=c['id']) }}" style="display:inline" onsubmit="return confirm('Delete this inventory count?')">
+            <button style="font-size:12px;font-weight:500;padding:5px 10px;border-radius:6px;background:#fff;border:1px solid #fecaca;color:#dc2626;cursor:pointer">Del</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No inventory counts yet</div>
+    <div style="font-size:13px"><a href="{{ url_for('add_inventory_count') }}" style="color:#1a6ef5">Start a count</a></div>
+  </div>
+  {% endif %}
+</div>
+<script>
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form')) return;
+  window.location.href = url;
+}
+</script>
 {% endblock %}

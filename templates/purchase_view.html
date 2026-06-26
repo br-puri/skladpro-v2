@@ -6,71 +6,157 @@
   <a href="{{ url_for('export_purchase_excel', pid=purchase['id']) }}" class="btn">↓ Excel</a>
   <a href="{{ url_for('edit_purchase', pid=purchase['id']) }}" class="btn">Edit</a>
   {% if session.get('role')=='admin' %}
-  <a href="{{ url_for('add_debit_note') }}?purchase_id={{ purchase['id'] }}" class="btn">↩ Raise Debit Note</a>
+  <a href="{{ url_for('add_debit_note') }}?purchase_id={{ purchase['id'] }}" class="btn">Raise Debit Note</a>
   {% endif %}
   <a href="{{ url_for('purchases') }}" class="back-link">← Back</a>
 {% endblock %}
 {% block content %}
-<div class="form-card" style="max-width:640px">
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
-    <div><div class="metric-label">Supplier</div><div style="font-size:15px;font-weight:600">{{ purchase['supplier'] }}</div></div>
-    <div><div class="metric-label">Status</div><span class="badge badge-success">{{ purchase['status'] }}</span></div>
-    <div><div class="metric-label">Date</div><div>{{ purchase['doc_date'] }}</div></div>
-    <div><div class="metric-label">Warehouse</div><div>{{ purchase['wh_name'] or '—' }}</div></div>
-    <div><div class="metric-label">Currency</div><div>{{ purchase['currency'] }}</div></div>
-    {% if purchase['tax_pct'] > 0 %}<div><div class="metric-label">VAT</div><div>{{ purchase['tax_pct']|int }}% — £{{ "{:,.2f}".format(purchase['tax_amount'] if purchase['tax_amount'] else 0) }}</div></div>{% endif %}
-    {% if purchase['notes'] %}<div><div class="metric-label">Notes</div><div>{{ purchase['notes'] }}</div></div>{% endif %}
+
+<!-- Header band -->
+<div style="background:#0f172a;border-radius:12px;padding:20px 28px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Purchase Order</div>
+      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.5px;font-family:monospace">{{ purchase['num'] }}</div>
+    </div>
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Date</div>
+      <div style="font-size:14px;font-weight:500;color:#fff">{{ purchase['doc_date'] }}</div>
+    </div>
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Total</div>
+      <div style="font-size:20px;font-weight:800;color:#60a5fa">£{{ "{:,.2f}".format(purchase['total']) }}</div>
+    </div>
   </div>
-  <hr class="section">
-  <table style="width:100%;font-size:13px;border-collapse:collapse">
-    <thead><tr>
-      <th style="text-align:left;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Product</th>
-      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Qty</th>
-      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Unit Cost</th>
-      <th style="text-align:right;padding:8px 0;font-size:10.5px;color:#888;text-transform:uppercase;border-bottom:1px solid #e8e6df">Subtotal</th>
-    </tr></thead>
-    <tbody>{% for item in items %}
-    <tr>
-      <td style="padding:9px 0;border-bottom:1px solid #f0ede8">{{ item['product_name'] }}</td>
-      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">{{ item['qty']|int }} {{ item['unit'] }}</td>
-      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">£{{ "{:,.2f}".format(item['price']) }}</td>
-      <td style="padding:9px 0;border-bottom:1px solid #f0ede8;text-align:right">£{{ "{:,.2f}".format(item['qty']*item['price']) }}</td>
-    </tr>{% endfor %}</tbody>
-    <tfoot>
-      {% if purchase['subtotal'] and purchase['subtotal'] != purchase['total'] %}
-      <tr><td colspan="3" style="padding:6px 0;text-align:right;color:#888">Subtotal</td>
-      <td style="padding:6px 0;text-align:right;color:#888">£{{ "{:,.2f}".format(purchase['subtotal']) }}</td></tr>
-      {% if purchase['tax_pct'] > 0 %}
-      <tr><td colspan="3" style="padding:6px 0;text-align:right;color:#888">VAT ({{ purchase['tax_pct']|int }}%)</td>
-      <td style="padding:6px 0;text-align:right;color:#888">£{{ "{:,.2f}".format(purchase['tax_amount']) }}</td></tr>
-      {% endif %}{% endif %}
-      <tr><td colspan="3" style="padding:11px 0;text-align:right;font-weight:600">Total</td>
-      <td style="padding:11px 0;text-align:right;font-weight:600;font-size:15px">£{{ "{:,.2f}".format(purchase['total']) }}</td></tr>
-    </tfoot>
-  </table>
+  <span style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:.3px;
+    {% if purchase['status']=='received' %}background:#dcfce7;color:#16a34a
+    {% elif purchase['status']=='cancelled' %}background:#fee2e2;color:#dc2626
+    {% else %}background:#fef9c3;color:#ca8a04{% endif %}">
+    {{ purchase['status'] | upper }}
+  </span>
 </div>
 
-  <!-- Debit Notes -->
-  {% if debit_notes_list %}
-  <div class="card" style="margin-top:16px">
-    <div class="card-header"><span class="card-title">Debit Notes</span></div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Number</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          {% for dn in debit_notes_list %}
-          <tr>
-            <td class="mono">{{ dn['num'] }}</td>
-            <td>{{ dn['doc_date'] }}</td>
-            <td>£{{ "{:,.2f}".format(dn['total']) }}</td>
-            <td><span class="badge {% if dn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">{{ dn['status'] }}</span></td>
-            <td><a href="{{ url_for('view_debit_note', dnid=dn['id']) }}" class="btn btn-sm">View</a></td>
+<!-- Two-column layout -->
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start">
+
+  <!-- Left: items -->
+  <div>
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
+      <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600;color:#374151">Line Items</span>
+        <span style="font-size:12px;color:#94a3b8">{{ items | length }} product{{ 's' if items | length != 1 }}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f8fafc">
+            <th style="text-align:left;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Product</th>
+            <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Qty</th>
+            <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Unit Cost</th>
+            <th style="text-align:right;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Subtotal</th>
           </tr>
-          {% endfor %}
+        </thead>
+        <tbody>
+        {% for item in items %}
+        <tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:12px 20px;font-weight:500;color:#1e293b">{{ item['product_name'] }}</td>
+          <td style="padding:12px 16px;text-align:right;color:#64748b">{{ item['qty']|int }} {{ item['unit'] }}</td>
+          <td style="padding:12px 16px;text-align:right;color:#64748b">£{{ "{:,.2f}".format(item['price']) }}</td>
+          <td style="padding:12px 20px;text-align:right;font-weight:600;color:#1e293b">£{{ "{:,.2f}".format(item['qty']*item['price']) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          {% if purchase['subtotal'] and purchase['subtotal'] != purchase['total'] %}
+          <tr style="border-top:1px solid #f1f5f9">
+            <td colspan="3" style="padding:8px 16px;text-align:right;color:#94a3b8;font-size:12px">Subtotal</td>
+            <td style="padding:8px 20px;text-align:right;color:#94a3b8;font-size:12px">£{{ "{:,.2f}".format(purchase['subtotal']) }}</td>
+          </tr>
+          {% if purchase['tax_pct'] > 0 %}
+          <tr>
+            <td colspan="3" style="padding:6px 16px;text-align:right;color:#94a3b8;font-size:12px">VAT ({{ purchase['tax_pct']|int }}%)</td>
+            <td style="padding:6px 20px;text-align:right;color:#94a3b8;font-size:12px">£{{ "{:,.2f}".format(purchase['tax_amount']) }}</td>
+          </tr>
+          {% endif %}
+          {% endif %}
+          <tr style="border-top:2px solid #e2e8f0">
+            <td colspan="3" style="padding:14px 16px;text-align:right;font-weight:700;font-size:14px">Total</td>
+            <td style="padding:14px 20px;text-align:right;font-weight:800;font-size:16px;color:#1e293b">£{{ "{:,.2f}".format(purchase['total']) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    {% if debit_notes_list %}
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
+      <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa">
+        <span style="font-size:13px;font-weight:600;color:#374151">Debit Notes</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f8fafc">
+            <th style="text-align:left;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Number</th>
+            <th style="text-align:left;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Date</th>
+            <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Total</th>
+            <th style="text-align:left;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Status</th>
+            <th style="padding:10px 20px"></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for dn in debit_notes_list %}
+        <tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:11px 20px;font-family:monospace;font-weight:600;color:#d97706">{{ dn['num'] }}</td>
+          <td style="padding:11px 16px;color:#64748b">{{ dn['doc_date'] }}</td>
+          <td style="padding:11px 16px;text-align:right;font-weight:600">£{{ "{:,.2f}".format(dn['total']) }}</td>
+          <td style="padding:11px 16px">
+            <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;
+              {% if dn['status']=='applied' %}background:#dcfce7;color:#16a34a{% else %}background:#fef9c3;color:#ca8a04{% endif %}">
+              {{ dn['status'] | capitalize }}
+            </span>
+          </td>
+          <td style="padding:11px 20px;text-align:right">
+            <a href="{{ url_for('view_debit_note', dnid=dn['id']) }}" class="btn btn-sm">View</a>
+          </td>
+        </tr>
+        {% endfor %}
         </tbody>
       </table>
     </div>
+    {% endif %}
   </div>
-  {% endif %}
 
+  <!-- Right: details -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:12px">Supplier</div>
+      <div style="font-size:15px;font-weight:700;color:#0f172a">{{ purchase['supplier'] or '—' }}</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px">Details</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">Warehouse</span>
+          <span style="font-weight:500">{{ purchase['wh_name'] or '—' }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">Currency</span>
+          <span style="font-weight:500">{{ purchase['currency'] }}</span>
+        </div>
+        {% if purchase['tax_pct'] > 0 %}
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">VAT</span>
+          <span style="font-weight:500">{{ purchase['tax_pct']|int }}%</span>
+        </div>
+        {% endif %}
+        {% if purchase['notes'] %}
+        <div style="padding-top:10px;border-top:1px solid #f1f5f9;color:#64748b;font-size:12px;line-height:1.5">
+          {{ purchase['notes'] }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

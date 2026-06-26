@@ -4966,6 +4966,60 @@ def api_customer(cid):
     return jsonify(dict(c) if c else {})
 
 
+@app.route('/api/search')
+def api_search():
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+    like = f'%{q}%'
+    out = []
+    with get_db() as db:
+        for r in db.execute(
+            "SELECT id, name, sku, category FROM products WHERE name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s ORDER BY name LIMIT 5",
+            (like, like, like)
+        ).fetchall():
+            out.append({'type': 'Product', 'label': r['name'], 'sub': r['sku'] or r['category'] or '', 'url': url_for('edit_product', pid=r['id'])})
+
+        for r in db.execute(
+            "SELECT id, name, company, type FROM contacts WHERE name ILIKE %s OR company ILIKE %s OR phone ILIKE %s OR email ILIKE %s ORDER BY name LIMIT 5",
+            (like, like, like, like)
+        ).fetchall():
+            display = r['company'] or r['name']
+            sub = r['type'].capitalize()
+            if r['company'] and r['name'] and r['name'] != r['company']:
+                sub = f"{r['name']} · {sub}"
+            out.append({'type': 'Contact', 'label': display, 'sub': sub, 'url': url_for('view_customer', cid=r['id'])})
+
+        for r in db.execute(
+            "SELECT s.id, s.num, COALESCE(NULLIF(c.company,''), s.customer, c.name) AS cust "
+            "FROM sales s LEFT JOIN contacts c ON c.id=s.customer_id "
+            "WHERE s.num ILIKE %s OR s.customer ILIKE %s OR c.name ILIKE %s OR c.company ILIKE %s "
+            "ORDER BY s.doc_date DESC LIMIT 5",
+            (like, like, like, like)
+        ).fetchall():
+            out.append({'type': 'Sale', 'label': r['num'], 'sub': r['cust'] or '', 'url': url_for('view_sale', sid=r['id'])})
+
+        for r in db.execute(
+            "SELECT p.id, p.num, COALESCE(NULLIF(c.company,''), p.supplier, c.name) AS sup "
+            "FROM purchases p LEFT JOIN contacts c ON c.id=p.supplier_id "
+            "WHERE p.num ILIKE %s OR p.supplier ILIKE %s OR c.name ILIKE %s OR c.company ILIKE %s "
+            "ORDER BY p.doc_date DESC LIMIT 4",
+            (like, like, like, like)
+        ).fetchall():
+            out.append({'type': 'Purchase', 'label': r['num'], 'sub': r['sup'] or '', 'url': url_for('view_purchase', pid=r['id'])})
+
+        for r in db.execute(
+            "SELECT q.id, q.num, COALESCE(NULLIF(c.company,''), q.customer, c.name) AS cust "
+            "FROM quotes q LEFT JOIN contacts c ON c.id=q.customer_id "
+            "WHERE q.num ILIKE %s OR q.customer ILIKE %s OR c.name ILIKE %s OR c.company ILIKE %s "
+            "ORDER BY q.doc_date DESC LIMIT 3",
+            (like, like, like, like)
+        ).fetchall():
+            out.append({'type': 'Quote', 'label': r['num'], 'sub': r['cust'] or '', 'url': url_for('view_quote', qid=r['id'])})
+
+    return jsonify(out)
+
+
 init_db()
 
 

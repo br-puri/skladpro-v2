@@ -3,31 +3,90 @@
 {% block page_title %}Purchases{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_purchase') }}" class="btn btn-primary">+ New Purchase</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
+
+{% set total_cost = purchases | sum(attribute='total') %}
+{% set pending = purchases | selectattr('status', 'equalto', 'pending') | list %}
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Purchases</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ purchases | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Cost</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">£{{ "{:,.0f}".format(total_cost) }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Pending</div>
+    <div style="font-size:26px;font-weight:700;color:{{ '#ca8a04' if pending else '#16a34a' }}">{{ pending | length }}</div>
+  </div>
+</div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
   {% if purchases %}
-  <table>
-    <thead><tr><th class="cb-col"><input type="checkbox" id="select-all"></th><th>Doc</th><th>Date</th><th>Supplier</th><th>Warehouse</th><th>Total</th><th>Status</th><th></th></tr></thead>
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;width:32px">
+          <input type="checkbox" id="select-all">
+        </th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Document</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Supplier</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Warehouse</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
     <tbody>
     {% for p in purchases %}
-    <tr>
-      <td class="cb-col"><input type="checkbox" class="bulk-cb" value="{{ p['id'] }}"></td>
-      <td><a href="{{ url_for('view_purchase', pid=p['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ p['num'] }}</a></td>
-      <td>{{ p['doc_date'] }}</td>
-      <td>{{ p['supplier'] }}</td>
-      <td>{{ p['wh_name'] or '—' }}</td>
-      <td>£{{ "{:,.0f}".format(p['total']) }}</td>
-      <td><span class="badge badge-{{ 'success' if p['status']=='received' else 'warning' }}">{{ p['status'] }}</span></td>
-      <td><a href="{{ url_for('view_purchase', pid=p['id']) }}" class="btn btn-sm">View</a></td>
+    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="rowClick(event,'{{ url_for('view_purchase', pid=p['id']) }}')"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px" onclick="event.stopPropagation()">
+        <input type="checkbox" class="bulk-cb" value="{{ p['id'] }}">
+      </td>
+      <td style="padding:13px 16px">
+        <a href="{{ url_for('view_purchase', pid=p['id']) }}"
+           style="font-family:monospace;font-size:13px;font-weight:600;color:#1a6ef5;text-decoration:none;background:#eff6ff;padding:3px 8px;border-radius:5px;white-space:nowrap">
+          {{ p['num'] }}
+        </a>
+      </td>
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ p['supplier'] or '—' }}
+      </td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ p['doc_date'] }}</td>
+      <td style="padding:13px 16px;color:#64748b">{{ p['wh_name'] or '—' }}</td>
+      <td style="padding:13px 16px;text-align:right;font-weight:700;color:#1a1a1a;white-space:nowrap">
+        £{{ "{:,.2f}".format(p['total']) }}
+      </td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if p['status']=='received' %}background:#dcfce7;color:#16a34a
+          {% elif p['status']=='cancelled' %}background:#fee2e2;color:#dc2626
+          {% else %}background:#fef9c3;color:#ca8a04{% endif %}">
+          {{ p['status'] | capitalize }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;text-align:right" onclick="event.stopPropagation()">
+        <a href="{{ url_for('view_purchase', pid=p['id']) }}"
+           style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#1a6ef5;color:#fff;text-decoration:none;white-space:nowrap">
+          View
+        </a>
+      </td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div class="empty">No purchases yet</div>
-  {% endif %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No purchases yet</div>
+    <div style="font-size:13px"><a href="{{ url_for('add_purchase') }}" style="color:#1a6ef5">Record your first purchase</a></div>
   </div>
+  {% endif %}
 </div>
+
 <form id="bulk-form" method="post" style="display:none"><input type="hidden" id="bulk-action-input" name="action"></form>
 <div id="bulk-bar" class="bulk-bar">
   <span id="bulk-count">0 selected</span>
@@ -35,5 +94,11 @@
   <button id="bulk-submit" class="btn btn-sm btn-danger">Apply</button>
   <button id="bulk-cancel" class="btn btn-sm" style="background:#444;border-color:#444;color:#fff">Cancel selection</button>
 </div>
-<script>initBulk("{{ url_for('bulk_purchases') }}", "Delete {n} purchase(s)? This cannot be undone.");</script>
+<script>
+initBulk("{{ url_for('bulk_purchases') }}", "Delete {n} purchase(s)? This cannot be undone.");
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form')) return;
+  window.location.href = url;
+}
+</script>
 {% endblock %}

@@ -6,13 +6,11 @@
 
 {% if not q %}
 <div class="card" style="text-align:center;padding:48px 32px;color:#94a3b8">
-  <div style="font-size:40px;margin-bottom:12px">🔍</div>
   <div style="font-size:16px;font-weight:600;color:#64748b">Type something in the search bar above</div>
   <div style="font-size:13px;margin-top:6px">Search across products, sales, purchases, contacts, and more</div>
 </div>
 {% elif total == 0 %}
 <div class="card" style="text-align:center;padding:48px 32px;color:#94a3b8">
-  <div style="font-size:40px;margin-bottom:12px">😕</div>
   <div style="font-size:16px;font-weight:600;color:#64748b">No results for "{{ q }}"</div>
   <div style="font-size:13px;margin-top:6px">Try a different keyword or check the spelling</div>
 </div>

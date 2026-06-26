@@ -5,57 +5,86 @@
   <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">+ Add Transaction</a>
 {% endblock %}
 {% block content %}
-<div class="metrics">
-  <div class="metric">
-    <div class="metric-label">Total Income</div>
-    <div class="metric-value green">£{{ "{:,.0f}".format(income) }}</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Income</div>
+    <div style="font-size:22px;font-weight:700;color:#16a34a">£{{ "{:,.0f}".format(income) }}</div>
   </div>
-  <div class="metric">
-    <div class="metric-label">Total Expenses</div>
-    <div class="metric-value red">£{{ "{:,.0f}".format(expenses) }}</div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Expenses</div>
+    <div style="font-size:22px;font-weight:700;color:#dc2626">£{{ "{:,.0f}".format(expenses) }}</div>
   </div>
-  <div class="metric">
-    <div class="metric-label">Net Cash</div>
-    <div class="metric-value {% if net >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(net) }}</div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Net</div>
+    <div style="font-size:22px;font-weight:700;color:{{ '#16a34a' if net >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(net) }}</div>
   </div>
-  <div class="metric">
-    <div class="metric-label">Transactions</div>
-    <div class="metric-value">{{ transactions|length }}</div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Cash Balance</div>
+    <div style="font-size:22px;font-weight:700;color:{{ '#16a34a' if cash_balance >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(cash_balance) }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Bank Balance</div>
+    <div style="font-size:22px;font-weight:700;color:{{ '#16a34a' if bank_balance >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(bank_balance) }}</div>
   </div>
 </div>
 
-<div class="card">
-  <form class="search-wrap" method="get" style="padding:14px 16px">
-    <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:150px">
-    <span style="color:#888;font-size:13px">to</span>
-    <input type="date" name="date_to" value="{{ date_to }}" class="form-control" style="width:150px">
-    <select name="method" class="form-control" style="width:120px">
-      <option value="">All methods</option>
-      <option value="cash" {{ 'selected' if method=='cash' }}>Cash</option>
-      <option value="bank" {{ 'selected' if method=='bank' }}>Bank</option>
-    </select>
-    <button type="submit" class="btn">Filter</button>
-    {% if date_from or date_to or method %}<a href="{{ url_for('finance') }}" class="btn">Clear</a>{% endif %}
-  </form>
-  <div class="table-wrap">
+<form class="filter-bar" method="get">
+  <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:150px">
+  <span style="color:#94a3b8;font-size:13px">to</span>
+  <input type="date" name="date_to" value="{{ date_to }}" class="form-control" style="width:150px">
+  <select name="method" class="form-control" style="width:130px" onchange="this.form.submit()">
+    <option value="">All methods</option>
+    <option value="cash" {{ 'selected' if method=='cash' }}>Cash</option>
+    <option value="bank" {{ 'selected' if method=='bank' }}>Bank</option>
+  </select>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  {% if date_from or date_to or method %}<a href="{{ url_for('finance') }}" class="btn">Clear</a>{% endif %}
+</form>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
   {% if transactions %}
-  <table>
-    <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Contact</th><th>Amount</th><th></th></tr></thead>
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Type</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Description</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Contact</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Method</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Amount</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
     <tbody>
     {% for t in transactions %}
-    <tr>
-      <td>{{ t['doc_date'] }}</td>
-      <td><span class="badge badge-{{ 'success' if t['type']=='income' else 'danger' }}">{{ t['type'] }}</span></td>
-      <td>{{ t['desc'] }}</td>
-      <td style="color:#888">{{ t['contact'] or '—' }}</td>
-      <td style="font-weight:500;color:{{ '#1a8a4a' if t['type']=='income' else '#c0392b' }}">
+    <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ t['doc_date'] }}</td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if t['type']=='income' %}background:#dcfce7;color:#16a34a{% else %}background:#fee2e2;color:#dc2626{% endif %}">
+          {{ t['type'] | capitalize }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ t['desc'] or '—' }}
+      </td>
+      <td style="padding:13px 16px;color:#64748b">{{ t['contact'] or '—' }}</td>
+      <td style="padding:13px 16px">
+        {% if t.get('method') %}
+        <span style="font-size:11px;padding:2px 7px;border-radius:4px;background:#f1f5f9;color:#64748b;font-weight:500">{{ t['method'] | capitalize }}</span>
+        {% else %}—{% endif %}
+      </td>
+      <td style="padding:13px 16px;text-align:right;font-weight:700;white-space:nowrap;color:{{ '#16a34a' if t['type']=='income' else '#dc2626' }}">
         {{ '+' if t['type']=='income' else '-' }}£{{ "{:,.2f}".format(t['amount']) }}
       </td>
-      <td>
-        <div class="btn-group" style="flex-wrap:nowrap">
-          <a href="{{ url_for('edit_transaction', tid=t['id']) }}" class="btn btn-sm">Edit</a>
+      <td style="padding:13px 16px;text-align:right">
+        <div style="display:flex;gap:5px;justify-content:flex-end">
+          <a href="{{ url_for('edit_transaction', tid=t['id']) }}"
+             style="font-size:12px;font-weight:500;padding:5px 10px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none">Edit</a>
           <form method="post" action="{{ url_for('delete_transaction', tid=t['id']) }}" style="display:inline" onsubmit="return confirm('Delete this transaction?')">
-            <button class="btn btn-sm btn-danger">Del</button>
+            <button style="font-size:12px;font-weight:500;padding:5px 10px;border-radius:6px;background:#fff;border:1px solid #fecaca;color:#dc2626;cursor:pointer">Del</button>
           </form>
         </div>
       </td>
@@ -64,8 +93,10 @@
     </tbody>
   </table>
   {% else %}
-  <div class="empty">No transactions yet</div>
-  {% endif %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No transactions yet</div>
+    <div style="font-size:13px"><a href="{{ url_for('add_transaction') }}" style="color:#1a6ef5">Record your first transaction</a></div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

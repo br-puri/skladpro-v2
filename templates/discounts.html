@@ -3,25 +3,71 @@
 {% block page_title %}Discounts & Promotions{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_discount') }}" class="btn btn-primary">+ Add Discount</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
-  {% if discounts %}
-  <table><thead><tr><th>Name</th><th>Type</th><th>Value</th><th>Applies To</th><th>Active</th><th></th></tr></thead><tbody>
-  {% for d in discounts %}
-  <tr>
-    <td><strong>{{ d['name'] }}</strong></td>
-    <td>{{ d['type'] }}</td>
-    <td>{{ d['value']|int }}{{ '%' if d['type']=='percent' else ' £' }}</td>
-    <td>{{ d['applies_to'] }}</td>
-    <td><span class="badge badge-{{ 'success' if d['active'] else 'neutral' }}">{{ 'active' if d['active'] else 'inactive' }}</span></td>
-    <td>
-      <form method="post" action="{{ url_for('toggle_discount', did=d['id']) }}" style="display:inline">
-        <button class="btn btn-sm">{{ 'Deactivate' if d['active'] else 'Activate' }}</button>
-      </form>
-    </td>
-  </tr>{% endfor %}
-  </tbody></table>
-  {% else %}<div class="empty">No discounts yet</div>{% endif %}
+
+{% set active_count = discounts | selectattr('active') | list | length %}
+
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Active Discounts</div>
+    <div style="font-size:26px;font-weight:700;color:#16a34a">{{ active_count }}</div>
   </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Discounts</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ discounts | length }}</div>
+  </div>
+</div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+  {% if discounts %}
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Name</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Type</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Value</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Applies To</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for d in discounts %}
+    <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px;font-weight:600;color:#1a1a1a">{{ d['name'] }}</td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;padding:2px 7px;border-radius:4px;background:#f1f5f9;color:#64748b;font-weight:500">
+          {{ d['type'] | capitalize }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;text-align:right;font-weight:700;color:#1a1a1a">
+        {{ d['value']|int }}{{ '%' if d['type']=='percent' else ' £' }}
+      </td>
+      <td style="padding:13px 16px;color:#64748b">{{ d['applies_to'] or '—' }}</td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if d['active'] %}background:#dcfce7;color:#16a34a{% else %}background:#f1f5f9;color:#94a3b8{% endif %}">
+          {{ 'Active' if d['active'] else 'Inactive' }}
+        </span>
+      </td>
+      <td style="padding:13px 16px;text-align:right">
+        <form method="post" action="{{ url_for('toggle_discount', did=d['id']) }}" style="display:inline">
+          <button style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;cursor:pointer;
+            {% if d['active'] %}background:#fff;border:1px solid #e2e8f0;color:#374151
+            {% else %}background:#16a34a;border:1px solid #16a34a;color:#fff{% endif %}">
+            {{ 'Deactivate' if d['active'] else 'Activate' }}
+          </button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No discounts yet</div>
+    <div style="font-size:13px"><a href="{{ url_for('add_discount') }}" style="color:#1a6ef5">Create a discount rule</a></div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

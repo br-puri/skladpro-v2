@@ -3,28 +3,76 @@
 {% block page_title %}Supplier Orders{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_supplier_order') }}" class="btn btn-primary">+ New Order</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
+
+{% set total_ctns = orders | sum(attribute='total_ctns') %}
+{% set total_cbm = orders | sum(attribute='total_cbm') %}
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Orders</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ orders | length }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Cartons</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ "{:,.0f}".format(total_ctns) }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total CBM</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ "{:,.2f}".format(total_cbm) }}</div>
+  </div>
+</div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
   {% if orders %}
-  <table>
-    <thead><tr><th>Doc</th><th>Date</th><th>Supplier</th><th>Items</th><th>CTNS</th><th>CBM</th><th></th></tr></thead>
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Document</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Supplier</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Items</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Cartons</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">CBM</th>
+        <th style="padding:11px 16px"></th>
+      </tr>
+    </thead>
     <tbody>
     {% for o in orders %}
-    <tr>
-      <td><a href="{{ url_for('view_supplier_order', oid=o['id']) }}" class="mono" style="color:#1a6ef5;text-decoration:none">{{ o['num'] }}</a></td>
-      <td>{{ o['doc_date'] }}</td>
-      <td>{{ o['supplier'] or '—' }}</td>
-      <td>{{ o['item_count'] }}</td>
-      <td>{{ "{:,.0f}".format(o['total_ctns']) }}</td>
-      <td>{{ "{:,.3f}".format(o['total_cbm']) }}</td>
-      <td><a href="{{ url_for('view_supplier_order', oid=o['id']) }}" class="btn btn-sm">View</a></td>
+    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="rowClick(event,'{{ url_for('view_supplier_order', oid=o['id']) }}')"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 16px">
+        <a href="{{ url_for('view_supplier_order', oid=o['id']) }}"
+           style="font-family:monospace;font-size:13px;font-weight:600;color:#1a6ef5;text-decoration:none;background:#eff6ff;padding:3px 8px;border-radius:5px;white-space:nowrap">
+          {{ o['num'] }}
+        </a>
+      </td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ o['doc_date'] }}</td>
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a">{{ o['supplier'] or '—' }}</td>
+      <td style="padding:13px 16px;text-align:right;color:#64748b">{{ o['item_count'] }}</td>
+      <td style="padding:13px 16px;text-align:right;font-weight:600;color:#1a1a1a">{{ "{:,.0f}".format(o['total_ctns']) }}</td>
+      <td style="padding:13px 16px;text-align:right;color:#64748b">{{ "{:,.3f}".format(o['total_cbm']) }}</td>
+      <td style="padding:13px 16px;text-align:right" onclick="event.stopPropagation()">
+        <a href="{{ url_for('view_supplier_order', oid=o['id']) }}"
+           style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#1a6ef5;color:#fff;text-decoration:none;white-space:nowrap">
+          View
+        </a>
+      </td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div class="empty">No orders yet</div>
-  {% endif %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No supplier orders yet</div>
+    <div style="font-size:13px"><a href="{{ url_for('add_supplier_order') }}" style="color:#1a6ef5">Create your first order</a></div>
   </div>
+  {% endif %}
 </div>
+<script>
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form')) return;
+  window.location.href = url;
+}
+</script>
 {% endblock %}
