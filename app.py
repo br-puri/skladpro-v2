@@ -2384,10 +2384,17 @@ def view_sale(sid):
         paid_total = sum(p['amount'] for p in payments)
         outstanding = max(0, s['total'] - paid_total)
         credit_notes_list = db.execute("SELECT * FROM credit_notes WHERE sale_id=%s ORDER BY doc_date DESC", (sid,)).fetchall()
+        invoice_token = None
+        if customer and customer.get('phone'):
+            invoice_token = str(uuid.uuid4())
+            db.execute("DELETE FROM invoice_tokens WHERE expires_at < %s", (time.time(),))
+            db.execute("INSERT INTO invoice_tokens(token, sale_id, expires_at) VALUES(%s,%s,%s)",
+                       (invoice_token, sid, time.time() + 7 * 24 * 3600))
+        db.commit()
     company = get_settings()
     return render_template('sale_view.html', sale=s, items=items, customer=customer, company=company,
                            payments=payments, paid_total=paid_total, outstanding=outstanding,
-                           credit_notes_list=credit_notes_list)
+                           credit_notes_list=credit_notes_list, invoice_token=invoice_token)
 
 
 @app.route('/sales/<int:sid>/edit', methods=['GET', 'POST'])

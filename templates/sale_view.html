@@ -5,8 +5,8 @@
   <a href="{{ url_for('export_sale_pdf', sid=sale['id']) }}" class="btn btn-primary">↓ Invoice PDF</a>
   <a href="{{ url_for('export_delivery_note', sid=sale['id']) }}" class="btn">↓ Delivery Note</a>
   <button type="button" class="btn" onclick="openEmailDialog()">✉ Email Invoice</button>
-  {% if customer and customer['phone'] %}
-  <button type="button" id="waBtn" class="btn" style="background:#25D366;color:#fff;border-color:#25D366" onclick="sendWhatsApp()">📱 WhatsApp</button>
+  {% if customer and customer['phone'] and invoice_token %}
+  <button type="button" class="btn" style="background:#25D366;color:#fff;border-color:#25D366" onclick="sendWhatsApp()">📱 WhatsApp</button>
   {% endif %}
   <a href="{{ url_for('export_sale_excel', sid=sale['id']) }}" class="btn">↓ Excel</a>
   {% if sale['status'] != 'cancelled' %}
@@ -322,22 +322,15 @@ function closeEmailDialog() { document.getElementById('emailBackdrop').style.dis
 document.getElementById('emailBackdrop').addEventListener('click', function(e) { if (e.target === this) closeEmailDialog(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('emailBackdrop').style.display === 'flex') closeEmailDialog(); });
 
-{% if customer and customer['phone'] %}
+{% if customer and customer['phone'] and invoice_token %}
 function sendWhatsApp() {
-  const btn = document.getElementById('waBtn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Generating link…';
-  fetch('{{ url_for("whatsapp_invoice_link", sid=sale["id"]) }}', {method:'POST'})
-    .then(r => r.json())
-    .then(data => {
-      let phone = {{ customer['phone'] | tojson }};
-      phone = phone.replace(/\D/g, '');
-      if (phone.startsWith('0')) phone = '44' + phone.slice(1);
-      const sym = {'GBP':'£','USD':'$','EUR':'€','PLN':'zł'}[{{ sale['currency'] | tojson }}] || '£';
-      const msg = `Hi {{ (customer['company'] or customer['name']) | replace("'", "\\'") }}, please find your invoice {{ sale['num'] }} for ${sym}{{ '%.2f'|format(sale['total']) }} at the link below:\n${data.link}\n\nThank you for your business!`;
-      window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
-    })
-    .finally(() => { btn.disabled = false; btn.innerHTML = '📱 WhatsApp'; });
+  let phone = {{ customer['phone'] | tojson }};
+  phone = phone.replace(/\D/g, '');
+  if (phone.startsWith('0')) phone = '44' + phone.slice(1);
+  const sym = {'GBP':'£','USD':'$','EUR':'€','PLN':'zł'}[{{ sale['currency'] | tojson }}] || '£';
+  const link = '{{ request.host_url.rstrip("/") }}/invoice/{{ invoice_token }}';
+  const msg = `Hi {{ (customer['company'] or customer['name']) | replace("'", "\\'") }}, please find your invoice {{ sale['num'] }} for ${sym}{{ '%.2f'|format(sale['total']) }} at the link below:\n${link}\n\nThank you for your business!`;
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
 }
 {% endif %}
 </script>
