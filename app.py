@@ -4212,7 +4212,7 @@ def generate_delivery_note_pdf(sale, items, customer=None, company=None):
                 img = Image(logo_path); img._restrictSize(55*mm, 22*mm); logo_cell = img
             except Exception:
                 pass
-    banner = Table([[logo_cell, Paragraph('DELIVERY NOTE', inv_title)]], colWidths=[90*mm, 80*mm])
+    banner = Table([[logo_cell, Paragraph('DELIVERY NOTE', inv_title)]], colWidths=[65*mm, 105*mm])
     banner.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 0)]))
     elements.append(banner)
     elements.append(Spacer(1, 3*mm))
