@@ -28,22 +28,20 @@
 </div>
 
 <!-- Filter bar -->
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:14px 18px;margin-bottom:16px">
-  <form class="search-wrap" method="get" style="gap:10px;flex-wrap:wrap;align-items:center">
-    <select name="customer_id" class="form-control" style="width:190px">
-      <option value="">All customers</option>
-      {% for c in customers %}
-      <option value="{{ c['id'] }}" {{ 'selected' if c['id']|string == customer_id }}>{{ c['label'] }}</option>
-      {% endfor %}
-    </select>
-    <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:145px" placeholder="From">
-    <input type="date" name="date_till" value="{{ date_till }}" class="form-control" style="width:145px" placeholder="Till">
-    <button type="submit" class="btn btn-primary" style="padding:7px 18px">Filter</button>
-    {% if date_from or date_till or customer_id %}
-    <a href="{{ url_for('sales') }}" class="btn" style="padding:7px 14px">Clear</a>
-    {% endif %}
-  </form>
-</div>
+<form class="filter-bar" method="get">
+  <select name="customer_id" class="form-control" style="width:200px">
+    <option value="">All customers</option>
+    {% for c in customers %}
+    <option value="{{ c['id'] }}" {{ 'selected' if c['id']|string == customer_id }}>{{ c['label'] }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:148px">
+  <input type="date" name="date_till" value="{{ date_till }}" class="form-control" style="width:148px">
+  <button type="submit" class="btn btn-primary">Filter</button>
+  {% if date_from or date_till or customer_id %}
+  <a href="{{ url_for('sales') }}" class="btn">Clear</a>
+  {% endif %}
+</form>
 
 <!-- Sales table -->
 <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">

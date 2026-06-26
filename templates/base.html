@@ -138,8 +138,15 @@ tr:hover td { background: #f8fafc; }
 /* ── Misc ── */
 .empty { text-align: center; padding: 52px 20px; color: #94a3b8; font-size: 13px; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.search-wrap { padding: 12px 20px; border-bottom: 1px solid #f1f5f9; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #fafafa; }
-.search-input { max-width: 280px; }
+/* Filter bar — standalone card above a table */
+.filter-bar { background: #fff; border: 1px solid #e8e6df; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+/* Legacy inner-card filter strip (kept for backward compat) */
+.search-wrap { padding: 12px 18px; border-bottom: 1px solid #f1f5f9; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #fff; }
+/* Search input with magnifying-glass icon */
+.search-input-wrap { position: relative; flex: 1; min-width: 200px; max-width: 380px; }
+.search-input-wrap svg.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; pointer-events: none; color: #94a3b8; }
+.search-input { width: 100%; padding: 8px 12px 8px 32px; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: #0f172a; font-family: inherit; transition: all .15s; outline: none; }
+.search-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); background: #fff; }
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .page-header h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 .back-link { display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; font-size: 13px; color: #374151; text-decoration: none; font-weight: 500; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.05); transition: all 0.15s; }
@@ -533,6 +540,17 @@ function toggleSidebar() {
 })();
 </script>
 <script>
+// Auto-submit for any .search-input (350 ms debounce)
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.search-input').forEach(function(inp) {
+    var t;
+    inp.addEventListener('input', function() {
+      clearTimeout(t);
+      t = setTimeout(function() { inp.closest('form').submit(); }, 350);
+    });
+  });
+});
+
 // ⌘K / Ctrl+K — global search bar; ⌘F / Ctrl+F — product search on forms
 document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

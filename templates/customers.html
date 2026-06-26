@@ -3,16 +3,21 @@
 {% block page_title %}Customers{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_customer') }}" class="btn btn-primary">+ Add Customer</a>{% endblock %}
 {% block content %}
+
+<form class="filter-bar" method="get">
+  <div class="search-input-wrap">
+    <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
+    <input name="q" value="{{ q }}" class="search-input" placeholder="Search by name, company, email, phone, postcode…" autocomplete="off">
+  </div>
+  <select name="type" class="form-control" style="width:145px" onchange="this.form.submit()">
+    <option value="">All types</option>
+    <option value="customer" {{ 'selected' if ctype=='customer' }}>Customers</option>
+    <option value="supplier" {{ 'selected' if ctype=='supplier' }}>Suppliers</option>
+  </select>
+  {% if q or ctype %}<a href="{{ url_for('customers') }}" class="btn">Clear</a>{% endif %}
+</form>
+
 <div class="card">
-  <form class="search-wrap" method="get">
-    <input name="q" value="{{ q }}" class="form-control search-input" placeholder="Search by name, company, email, phone, postcode, city…">
-    <select name="type" class="form-control" style="width:140px" onchange="this.form.submit()">
-      <option value="">All types</option>
-      <option value="customer" {{ 'selected' if ctype=='customer' }}>Customers</option>
-      <option value="supplier" {{ 'selected' if ctype=='supplier' }}>Suppliers</option>
-    </select>
-    <button type="submit" class="btn">Search</button>
-  </form>
   <div class="table-wrap">
   {% if customers %}
   <table>
