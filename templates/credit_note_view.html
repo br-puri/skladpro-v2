@@ -5,89 +5,120 @@
   {% if session.get('role')=='admin' and cn['status']=='draft' %}
   <form method="POST" action="{{ url_for('apply_credit_note', cnid=cn['id']) }}"
         onsubmit="return confirm('Apply this credit note? Stock will be restored and customer balance updated.')">
-    <button class="btn btn-primary">✓ Apply Credit Note</button>
+    <button class="btn btn-primary">Apply Credit Note</button>
   </form>
   {% endif %}
   <a href="{{ url_for('credit_notes') }}" class="back-link">← Back</a>
 {% endblock %}
 {% block content %}
-<div style="max-width:700px;margin:0 auto">
 
-  <div class="card" style="margin-bottom:16px">
-    <div style="padding:24px 28px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#dc2626;letter-spacing:-0.5px">CREDIT NOTE</div>
-          <div style="font-size:15px;font-weight:600;margin-top:4px">{{ cn['num'] }}</div>
-          <div style="font-size:13px;color:#888;margin-top:2px">Date: {{ cn['doc_date'] }}</div>
-        </div>
-        <span class="badge {% if cn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}" style="font-size:12px;padding:5px 12px">
-          {{ cn['status'] | upper }}
-        </span>
+<!-- Header band -->
+<div style="background:#0f172a;border-radius:12px;padding:20px 28px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Credit Note</div>
+      <div style="font-size:22px;font-weight:800;color:#f87171;letter-spacing:-.5px;font-family:monospace">{{ cn['num'] }}</div>
+    </div>
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Date</div>
+      <div style="font-size:14px;font-weight:500;color:#fff">{{ cn['doc_date'] }}</div>
+    </div>
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Total Credit</div>
+      <div style="font-size:20px;font-weight:800;color:#f87171">£{{ "{:,.2f}".format(cn['total']) }}</div>
+    </div>
+  </div>
+  <span style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:.3px;
+    {{ 'background:#dcfce7;color:#16a34a' if cn['status']=='applied' else 'background:#fef9c3;color:#ca8a04' }}">
+    {{ cn['status'] | upper }}
+  </span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start">
+  <!-- Left: items -->
+  <div>
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
+      <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600;color:#374151">Line Items</span>
+        <span style="font-size:12px;color:#94a3b8">{{ items | length }} product{{ 's' if items | length != 1 }}</span>
       </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
-        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px">Customer</div>
-          <div style="font-weight:600">{{ cn['customer'] }}</div>
-        </div>
-        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px">Details</div>
-          <div style="font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
-            <span style="color:#888">Warehouse</span><span>{{ cn['wh_name'] or '—' }}</span>
-            {% if cn['sale_id'] %}
-            <span style="color:#888">Linked Sale</span>
-            <span><a href="{{ url_for('view_sale', sid=cn['sale_id']) }}" style="color:#2563eb">View →</a></span>
-            {% endif %}
-            {% if cn['notes'] %}
-            <span style="color:#888">Notes</span><span>{{ cn['notes'] }}</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
-          <tr style="border-bottom:2px solid #dc2626">
-            <th style="text-align:left;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Product</th>
-            <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Qty</th>
-            <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Price</th>
-            <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Amount</th>
+          <tr style="background:#f8fafc">
+            <th style="text-align:left;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Product</th>
+            <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Qty</th>
+            <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Price</th>
+            <th style="text-align:right;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Amount</th>
           </tr>
         </thead>
         <tbody>
-          {% for item in items %}
-          <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:10px 0;font-weight:500">{{ item['product_name'] }}</td>
-            <td style="padding:10px 0;text-align:right">{{ item['qty'] }} {{ item['unit'] or '' }}</td>
-            <td style="padding:10px 0;text-align:right">£{{ "{:,.3f}".format(item['price']) }}</td>
-            <td style="padding:10px 0;text-align:right;font-weight:600">£{{ "{:,.3f}".format(item['qty']*item['price']) }}</td>
-          </tr>
-          {% endfor %}
+        {% for item in items %}
+        <tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:12px 20px;font-weight:500;color:#1e293b">{{ item['product_name'] }}</td>
+          <td style="padding:12px 16px;text-align:right;color:#64748b">{{ item['qty'] }} {{ item['unit'] or '' }}</td>
+          <td style="padding:12px 16px;text-align:right;color:#64748b">£{{ "{:,.3f}".format(item['price']) }}</td>
+          <td style="padding:12px 20px;text-align:right;font-weight:600;color:#1e293b">£{{ "{:,.3f}".format(item['qty']*item['price']) }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid #e2e8f0">
+            <td colspan="3" style="padding:14px 16px;text-align:right;font-weight:700;font-size:14px">Total Credit</td>
+            <td style="padding:14px 20px;text-align:right;font-weight:800;font-size:16px;color:#dc2626">£{{ "{:,.2f}".format(cn['total']) }}</td>
+          </tr>
+        </tfoot>
       </table>
-
-      <div style="text-align:right;margin-top:16px;font-size:17px;font-weight:700;color:#dc2626">
-        Total Credit: £{{ "{:,.2f}".format(cn['total']) }}
-      </div>
-
-      {% if cn['status']=='applied' %}
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-top:16px;font-size:13px;color:#15803d;font-weight:500">
-        ✓ Applied — stock has been restored and customer balance adjusted.
-      </div>
-      {% else %}
-      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-top:16px;font-size:13px;color:#92400e">
-        ⚠ Draft — click "Apply Credit Note" to restore stock and update customer balance.
-      </div>
-      {% endif %}
     </div>
+
+    <!-- Status notice -->
+    {% if cn['status']=='applied' %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;font-size:13px;color:#15803d;font-weight:500">
+      Applied — stock has been restored and customer balance adjusted.
+    </div>
+    {% else %}
+    <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e">
+      Draft — click "Apply Credit Note" above to restore stock and update customer balance.
+    </div>
+    {% endif %}
+
+    {% if session.get('role')=='admin' and cn['status']=='draft' %}
+    <div style="margin-top:16px">
+      <form method="POST" action="{{ url_for('delete_credit_note', cnid=cn['id']) }}"
+            onsubmit="return confirm('Delete this credit note?')">
+        <button class="btn btn-danger">Delete Credit Note</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
 
-  {% if session.get('role')=='admin' and cn['status']=='draft' %}
-  <form method="POST" action="{{ url_for('delete_credit_note', cnid=cn['id']) }}"
-        onsubmit="return confirm('Delete this credit note?')">
-    <button class="btn btn-danger btn-sm">Delete</button>
-  </form>
-  {% endif %}
+  <!-- Right: details -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:12px">Customer</div>
+      <div style="font-size:15px;font-weight:700;color:#0f172a">{{ cn['customer'] or '—' }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px">Details</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">Warehouse</span>
+          <span style="font-weight:500">{{ cn['wh_name'] or '—' }}</span>
+        </div>
+        {% if cn.get('sale_id') %}
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">Linked Sale</span>
+          <a href="{{ url_for('view_sale', sid=cn['sale_id']) }}" style="color:#1d4ed8;font-weight:500;text-decoration:none">View →</a>
+        </div>
+        {% endif %}
+        {% if cn['notes'] %}
+        <div style="padding-top:10px;border-top:1px solid #f1f5f9;color:#64748b;font-size:12px;line-height:1.5">
+          {{ cn['notes'] }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

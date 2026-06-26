@@ -1,22 +1,58 @@
 {% extends 'base.html' %}
-{% block title %}TTNs{% endblock %}
+{% block title %}Transport Notes{% endblock %}
 {% block page_title %}Transport Notes (TTN){% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_ttn') }}" class="btn btn-primary">+ New TTN</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="table-wrap">
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
   {% if ttns %}
-  <table><thead><tr><th>TTN #</th><th>Date</th><th>Sender</th><th>Receiver</th><th>Carrier</th><th>Ref Doc</th><th>Status</th><th></th></tr></thead><tbody>
-  {% for t in ttns %}
-  <tr>
-    <td class="mono">{{ t['num'] }}</td><td>{{ t['doc_date'] }}</td>
-    <td>{{ t['sender'] or '—' }}</td><td>{{ t['receiver'] or '—' }}</td>
-    <td>{{ t['carrier'] or '—' }}</td><td class="mono">{{ t['ref_doc'] or '—' }}</td>
-    <td><span class="badge badge-{{ 'success' if t['status']=='delivered' else 'danger' if t['status']=='returned' else 'warning' }}">{{ t['status'].replace('_',' ') }}</span></td>
-    <td><a href="{{ url_for('edit_ttn', tid=t['id']) }}" class="btn btn-sm">Edit</a></td>
-  </tr>{% endfor %}
-  </tbody></table>
-  {% else %}<div class="empty">No TTNs yet</div>{% endif %}
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">TTN #</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Sender</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Receiver</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Carrier</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Ref Doc</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 20px"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for t in ttns %}
+    <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:13px 20px">
+        <span style="font-family:monospace;font-size:13px;font-weight:600;color:#374151;background:#f1f5f9;padding:3px 8px;border-radius:5px">{{ t['num'] }}</span>
+      </td>
+      <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ t['doc_date'] }}</td>
+      <td style="padding:13px 16px;color:#374151">{{ t['sender'] or '—' }}</td>
+      <td style="padding:13px 16px;color:#374151">{{ t['receiver'] or '—' }}</td>
+      <td style="padding:13px 16px;color:#64748b">{{ t['carrier'] or '—' }}</td>
+      <td style="padding:13px 16px;font-family:monospace;font-size:12px;color:#64748b">{{ t['ref_doc'] or '—' }}</td>
+      <td style="padding:13px 16px">
+        <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
+          {% if t['status']=='delivered' %}background:#dcfce7;color:#16a34a
+          {% elif t['status']=='returned' %}background:#fee2e2;color:#dc2626
+          {% else %}background:#fef9c3;color:#ca8a04{% endif %}">
+          {{ t['status'].replace('_', ' ') | capitalize }}
+        </span>
+      </td>
+      <td style="padding:13px 20px;text-align:right">
+        <a href="{{ url_for('edit_ttn', tid=t['id']) }}"
+           style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none">Edit</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;color:#475569;margin-bottom:6px">No TTNs yet</div>
+    <div style="font-size:13px;margin-bottom:20px">Transport notes will appear here once added.</div>
+    <a href="{{ url_for('add_ttn') }}" class="btn btn-primary">+ New TTN</a>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

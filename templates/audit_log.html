@@ -1,63 +1,67 @@
 {% extends 'base.html' %}
 {% block title %}Audit Log{% endblock %}
 {% block page_title %}Audit Log{% endblock %}
-
 {% block content %}
-<div class="page-header">
-  <h2>Audit Log <span style="font-size:13px;font-weight:400;color:#94a3b8">({{ total }} entries)</span></h2>
-  <form method="GET" style="display:flex;gap:8px;align-items:center">
-    <select name="user" class="form-control" style="width:auto" onchange="this.form.submit()">
-      <option value="">All users</option>
-      {% for u in users %}
-        <option value="{{ u['username'] }}" {% if u['username']==user_filter %}selected{% endif %}>{{ u['username'] }}</option>
-      {% endfor %}
-    </select>
-    {% if user_filter %}<a href="{{ url_for('audit_log') }}" class="btn btn-sm">Clear</a>{% endif %}
-  </form>
-</div>
 
-<div class="card">
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Time (UTC)</th>
-          <th>User</th>
-          <th>Method</th>
-          <th>Path</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr>
-          <td class="mono" style="white-space:nowrap">{{ r['ts'] }}</td>
-          <td style="font-weight:500">{{ r['username'] or '—' }}</td>
-          <td>
-            <span class="badge {% if r['method']=='POST' %}badge-info{% else %}badge-neutral{% endif %}">
-              {{ r['method'] }}
-            </span>
-          </td>
-          <td class="mono" style="color:#374151">{{ r['path'] }}</td>
-          <td>
-            <span class="badge {% if r['status'] < 400 %}badge-success{% else %}badge-danger{% endif %}">
-              {{ r['status'] }}
-            </span>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="5" class="empty">No activity yet</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<form class="filter-bar" method="GET">
+  <select name="user" class="form-control" style="width:160px" onchange="this.form.submit()">
+    <option value="">All users</option>
+    {% for u in users %}
+    <option value="{{ u['username'] }}" {% if u['username']==user_filter %}selected{% endif %}>{{ u['username'] }}</option>
+    {% endfor %}
+  </select>
+  {% if user_filter %}<a href="{{ url_for('audit_log') }}" class="btn">Clear</a>{% endif %}
+  <div style="margin-left:auto;font-size:12px;color:#94a3b8;padding:0 4px">{{ total }} entries</div>
+</form>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Time (UTC)</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">User</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Method</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Path</th>
+        <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+    <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:11px 20px;font-family:monospace;font-size:12px;color:#64748b;white-space:nowrap">{{ r['ts'] }}</td>
+      <td style="padding:11px 16px;font-weight:600;color:#1e293b">{{ r['username'] or '—' }}</td>
+      <td style="padding:11px 16px">
+        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;
+          {{ 'background:#dbeafe;color:#1d4ed8' if r['method']=='POST' else 'background:#f1f5f9;color:#64748b' }}">
+          {{ r['method'] }}
+        </span>
+      </td>
+      <td style="padding:11px 16px;font-family:monospace;font-size:12px;color:#374151">{{ r['path'] }}</td>
+      <td style="padding:11px 20px">
+        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;
+          {{ 'background:#dcfce7;color:#16a34a' if r['status'] < 400 else 'background:#fee2e2;color:#dc2626' }}">
+          {{ r['status'] }}
+        </span>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="5" style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:13px">No activity yet</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 {% if pages > 1 %}
 <div style="display:flex;gap:6px;justify-content:center;margin-top:16px">
   {% for p in range(1, pages+1) %}
-    <a href="?page={{ p }}{% if user_filter %}&user={{ user_filter }}{% endif %}"
-       class="btn btn-sm {% if p==page %}btn-primary{% endif %}">{{ p }}</a>
+  <a href="?page={{ p }}{% if user_filter %}&user={{ user_filter }}{% endif %}"
+     style="font-size:12px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;
+       {{ 'background:#0f172a;color:#fff;border:1px solid #0f172a' if p==page else 'background:#fff;border:1px solid #e2e8f0;color:#374151' }}">
+    {{ p }}
+  </a>
   {% endfor %}
 </div>
 {% endif %}

@@ -5,88 +5,119 @@
   {% if session.get('role')=='admin' and dn['status']=='draft' %}
   <form method="POST" action="{{ url_for('apply_debit_note', dnid=dn['id']) }}"
         onsubmit="return confirm('Apply this debit note? Stock will be removed and supplier balance updated.')">
-    <button class="btn btn-primary">✓ Apply Debit Note</button>
+    <button class="btn btn-primary">Apply Debit Note</button>
   </form>
   {% endif %}
   <a href="{{ url_for('debit_notes') }}" class="back-link">← Back</a>
 {% endblock %}
 {% block content %}
-<div style="max-width:700px;margin:0 auto">
-  <div class="card" style="margin-bottom:16px">
-    <div style="padding:24px 28px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#d97706;letter-spacing:-0.5px">DEBIT NOTE</div>
-          <div style="font-size:15px;font-weight:600;margin-top:4px">{{ dn['num'] }}</div>
-          <div style="font-size:13px;color:#888;margin-top:2px">Date: {{ dn['doc_date'] }}</div>
-        </div>
-        <span class="badge {% if dn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}" style="font-size:12px;padding:5px 12px">
-          {{ dn['status'] | upper }}
-        </span>
-      </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
-        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px">Supplier</div>
-          <div style="font-weight:600">{{ dn['supplier'] }}</div>
-        </div>
-        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px">Details</div>
-          <div style="font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
-            <span style="color:#888">Warehouse</span><span>{{ dn['wh_name'] or '—' }}</span>
-            {% if dn['purchase_id'] %}
-            <span style="color:#888">Linked Purchase</span>
-            <span><a href="{{ url_for('view_purchase', pid=dn['purchase_id']) }}" style="color:#2563eb">View →</a></span>
-            {% endif %}
-            {% if dn['notes'] %}
-            <span style="color:#888">Notes</span><span>{{ dn['notes'] }}</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
+<!-- Header band -->
+<div style="background:#0f172a;border-radius:12px;padding:20px 28px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Debit Note</div>
+      <div style="font-size:22px;font-weight:800;color:#fbbf24;letter-spacing:-.5px;font-family:monospace">{{ dn['num'] }}</div>
+    </div>
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Date</div>
+      <div style="font-size:14px;font-weight:500;color:#fff">{{ dn['doc_date'] }}</div>
+    </div>
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Total Debit</div>
+      <div style="font-size:20px;font-weight:800;color:#fbbf24">£{{ "{:,.2f}".format(dn['total']) }}</div>
+    </div>
+  </div>
+  <span style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:.3px;
+    {{ 'background:#dcfce7;color:#16a34a' if dn['status']=='applied' else 'background:#fef9c3;color:#ca8a04' }}">
+    {{ dn['status'] | upper }}
+  </span>
+</div>
 
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start">
+  <!-- Left: items -->
+  <div>
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
+      <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600;color:#374151">Line Items</span>
+        <span style="font-size:12px;color:#94a3b8">{{ items | length }} product{{ 's' if items | length != 1 }}</span>
+      </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
-          <tr style="border-bottom:2px solid #d97706">
-            <th style="text-align:left;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Product</th>
-            <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Qty</th>
-            <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Price</th>
-            <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600">Amount</th>
+          <tr style="background:#f8fafc">
+            <th style="text-align:left;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Product</th>
+            <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Qty</th>
+            <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Price</th>
+            <th style="text-align:right;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Amount</th>
           </tr>
         </thead>
         <tbody>
-          {% for item in items %}
-          <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:10px 0;font-weight:500">{{ item['product_name'] }}</td>
-            <td style="padding:10px 0;text-align:right">{{ item['qty'] }} {{ item['unit'] or '' }}</td>
-            <td style="padding:10px 0;text-align:right">£{{ "{:,.3f}".format(item['price']) }}</td>
-            <td style="padding:10px 0;text-align:right;font-weight:600">£{{ "{:,.3f}".format(item['qty']*item['price']) }}</td>
-          </tr>
-          {% endfor %}
+        {% for item in items %}
+        <tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:12px 20px;font-weight:500;color:#1e293b">{{ item['product_name'] }}</td>
+          <td style="padding:12px 16px;text-align:right;color:#64748b">{{ item['qty'] }} {{ item['unit'] or '' }}</td>
+          <td style="padding:12px 16px;text-align:right;color:#64748b">£{{ "{:,.3f}".format(item['price']) }}</td>
+          <td style="padding:12px 20px;text-align:right;font-weight:600;color:#1e293b">£{{ "{:,.3f}".format(item['qty']*item['price']) }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid #e2e8f0">
+            <td colspan="3" style="padding:14px 16px;text-align:right;font-weight:700;font-size:14px">Total Debit</td>
+            <td style="padding:14px 20px;text-align:right;font-weight:800;font-size:16px;color:#d97706">£{{ "{:,.2f}".format(dn['total']) }}</td>
+          </tr>
+        </tfoot>
       </table>
-
-      <div style="text-align:right;margin-top:16px;font-size:17px;font-weight:700;color:#d97706">
-        Total Debit: £{{ "{:,.2f}".format(dn['total']) }}
-      </div>
-
-      {% if dn['status']=='applied' %}
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-top:16px;font-size:13px;color:#15803d;font-weight:500">
-        ✓ Applied — stock removed and supplier balance adjusted.
-      </div>
-      {% else %}
-      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-top:16px;font-size:13px;color:#92400e">
-        ⚠ Draft — click "Apply Debit Note" to remove stock and update supplier balance.
-      </div>
-      {% endif %}
     </div>
+
+    {% if dn['status']=='applied' %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;font-size:13px;color:#15803d;font-weight:500">
+      Applied — stock removed and supplier balance adjusted.
+    </div>
+    {% else %}
+    <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e">
+      Draft — click "Apply Debit Note" above to remove stock and update supplier balance.
+    </div>
+    {% endif %}
+
+    {% if session.get('role')=='admin' and dn['status']=='draft' %}
+    <div style="margin-top:16px">
+      <form method="POST" action="{{ url_for('delete_debit_note', dnid=dn['id']) }}"
+            onsubmit="return confirm('Delete this debit note?')">
+        <button class="btn btn-danger">Delete Debit Note</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
 
-  {% if session.get('role')=='admin' and dn['status']=='draft' %}
-  <form method="POST" action="{{ url_for('delete_debit_note', dnid=dn['id']) }}"
-        onsubmit="return confirm('Delete this debit note?')">
-    <button class="btn btn-danger btn-sm">Delete</button>
-  </form>
-  {% endif %}
+  <!-- Right: details -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:12px">Supplier</div>
+      <div style="font-size:15px;font-weight:700;color:#0f172a">{{ dn['supplier'] or '—' }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px">Details</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">Warehouse</span>
+          <span style="font-weight:500">{{ dn['wh_name'] or '—' }}</span>
+        </div>
+        {% if dn.get('purchase_id') %}
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">Linked Purchase</span>
+          <a href="{{ url_for('view_purchase', pid=dn['purchase_id']) }}" style="color:#1d4ed8;font-weight:500;text-decoration:none">View →</a>
+        </div>
+        {% endif %}
+        {% if dn['notes'] %}
+        <div style="padding-top:10px;border-top:1px solid #f1f5f9;color:#64748b;font-size:12px;line-height:1.5">
+          {{ dn['notes'] }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

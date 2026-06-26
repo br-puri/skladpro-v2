@@ -1205,12 +1205,19 @@ def catalog_manage():
 def categories():
     with get_db() as db:
         all_cats = [dict(r) for r in db.execute("SELECT * FROM categories ORDER BY name").fetchall()]
+        cat_counts = {r['category']: r['n'] for r in db.execute(
+            "SELECT category, COUNT(*) AS n FROM products WHERE category != '' GROUP BY category"
+        ).fetchall()}
+        sub_counts = {r['subcategory']: r['n'] for r in db.execute(
+            "SELECT subcategory, COUNT(*) AS n FROM products WHERE subcategory IS NOT NULL AND subcategory != '' GROUP BY subcategory"
+        ).fetchall()}
     parents = [c for c in all_cats if not c['parent_id']]
     children = {}
     for c in all_cats:
         if c['parent_id']:
             children.setdefault(c['parent_id'], []).append(c)
-    return render_template('categories.html', parents=parents, children=children)
+    return render_template('categories.html', parents=parents, children=children,
+                           cat_counts=cat_counts, sub_counts=sub_counts)
 
 
 @app.route('/categories/add', methods=['POST'])

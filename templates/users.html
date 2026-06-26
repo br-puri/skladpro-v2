@@ -1,116 +1,115 @@
 {% extends 'base.html' %}
 {% block title %}Users{% endblock %}
 {% block page_title %}User Management{% endblock %}
-
 {% block content %}
-<div class="page-header">
-  <h2>Users</h2>
-</div>
 
 <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">
 
   <!-- User list -->
-  <div class="card">
-    <div class="card-header"><span class="card-title">All Users</span></div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in users %}
-          <tr>
-            <td style="font-weight:500">
-              {{ u['username'] }}
-              {% if u['id'] == session.get('user_id') %}
-                <span class="badge badge-info" style="margin-left:6px">You</span>
-              {% endif %}
-            </td>
-            <td>
-              <form method="POST" action="{{ url_for('change_user_role', uid=u['id']) }}" style="display:inline-flex;gap:6px;align-items:center">
-                <select name="role" class="form-control" style="width:auto;padding:4px 8px;font-size:12px" onchange="this.form.submit()">
-                  <option value="admin" {% if u['role']=='admin' %}selected{% endif %}>Admin</option>
-                  <option value="viewer" {% if u['role']=='viewer' %}selected{% endif %}>Viewer</option>
-                </select>
-              </form>
-            </td>
-            <td>
-              <div class="btn-group">
-                <!-- Reset password -->
-                <button class="btn btn-sm" onclick="document.getElementById('pwform-{{u['id']}}').style.display='block';this.style.display='none'">Reset password</button>
-                <div id="pwform-{{u['id']}}" style="display:none">
-                  <form method="POST" action="{{ url_for('reset_user_password', uid=u['id']) }}" style="display:inline-flex;gap:4px">
-                    <input name="password" type="password" class="form-control" style="width:140px;padding:4px 8px;font-size:12px" placeholder="New password" required>
-                    <button type="submit" class="btn btn-sm btn-primary">Save</button>
-                    <button type="button" class="btn btn-sm" onclick="this.closest('div').style.display='none';this.closest('td').querySelector('button.btn-sm:first-child') && (this.closest('td').querySelector('[onclick]').style.display='')">Cancel</button>
-                  </form>
-                </div>
-                {% if u['id'] != session.get('user_id') %}
-                <form method="POST" action="{{ url_for('delete_user', uid=u['id']) }}" onsubmit="return confirm('Delete user {{ u['username'] }}?')">
-                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                </form>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
+    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:600;color:#374151">All Users</span>
+      <span style="font-size:12px;color:#94a3b8">{{ users | length }} user{{ 's' if users | length != 1 }}</span>
     </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+      <thead>
+        <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+          <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Username</th>
+          <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Role</th>
+          <th style="padding:11px 20px"></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+      <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+          onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+        <td style="padding:13px 20px">
+          <span style="font-weight:600;color:#1e293b">{{ u['username'] }}</span>
+          {% if u['id'] == session.get('user_id') %}
+          <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px;background:#dbeafe;color:#1d4ed8;margin-left:6px">You</span>
+          {% endif %}
+        </td>
+        <td style="padding:13px 16px">
+          <form method="POST" action="{{ url_for('change_user_role', uid=u['id']) }}" style="display:inline">
+            <select name="role" class="form-control" style="width:auto;font-size:12px;padding:4px 8px" onchange="this.form.submit()">
+              <option value="admin" {% if u['role']=='admin' %}selected{% endif %}>Admin</option>
+              <option value="viewer" {% if u['role']=='viewer' %}selected{% endif %}>Viewer</option>
+            </select>
+          </form>
+        </td>
+        <td style="padding:13px 20px;text-align:right">
+          <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
+            <button class="btn" style="font-size:11px;padding:4px 10px"
+                    onclick="togglePwForm({{ u['id'] }})">Reset Password</button>
+            {% if u['id'] != session.get('user_id') %}
+            <form method="POST" action="{{ url_for('delete_user', uid=u['id']) }}" style="display:inline"
+                  onsubmit="return confirm('Delete user {{ u['username'] }}?')">
+              <button type="submit" class="btn btn-danger" style="font-size:11px;padding:4px 10px">Delete</button>
+            </form>
+            {% endif %}
+          </div>
+          <div id="pwform-{{ u['id'] }}" style="display:none;margin-top:8px">
+            <form method="POST" action="{{ url_for('reset_user_password', uid=u['id']) }}" style="display:flex;gap:6px;justify-content:flex-end">
+              <input name="password" type="password" class="form-control" style="width:130px;font-size:12px" placeholder="New password" required>
+              <button type="submit" class="btn btn-primary" style="font-size:12px">Save</button>
+              <button type="button" class="btn" style="font-size:12px" onclick="togglePwForm({{ u['id'] }})">Cancel</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
 
-  <!-- Add user form -->
-  <div class="form-card" style="max-width:100%">
-    <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Add New User</h3>
-    <form method="POST" action="{{ url_for('add_user') }}">
-      <div class="form-group">
-        <label class="form-label">Username</label>
-        <input name="username" class="form-control" required placeholder="e.g. john">
+  <!-- Right column -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <!-- Add user form -->
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
+      <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa">
+        <span style="font-size:13px;font-weight:600;color:#374151">Add New User</span>
       </div>
-      <div class="form-group">
-        <label class="form-label">Password</label>
-        <input name="password" type="password" class="form-control" required placeholder="Min. 6 characters">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Role</label>
-        <select name="role" class="form-control">
-          <option value="viewer">Viewer — can read, cannot edit</option>
-          <option value="admin">Admin — full access</option>
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary" style="width:100%">Create User</button>
-    </form>
-  </div>
+      <form method="POST" action="{{ url_for('add_user') }}" style="padding:18px 20px">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input name="username" class="form-control" required placeholder="e.g. john" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input name="password" type="password" class="form-control" required placeholder="Min. 6 characters">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <select name="role" class="form-control">
+            <option value="viewer">Viewer — read only</option>
+            <option value="admin">Admin — full access</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Create User</button>
+      </form>
+    </div>
 
-</div>
-
-<div class="card" style="margin-top:20px">
-  <div class="card-header"><span class="card-title">Role permissions</span></div>
-  <div style="padding:16px 20px;font-size:13px;color:#374151">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div>
-        <strong style="color:#2563eb">Admin</strong>
-        <ul style="margin:6px 0 0 18px;line-height:1.8">
-          <li>View everything</li>
-          <li>Add / edit / delete records</li>
-          <li>Import products, manage settings</li>
-          <li>Manage users</li>
-        </ul>
-      </div>
-      <div>
-        <strong style="color:#64748b">Viewer</strong>
-        <ul style="margin:6px 0 0 18px;line-height:1.8">
-          <li>View all pages and reports</li>
-          <li>Export PDFs and Excel files</li>
-          <li>Cannot add, edit, or delete</li>
-          <li>Cannot access Settings or Users</li>
-        </ul>
+    <!-- Permissions reference -->
+    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:18px 20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px">Role Permissions</div>
+      <div style="display:flex;flex-direction:column;gap:12px;font-size:12.5px">
+        <div>
+          <div style="font-weight:700;color:#1d4ed8;margin-bottom:4px">Admin</div>
+          <div style="color:#64748b;line-height:1.7">View, add, edit, delete all records. Import products, manage settings and users.</div>
+        </div>
+        <div style="border-top:1px solid #f1f5f9;padding-top:12px">
+          <div style="font-weight:700;color:#64748b;margin-bottom:4px">Viewer</div>
+          <div style="color:#94a3b8;line-height:1.7">View all pages and reports. Export PDFs and Excel. Cannot add, edit, or delete. No Settings or Users access.</div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+function togglePwForm(uid) {
+  const el = document.getElementById('pwform-' + uid);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
 {% endblock %}

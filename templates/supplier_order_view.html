@@ -2,51 +2,61 @@
 {% block title %}{{ order['num'] }}{% endblock %}
 {% block page_title %}{{ order['num'] }}{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('supplier_orders') }}" class="back-link">← Back</a>
-  <a href="{{ url_for('export_supplier_order_excel', oid=order['id']) }}" class="btn btn-sm">Excel</a>
-  <a href="{{ url_for('edit_supplier_order', oid=order['id']) }}" class="btn btn-sm">Edit</a>
+  <a href="{{ url_for('export_supplier_order_excel', oid=order['id']) }}" class="btn">↓ Excel</a>
+  <a href="{{ url_for('edit_supplier_order', oid=order['id']) }}" class="btn">Edit</a>
   <form method="post" action="{{ url_for('delete_supplier_order', oid=order['id']) }}" style="display:inline" onsubmit="return confirm('Delete this order?')">
-    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+    <button type="submit" class="btn btn-danger">Delete</button>
   </form>
+  <a href="{{ url_for('supplier_orders') }}" class="back-link">← Back</a>
 {% endblock %}
 {% block content %}
-<style>
-  .card { padding: 18px 20px; }
-  .so-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .so-meta .lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
-  .so-meta .val { font-size: 14px; color: #0f172a; margin-top: 2px; font-weight: 500; }
-  .sov-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  .sov-table th { text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px; border-bottom: 1px solid #e2e8f0; }
-  .sov-table td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 13px; }
-  .sov-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .sov-photo { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; display: block; }
-  .sov-photo-empty { width: 64px; height: 64px; border: 1px dashed #cbd5e1; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 10px; }
-  .sov-totals td { font-weight: 700; background: #f8fafc; }
-</style>
 
-<div class="card">
-  <div class="so-meta">
-    <div><div class="lbl">Date</div><div class="val">{{ order['doc_date'] }}</div></div>
-    <div><div class="lbl">Supplier</div><div class="val">{{ order['supplier'] or '—' }}</div></div>
-    <div><div class="lbl">Status</div><div class="val">{{ order['status'] }}</div></div>
-    {% if order['notes'] %}
-    <div style="grid-column: 1 / -1"><div class="lbl">Notes</div><div class="val">{{ order['notes'] }}</div></div>
+<!-- Header band -->
+<div style="background:#0f172a;border-radius:12px;padding:20px 28px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Supplier Order</div>
+      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.5px;font-family:monospace">{{ order['num'] }}</div>
+    </div>
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Date</div>
+      <div style="font-size:14px;font-weight:500;color:#fff">{{ order['doc_date'] }}</div>
+    </div>
+    {% if order['supplier'] %}
+    <div style="width:1px;height:36px;background:rgba(255,255,255,.12)"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:4px">Supplier</div>
+      <div style="font-size:14px;font-weight:600;color:#fff">{{ order['supplier'] }}</div>
+    </div>
     {% endif %}
   </div>
+  <span style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;letter-spacing:.3px;
+    {% if order['status']=='confirmed' %}background:#dcfce7;color:#16a34a
+    {% elif order['status']=='cancelled' %}background:#fee2e2;color:#dc2626
+    {% else %}background:#fef9c3;color:#ca8a04{% endif %}">
+    {{ order['status'] | upper }}
+  </span>
 </div>
 
-<div class="card" style="margin-top:16px">
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
+  {% if order['notes'] %}
+  <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#64748b;font-style:italic">
+    {{ order['notes'] }}
+  </div>
+  {% endif %}
+
   {% if items %}
-  <table class="sov-table">
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
     <thead>
-      <tr>
-        <th style="width:80px">Photo</th>
-        <th>Name</th>
-        <th>Article</th>
-        <th style="width:90px;text-align:right">CBM</th>
-        <th style="width:80px;text-align:right">CTNS</th>
-        <th style="width:110px;text-align:right">Pcs/CTN</th>
-        <th style="width:100px;text-align:right">Total CBM</th>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;width:80px">Photo</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Name</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Article</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">CBM</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">CTNs</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Pcs/CTN</th>
+        <th style="padding:11px 20px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total CBM</th>
       </tr>
     </thead>
     <tbody>
@@ -55,32 +65,38 @@
         {% set total_cbm = (it['ctns'] or 0) * (it['cbm'] or 0) %}
         {% set ns.t_ctns = ns.t_ctns + (it['ctns'] or 0) %}
         {% set ns.t_cbm  = ns.t_cbm  + total_cbm %}
-        <tr>
-          <td>
-            {% if it['photo'] %}
-              <img src="{{ url_for('static', filename='uploads/products/' + it['photo']) }}" class="sov-photo" alt="">
-            {% else %}
-              <div class="sov-photo-empty">—</div>
-            {% endif %}
-          </td>
-          <td>{{ it['name'] }}</td>
-          <td class="mono">{{ it['article'] }}</td>
-          <td class="num">{{ "{:,.3f}".format(it['cbm'] or 0) }}</td>
-          <td class="num">{{ "{:,.0f}".format(it['ctns'] or 0) }}</td>
-          <td class="num">{{ "{:,.0f}".format(it['pcs_per_ctn'] or 0) }}</td>
-          <td class="num">{{ "{:,.3f}".format(total_cbm) }}</td>
-        </tr>
-      {% endfor %}
-      <tr class="sov-totals">
-        <td colspan="4" style="text-align:right">Totals</td>
-        <td class="num">{{ "{:,.0f}".format(ns.t_ctns) }}</td>
-        <td></td>
-        <td class="num">{{ "{:,.3f}".format(ns.t_cbm) }}</td>
+      <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+          onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+        <td style="padding:12px 20px">
+          {% if it['photo'] %}
+          <img src="{{ url_for('static', filename='uploads/products/' + it['photo']) }}"
+               style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;display:block" alt="">
+          {% else %}
+          <div style="width:60px;height:60px;border:1px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:10px">—</div>
+          {% endif %}
+        </td>
+        <td style="padding:12px 16px;font-weight:500;color:#1e293b">{{ it['name'] }}</td>
+        <td style="padding:12px 16px;font-family:monospace;color:#64748b;font-size:12px">{{ it['article'] }}</td>
+        <td style="padding:12px 16px;text-align:right;color:#64748b">{{ "{:,.3f}".format(it['cbm'] or 0) }}</td>
+        <td style="padding:12px 16px;text-align:right;font-weight:600;color:#1e293b">{{ "{:,.0f}".format(it['ctns'] or 0) }}</td>
+        <td style="padding:12px 16px;text-align:right;color:#64748b">{{ "{:,.0f}".format(it['pcs_per_ctn'] or 0) }}</td>
+        <td style="padding:12px 20px;text-align:right;font-weight:600;color:#1e293b">{{ "{:,.3f}".format(total_cbm) }}</td>
       </tr>
+      {% endfor %}
     </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid #e2e8f0;background:#f8fafc">
+        <td colspan="4" style="padding:12px 16px;text-align:right;font-weight:700;font-size:13px;color:#374151">Totals</td>
+        <td style="padding:12px 16px;text-align:right;font-weight:800;font-size:14px;color:#1e293b">{{ "{:,.0f}".format(ns.t_ctns) }}</td>
+        <td></td>
+        <td style="padding:12px 20px;text-align:right;font-weight:800;font-size:14px;color:#1e293b">{{ "{:,.3f}".format(ns.t_cbm) }} m³</td>
+      </tr>
+    </tfoot>
   </table>
   {% else %}
-  <div class="empty">No items in this order</div>
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500">No items in this order</div>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

@@ -1,47 +1,102 @@
 {% extends 'base.html' %}
-{% block title %}Customers{% endblock %}
-{% block page_title %}Customers{% endblock %}
-{% block topbar_actions %}<a href="{{ url_for('add_customer') }}" class="btn btn-primary">+ Add Customer</a>{% endblock %}
+{% block title %}Contacts{% endblock %}
+{% block page_title %}Contacts{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_customer') }}" class="btn btn-primary">+ Add Contact</a>{% endblock %}
 {% block content %}
 
 <form class="filter-bar" method="get">
   <div class="search-input-wrap">
     <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
-    <input name="q" value="{{ q }}" class="search-input" placeholder="Search by name, company, email, phone, postcode…" autocomplete="off">
+    <input name="q" value="{{ q }}" class="search-input" placeholder="Search name, company, email, phone…" autocomplete="off">
   </div>
   <select name="type" class="form-control" style="width:145px" onchange="this.form.submit()">
-    <option value="">All types</option>
+    <option value="">All contacts</option>
     <option value="customer" {{ 'selected' if ctype=='customer' }}>Customers</option>
     <option value="supplier" {{ 'selected' if ctype=='supplier' }}>Suppliers</option>
   </select>
   {% if q or ctype %}<a href="{{ url_for('customers') }}" class="btn">Clear</a>{% endif %}
 </form>
 
-<div class="card">
-  <div class="table-wrap">
-  {% if customers %}
-  <table>
-    <thead><tr><th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Discount</th><th>Outstanding</th><th></th></tr></thead>
-    <tbody>{% for row in customers %}{% set c = row['contact'] %}
-    <tr>
-      <td><a href="{{ url_for('view_customer', cid=c['id']) }}" style="color:#1a6ef5;text-decoration:none;font-weight:500">{{ c['company'] if c['company'] else c['name'] }}</a></td>
-      <td><span class="badge badge-{{ 'info' if c['type']=='customer' else 'neutral' }}">{{ c['type'] }}</span></td>
-      <td>{{ c['phone'] }}</td><td>{{ c['email'] }}</td>
-      <td>{% if c['discount_pct'] > 0 %}<span class="badge badge-success">{{ c['discount_pct']|int }}%</span>{% else %}—{% endif %}</td>
-      <td style="color:{{ '#c0392b' if row['outstanding'] > 0 else '#1a8a4a' }};font-weight:500">
-        {% if row['outstanding'] > 0 %}£{{ "{:,.2f}".format(row['outstanding']) }}{% else %}—{% endif %}
-      </td>
-      <td><div class="btn-group">
-        <a href="{{ url_for('view_customer', cid=c['id']) }}" class="btn btn-sm">View</a>
-        <a href="{{ url_for('edit_customer', cid=c['id']) }}" class="btn btn-sm">Edit</a>
-        <form method="post" action="{{ url_for('delete_customer', cid=c['id']) }}" style="display:inline" onsubmit="return confirm('Delete?')">
-          <button class="btn btn-sm btn-danger">Del</button>
-        </form>
-      </div></td>
-    </tr>{% endfor %}
-    </tbody>
-  </table>
-  {% else %}<div class="empty">No customers found</div>{% endif %}
+{% set customer_count = customers | selectattr('contact.type', 'equalto', 'customer') | list | length %}
+{% set supplier_count = customers | selectattr('contact.type', 'equalto', 'supplier') | list | length %}
+{% set total_outstanding = customers | sum(attribute='outstanding') %}
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Customers</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ customer_count }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Suppliers</div>
+    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ supplier_count }}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Outstanding</div>
+    <div style="font-size:26px;font-weight:700;color:{{ '#dc2626' if total_outstanding > 0 else '#1a1a1a' }}">£{{ "{:,.0f}".format(total_outstanding) }}</div>
   </div>
 </div>
+
+<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+  {% if customers %}
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead>
+      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Name</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Type</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Phone</th>
+        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Email</th>
+        <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Outstanding</th>
+        <th style="padding:11px 20px"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in customers %}{% set c = row['contact'] %}
+    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="rowClick(event, '{{ url_for('view_customer', cid=c['id']) }}')"
+        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+      <td style="padding:14px 20px">
+        <div style="font-weight:600;color:#0f172a;font-size:14px">{{ c['company'] if c['company'] else c['name'] }}</div>
+        {% if c['company'] and c['name'] != c['company'] %}<div style="font-size:11px;color:#94a3b8;margin-top:1px">{{ c['name'] }}</div>{% endif %}
+      </td>
+      <td style="padding:14px 16px">
+        <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
+          {{ 'background:#dbeafe;color:#1d4ed8' if c['type']=='customer' else 'background:#f1f5f9;color:#64748b' }}">
+          {{ c['type'] | capitalize }}
+        </span>
+      </td>
+      <td style="padding:14px 16px;color:#64748b;font-size:13px">{{ c['phone'] or '—' }}</td>
+      <td style="padding:14px 16px;color:#64748b;font-size:13px">{{ c['email'] or '—' }}</td>
+      <td style="padding:14px 16px;text-align:right">
+        {% if row['outstanding'] > 0 %}
+        <span style="font-weight:700;color:#dc2626;font-size:13px">£{{ "{:,.2f}".format(row['outstanding']) }}</span>
+        {% else %}
+        <span style="color:#cbd5e1;font-size:13px">—</span>
+        {% endif %}
+      </td>
+      <td style="padding:14px 20px;text-align:right">
+        <div style="display:flex;gap:6px;justify-content:flex-end">
+          <a href="{{ url_for('view_customer', cid=c['id']) }}" onclick="event.stopPropagation()"
+             style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none">View</a>
+          <a href="{{ url_for('edit_customer', cid=c['id']) }}" onclick="event.stopPropagation()"
+             style="font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none">Edit</a>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+    <div style="font-size:15px;font-weight:500;color:#475569;margin-bottom:6px">No contacts found</div>
+    <div style="font-size:13px">Try a different search or add your first contact.</div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form')) return;
+  window.location = url;
+}
+</script>
 {% endblock %}
