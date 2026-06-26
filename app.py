@@ -128,11 +128,6 @@ def init_db():
             token      TEXT PRIMARY KEY,
             expires_at DOUBLE PRECISION NOT NULL
         )""")
-        db.execute("""CREATE TABLE IF NOT EXISTS invoice_tokens (
-            token      TEXT PRIMARY KEY,
-            sale_id    INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
-            expires_at DOUBLE PRECISION NOT NULL
-        )""")
         db.execute("""CREATE TABLE IF NOT EXISTS catalog_category_order (
             category   TEXT PRIMARY KEY,
             sort_order INTEGER DEFAULT 0
@@ -213,6 +208,11 @@ def init_db():
             currency    TEXT DEFAULT 'GBP',
             status      TEXT DEFAULT 'pending',
             notes       TEXT DEFAULT ''
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS invoice_tokens (
+            token      TEXT PRIMARY KEY,
+            sale_id    INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+            expires_at DOUBLE PRECISION NOT NULL
         )""")
         db.execute("""CREATE TABLE IF NOT EXISTS sale_items (
             id           SERIAL PRIMARY KEY,
