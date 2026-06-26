@@ -2,13 +2,28 @@
 {% block title %}{{ sale['num'] }}{% endblock %}
 {% block page_title %}{{ sale['num'] }}{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('export_sale_pdf', sid=sale['id']) }}" class="btn btn-primary">↓ Invoice PDF</a>
-  <a href="{{ url_for('export_delivery_note', sid=sale['id']) }}" class="btn">↓ Delivery Note</a>
-  <button type="button" class="btn" onclick="openEmailDialog()">✉ Email Invoice</button>
+  <!-- Export dropdown -->
+  <div style="position:relative;display:inline-block" id="exportMenu">
+    <button onclick="document.getElementById('exportDrop').style.display=document.getElementById('exportDrop').style.display==='block'?'none':'block'"
+            class="btn btn-primary" style="display:flex;align-items:center;gap:6px">
+      ↓ Export <span style="font-size:10px;opacity:.7">▾</span>
+    </button>
+    <div id="exportDrop" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;z-index:200;overflow:hidden">
+      <a href="{{ url_for('export_sale_pdf', sid=sale['id']) }}"
+         style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f1f5f9"
+         onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Invoice PDF</a>
+      <a href="{{ url_for('export_delivery_note', sid=sale['id']) }}"
+         style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f1f5f9"
+         onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Delivery Note</a>
+      <a href="{{ url_for('export_sale_excel', sid=sale['id']) }}"
+         style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none"
+         onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Excel</a>
+    </div>
+  </div>
+  <button type="button" class="btn" onclick="openEmailDialog()">✉ Email</button>
   {% if customer and customer['phone'] and invoice_token %}
   <button type="button" class="btn" style="background:#25D366;color:#fff;border-color:#25D366" onclick="sendWhatsApp()">📱 WhatsApp</button>
   {% endif %}
-  <a href="{{ url_for('export_sale_excel', sid=sale['id']) }}" class="btn">↓ Excel</a>
   {% if sale['status'] != 'cancelled' %}
   <a href="{{ url_for('edit_sale', sid=sale['id']) }}" class="btn">Edit</a>
   {% endif %}
@@ -16,39 +31,42 @@
 {% endblock %}
 {% block content %}
 
-<div style="max-width:780px;margin:0 auto">
+{% set sym = '$' if sale['currency']=='USD' else '€' if sale['currency']=='EUR' else 'zł' if sale['currency']=='PLN' else '£' %}
+
+<div style="max-width:820px;margin:0 auto">
 
   {% if sale['status'] == 'cancelled' %}
-  <div style="background:#fff3f3;border:1px solid #f5c6c6;border-radius:8px;padding:10px 16px;margin-bottom:16px;color:#c0392b;font-weight:600">
+  <div style="background:#fff3f3;border:1px solid #fca5a5;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#dc2626;font-size:13px;font-weight:600">
     ⚠ This sale has been cancelled
   </div>
   {% endif %}
 
   <!-- Invoice card -->
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:40px 44px;font-size:14px;line-height:1.5">
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:16px">
 
-    <!-- Header: company info + INVOICE label -->
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px">
+    <!-- Card header band -->
+    <div style="background:#0f172a;padding:20px 28px;display:flex;justify-content:space-between;align-items:center">
       <div>
-        {% if company.get('co_company') %}
-        <div style="font-size:20px;font-weight:700;color:#1a1a1a">{{ company['co_company'] }}</div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:4px">From</div>
+        <div style="font-size:16px;font-weight:700;color:#fff">{{ company.get('co_company') or company.get('co_name','') }}</div>
+        {% if company.get('co_address') %}
+        <div style="font-size:12px;color:#94a3b8;margin-top:2px">{{ company['co_address'] }}{% if company.get('co_city') %}, {{ company['co_city'] }}{% endif %}{% if company.get('co_postcode') %} {{ company['co_postcode'] }}{% endif %}</div>
         {% endif %}
-        {% if company.get('co_name') and company.get('co_name') != company.get('co_company') %}
-        <div style="font-size:13px;color:#666">{{ company['co_name'] }}</div>
-        {% endif %}
-        {% if company.get('co_address') %}<div style="color:#666;font-size:13px;margin-top:4px">{{ company['co_address'] }}{% if company.get('co_address2') %}, {{ company['co_address2'] }}{% endif %}</div>{% endif %}
-        {% if company.get('co_city') or company.get('co_postcode') %}<div style="color:#666;font-size:13px">{{ [company.get('co_city'), company.get('co_postcode'), company.get('co_country')]|select|join(', ') }}</div>{% endif %}
-        {% if company.get('co_vat') %}<div style="color:#666;font-size:13px">VAT: {{ company['co_vat'] }}</div>{% endif %}
       </div>
       <div style="text-align:right">
-        <div style="font-size:28px;font-weight:800;color:#1a6ef5;letter-spacing:-0.5px">INVOICE</div>
-        <div style="font-size:15px;font-weight:600;color:#1a1a1a;margin-top:4px">{{ sale['num'] }}</div>
-        <div style="font-size:13px;color:#888;margin-top:2px">Date: {{ sale['doc_date'] }}</div>
-        <div style="margin-top:8px">
-          <span class="badge badge-{{ 'success' if sale['status']=='completed' else 'danger' if sale['status']=='cancelled' else 'warning' }}">{{ sale['status'] }}</span>
-          &nbsp;
-          <form method="post" action="{{ url_for('toggle_paid', sid=sale['id']) }}" style="display:inline">
-            <button class="badge badge-{{ 'success' if sale['paid'] else 'danger' }}" style="border:none;cursor:pointer;font-size:11px;padding:3px 10px">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:4px">Invoice</div>
+        <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">{{ sale['num'] }}</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:3px">{{ sale['doc_date'] }}</div>
+        <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+          <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
+            {% if sale['status']=='completed' %}background:#dcfce7;color:#15803d
+            {% elif sale['status']=='cancelled' %}background:#fee2e2;color:#dc2626
+            {% else %}background:#fef9c3;color:#b45309{% endif %}">
+            {{ sale['status'] | capitalize }}
+          </span>
+          <form method="post" action="{{ url_for('toggle_paid', sid=sale['id']) }}" style="display:inline;margin:0">
+            <button style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;border:none;cursor:pointer;
+              {% if sale['paid'] %}background:#dcfce7;color:#15803d{% else %}background:#fee2e2;color:#dc2626{% endif %}">
               {{ '✓ Paid' if sale['paid'] else '✗ Unpaid' }}
             </button>
           </form>
@@ -56,184 +74,188 @@
       </div>
     </div>
 
-    <!-- Bill To -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px">
-      <div style="background:#f8f7f4;border-radius:8px;padding:16px 18px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:0.8px;margin-bottom:8px">Bill To</div>
+    <!-- Bill to + details -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #f1f5f9">
+      <div style="padding:20px 28px;border-right:1px solid #f1f5f9">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:10px">Bill To</div>
         {% if customer %}
-          <div style="font-weight:600;font-size:15px;color:#1a1a1a">{{ customer['company'] if customer['company'] else customer['name'] }}</div>
-          {% if customer['company'] and customer['name'] != customer['company'] %}
-          <div style="color:#666;font-size:13px">{{ customer['name'] }}</div>
-          {% endif %}
-          {% if customer['address'] %}<div style="color:#666;font-size:13px;margin-top:4px">{{ customer['address'] }}</div>{% endif %}
-          {% if customer['city'] or customer['postcode'] %}<div style="color:#666;font-size:13px">{{ [customer.get('city'), customer.get('postcode')]|select|join(', ') }}</div>{% endif %}
-          {% if customer['email'] %}<div style="color:#666;font-size:13px">{{ customer['email'] }}</div>{% endif %}
-          {% if customer['phone'] %}<div style="color:#666;font-size:13px">{{ customer['phone'] }}</div>{% endif %}
-          {% if customer.get('vat_number') %}<div style="color:#666;font-size:13px;margin-top:4px">VAT: {{ customer['vat_number'] }}</div>{% endif %}
+          <div style="font-size:15px;font-weight:700;color:#1a1a1a">{{ customer['company'] if customer['company'] else customer['name'] }}</div>
+          {% if customer['company'] and customer['name'] != customer['company'] %}<div style="font-size:13px;color:#64748b;margin-top:2px">{{ customer['name'] }}</div>{% endif %}
+          {% if customer['address'] %}<div style="font-size:13px;color:#64748b;margin-top:6px">{{ customer['address'] }}</div>{% endif %}
+          {% if customer['city'] or customer['postcode'] %}<div style="font-size:13px;color:#64748b">{{ [customer.get('city'), customer.get('postcode')]|select|join(', ') }}</div>{% endif %}
+          {% if customer['phone'] %}<div style="font-size:13px;color:#64748b;margin-top:4px">📞 {{ customer['phone'] }}</div>{% endif %}
+          {% if customer['email'] %}<div style="font-size:13px;color:#64748b">✉ {{ customer['email'] }}</div>{% endif %}
+          {% if customer.get('vat_number') %}<div style="font-size:12px;color:#94a3b8;margin-top:4px">VAT: {{ customer['vat_number'] }}</div>{% endif %}
         {% else %}
-          <div style="font-weight:600;font-size:15px">{{ sale['customer'] }}</div>
+          <div style="font-size:15px;font-weight:700;color:#1a1a1a">{{ sale['customer'] }}</div>
         {% endif %}
       </div>
-      <div style="background:#f8f7f4;border-radius:8px;padding:16px 18px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:0.8px;margin-bottom:8px">Details</div>
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px">
-          <span style="color:#888">Currency</span><span style="font-weight:500">{{ sale['currency'] }}</span>
+      <div style="padding:20px 28px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:10px">Details</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">
+          <span style="color:#94a3b8;font-weight:500">Currency</span><span style="color:#1a1a1a;font-weight:600">{{ sale['currency'] }}</span>
           {% if sale['discount'] and sale['discount'] > 0 %}
-          <span style="color:#888">Discount</span><span style="font-weight:500">{{ sale['discount']|int }}%</span>
+          <span style="color:#94a3b8;font-weight:500">Discount</span><span style="color:#dc2626;font-weight:600">{{ sale['discount']|int }}%</span>
           {% endif %}
           {% if sale['tax_pct'] and sale['tax_pct'] > 0 %}
-          <span style="color:#888">VAT</span><span style="font-weight:500">{{ sale['tax_pct']|int }}%</span>
+          <span style="color:#94a3b8;font-weight:500">VAT</span><span style="color:#1a1a1a;font-weight:600">{{ sale['tax_pct']|int }}%</span>
+          {% endif %}
+          {% if company.get('co_vat') %}
+          <span style="color:#94a3b8;font-weight:500">Our VAT</span><span style="color:#1a1a1a;font-weight:600">{{ company['co_vat'] }}</span>
           {% endif %}
           {% if sale['notes'] %}
-          <span style="color:#888">Notes</span><span>{{ sale['notes'] }}</span>
+          <span style="color:#94a3b8;font-weight:500">Notes</span><span style="color:#1a1a1a">{{ sale['notes'] }}</span>
           {% endif %}
         </div>
       </div>
     </div>
 
-    {% set sym = '$' if sale['currency']=='USD' else '€' if sale['currency']=='EUR' else 'zł' if sale['currency']=='PLN' else '£' %}
-
     <!-- Line items -->
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="border-bottom:2px solid #1a6ef5">
-          <th style="text-align:left;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Product</th>
-          <th style="text-align:left;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Warehouse</th>
-          <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Qty</th>
-          <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600;letter-spacing:0.5px">CTNs</th>
-          <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Price</th>
-          <th style="text-align:right;padding:8px 0;color:#888;font-size:10.5px;text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Amount</th>
+    <div style="padding:0 28px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid #f1f5f9">
+            <th style="padding:14px 0 10px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Product</th>
+            <th style="padding:14px 0 10px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Warehouse</th>
+            <th style="padding:14px 0 10px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Qty</th>
+            <th style="padding:14px 0 10px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">CTNs</th>
+            <th style="padding:14px 0 10px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Price</th>
+            <th style="padding:14px 0 10px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+        <tr style="border-bottom:1px solid #f8f7f4">
+          <td style="padding:13px 0;font-weight:500;color:#1a1a1a">{{ item['product_name'] }}</td>
+          <td style="padding:13px 0;color:#94a3b8;font-size:12px">{{ item['wh_name'] }}</td>
+          <td style="padding:13px 0;text-align:right;color:#1a1a1a">{{ item['qty']|int }} <span style="color:#94a3b8;font-size:11px">{{ item['unit'] }}</span></td>
+          <td style="padding:13px 0;text-align:right;color:#64748b">{% if item['carton_qty'] and item['carton_qty'] > 0 %}{{ (item['qty']/item['carton_qty'])|round(2) }}{% else %}—{% endif %}</td>
+          <td style="padding:13px 0;text-align:right;color:#64748b">{{ sym }}{{ "{:,.3f}".format(item['price']) }}</td>
+          <td style="padding:13px 0;text-align:right;font-weight:600;color:#1a1a1a">{{ sym }}{{ "{:,.3f}".format(item['qty']*item['price']) }}</td>
         </tr>
-      </thead>
-      <tbody>
-      {% for item in items %}
-      <tr style="border-bottom:1px solid #f0ede8">
-        <td style="padding:11px 0;font-weight:500">{{ item['product_name'] }}</td>
-        <td style="padding:11px 0;color:#888;font-size:12px">{{ item['wh_name'] }}</td>
-        <td style="padding:11px 0;text-align:right">{{ item['qty']|int }} {{ item['unit'] }}</td>
-        <td style="padding:11px 0;text-align:right;color:#64748b">{% if item['carton_qty'] and item['carton_qty'] > 0 %}{{ (item['qty'] / item['carton_qty'])|round(2) }}{% else %}—{% endif %}</td>
-        <td style="padding:11px 0;text-align:right">{{ sym }}{{ "{:,.3f}".format(item['price']) }}</td>
-        <td style="padding:11px 0;text-align:right;font-weight:500">{{ sym }}{{ "{:,.3f}".format(item['qty']*item['price']) }}</td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-
-    <!-- CTN total -->
-    {% set total_ctns = namespace(val=0) %}
-    {% for item in items %}{% if item['carton_qty'] and item['carton_qty'] > 0 %}{% set total_ctns.val = total_ctns.val + item['qty'] / item['carton_qty'] %}{% endif %}{% endfor %}
-    {% if total_ctns.val > 0 %}
-    <div style="margin-top:10px;text-align:right;font-size:13px;color:#64748b">
-      Total cartons: <strong style="color:#1a1a1a">{{ total_ctns.val|round(2) }} CTNs</strong>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
-    {% endif %}
 
     <!-- Totals -->
-    <div style="display:flex;justify-content:flex-end;margin-top:20px">
-      <div style="width:260px">
+    {% set total_ctns = namespace(val=0) %}
+    {% for item in items %}{% if item['carton_qty'] and item['carton_qty'] > 0 %}{% set total_ctns.val = total_ctns.val + item['qty'] / item['carton_qty'] %}{% endif %}{% endfor %}
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;padding:16px 28px 24px;gap:16px">
+      <div style="font-size:12px;color:#94a3b8">
+        {% if total_ctns.val > 0 %}Total cartons: <strong style="color:#64748b">{{ total_ctns.val|round(2) }} CTNs</strong>{% endif %}
+      </div>
+      <div style="min-width:240px">
         {% set line_sum = namespace(v=0) %}
         {% for item in items %}{% set line_sum.v = line_sum.v + item['qty']*item['price'] %}{% endfor %}
-        <div style="display:flex;justify-content:space-between;padding:5px 0;color:#666;font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#64748b">
           <span>Subtotal</span><span>{{ sym }}{{ "{:,.3f}".format(line_sum.v) }}</span>
         </div>
         {% if sale['discount'] and sale['discount'] > 0 %}
-        <div style="display:flex;justify-content:space-between;padding:5px 0;color:#c0392b;font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#dc2626">
           <span>Discount ({{ sale['discount']|int }}%)</span><span>−{{ sym }}{{ "{:,.3f}".format(line_sum.v * sale['discount'] / 100) }}</span>
         </div>
         {% endif %}
         {% if sale['tax_pct'] and sale['tax_pct'] > 0 %}
-        <div style="display:flex;justify-content:space-between;padding:5px 0;color:#666;font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#64748b">
           <span>VAT ({{ sale['tax_pct']|int }}%)</span><span>{{ sym }}{{ "{:,.3f}".format(sale['tax_amount'] if sale['tax_amount'] else 0) }}</span>
         </div>
         {% endif %}
-        <div style="border-top:2px solid #1a6ef5;margin:6px 0"></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:17px;font-weight:700;color:#1a1a1a">
-          <span>Total</span><span>{{ sym }}{{ "{:,.3f}".format(sale['total']) }}</span>
+        <div style="display:flex;justify-content:space-between;padding:10px 0 0;margin-top:6px;border-top:2px solid #0f172a;font-size:18px;font-weight:800;color:#1a1a1a">
+          <span>Total</span><span>{{ sym }}{{ "{:,.2f}".format(sale['total']) }}</span>
         </div>
-        {% if not sale['paid'] %}
-        <div style="background:#fff3f3;border:1px solid #f5c6c6;border-radius:6px;padding:8px 12px;margin-top:8px;text-align:center;font-size:13px;font-weight:600;color:#c0392b">
-          Outstanding: {{ sym }}{{ "{:,.3f}".format(sale['total']) }}
-        </div>
-        {% else %}
-        <div style="background:#f0faf4;border:1px solid #b7dfc8;border-radius:6px;padding:8px 12px;margin-top:8px;text-align:center;font-size:13px;font-weight:600;color:#1a8a4a">
-          ✓ Paid in Full
-        </div>
-        {% endif %}
       </div>
     </div>
 
-    {% if company.get('co_bank') or company.get('co_email') or company.get('co_phone') %}
-    <div style="margin-top:36px;padding-top:20px;border-top:1px solid #f0ede8;font-size:12px;color:#888;text-align:center">
-      {% if company.get('co_bank') %}Bank: {{ company['co_bank'] }} &nbsp;|&nbsp;{% endif %}
-      {% if company.get('co_email') %}{{ company['co_email'] }}{% if company.get('co_phone') %} &nbsp;|&nbsp; {% endif %}{% endif %}
-      {% if company.get('co_phone') %}{{ company['co_phone'] }}{% endif %}
+    <!-- Outstanding / Paid banner -->
+    {% if not sale['paid'] %}
+    <div style="background:#fff5f5;border-top:1px solid #fca5a5;padding:12px 28px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:#dc2626;font-weight:600">Outstanding balance</span>
+      <span style="font-size:18px;font-weight:800;color:#dc2626">{{ sym }}{{ "{:,.2f}".format(outstanding) }}</span>
+    </div>
+    {% else %}
+    <div style="background:#f0fdf4;border-top:1px solid #86efac;padding:12px 28px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:14px;font-weight:700;color:#15803d">✓ Paid in full</span>
     </div>
     {% endif %}
 
+    <!-- Footer -->
+    {% if company.get('co_bank') or company.get('co_email') or company.get('co_phone') %}
+    <div style="padding:12px 28px;border-top:1px solid #f1f5f9;font-size:11.5px;color:#94a3b8;display:flex;gap:16px;flex-wrap:wrap">
+      {% if company.get('co_bank') %}<span>🏦 {{ company['co_bank'] }}</span>{% endif %}
+      {% if company.get('co_email') %}<span>✉ {{ company['co_email'] }}</span>{% endif %}
+      {% if company.get('co_phone') %}<span>📞 {{ company['co_phone'] }}</span>{% endif %}
+    </div>
+    {% endif %}
   </div>
 
   <!-- Action buttons -->
   {% if sale['status'] == 'completed' and session.get('role')=='admin' %}
-  <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-    <a href="{{ url_for('add_credit_note') }}?sale_id={{ sale['id'] }}" class="btn">↩ Raise Credit Note</a>
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <a href="{{ url_for('add_credit_note') }}?sale_id={{ sale['id'] }}" class="btn" style="font-size:13px">↩ Raise Credit Note</a>
     <form method="post" action="{{ url_for('cancel_sale', sid=sale['id']) }}" onsubmit="return confirm('Cancel and restore stock?')">
-      <button class="btn btn-danger">Cancel Sale & Restore Stock</button>
+      <button class="btn btn-danger" style="font-size:13px">Cancel &amp; Restore Stock</button>
     </form>
     <form method="post" action="{{ url_for('archive_sale', sid=sale['id']) }}" onsubmit="return confirm('Archive this sale?')">
-      <button class="btn">Archive</button>
+      <button class="btn" style="font-size:13px">Archive</button>
     </form>
   </div>
   {% endif %}
 
   <!-- Payments -->
-  <div class="card" style="margin-top:20px">
-    <div class="card-header">
-      <span class="card-title">Payments</span>
-      <span style="font-size:12px;color:#94a3b8">
-        Paid: £{{ "{:,.2f}".format(paid_total) }} &nbsp;·&nbsp;
-        <strong style="color:{% if outstanding > 0 %}#dc2626{% else %}#16a34a{% endif %}">
-          Outstanding: £{{ "{:,.2f}".format(outstanding) }}
-        </strong>
-      </span>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:16px">
+    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:14px;font-weight:700;color:#1a1a1a">Payments</span>
+      <div style="font-size:12px;color:#64748b">
+        Paid: <strong style="color:#15803d">{{ sym }}{{ "{:,.2f}".format(paid_total) }}</strong>
+        &nbsp;·&nbsp;
+        Outstanding: <strong style="color:{% if outstanding > 0 %}#dc2626{% else %}#15803d{% endif %}">{{ sym }}{{ "{:,.2f}".format(outstanding) }}</strong>
+      </div>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Date</th><th>Method</th><th>Notes</th><th style="text-align:right">Amount</th>{% if session.get('role')=='admin' %}<th></th>{% endif %}</tr></thead>
-        <tbody>
-          {% for p in payments %}
-          <tr>
-            <td>{{ p['payment_date'] }}</td>
-            <td><span class="badge badge-info">{{ p['method'] }}</span></td>
-            <td style="color:#64748b">{{ p['notes'] or '—' }}</td>
-            <td style="text-align:right;font-weight:600;color:#16a34a">£{{ "{:,.2f}".format(p['amount']) }}</td>
-            {% if session.get('role')=='admin' %}
-            <td>
-              <form method="post" action="{{ url_for('delete_payment', sid=sale['id'], pid=p['id']) }}"
-                    onsubmit="return confirm('Remove this payment?')">
-                <button class="btn btn-sm btn-danger">×</button>
-              </form>
-            </td>
-            {% endif %}
-          </tr>
-          {% else %}
-          <tr><td colspan="5" style="padding:12px 18px;color:#94a3b8;font-size:13px">No payments recorded</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    {% if payments %}
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f8f7f4">
+          <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Date</th>
+          <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Method</th>
+          <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Notes</th>
+          <th style="padding:9px 20px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Amount</th>
+          {% if session.get('role')=='admin' %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:11px 20px;color:#64748b">{{ p['payment_date'] }}</td>
+          <td style="padding:11px 20px"><span class="badge badge-info">{{ p['method'] }}</span></td>
+          <td style="padding:11px 20px;color:#94a3b8">{{ p['notes'] or '—' }}</td>
+          <td style="padding:11px 20px;text-align:right;font-weight:700;color:#15803d">{{ sym }}{{ "{:,.2f}".format(p['amount']) }}</td>
+          {% if session.get('role')=='admin' %}
+          <td style="padding:11px 16px">
+            <form method="post" action="{{ url_for('delete_payment', sid=sale['id'], pid=p['id']) }}" onsubmit="return confirm('Remove this payment?')">
+              <button class="btn btn-sm btn-danger">×</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:20px;font-size:13px;color:#94a3b8;text-align:center">No payments recorded yet</div>
+    {% endif %}
+
     {% if session.get('role')=='admin' and sale['status'] != 'cancelled' %}
-    <div style="padding:14px 20px;border-top:1px solid #f1f5f9;background:#fafafa">
-      <form method="post" action="{{ url_for('add_payment', sid=sale['id']) }}"
-            style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+    <div style="padding:16px 20px;border-top:1px solid #f1f5f9;background:#fafafa">
+      <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Record Payment</div>
+      <form method="post" action="{{ url_for('add_payment', sid=sale['id']) }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
         <div>
           <label class="form-label">Date</label>
-          <input name="payment_date" type="date" class="form-control" style="width:150px"
-                 value="{{ sale['doc_date'] }}" required>
+          <input name="payment_date" type="date" class="form-control" style="width:145px" value="{{ sale['doc_date'] }}" required>
         </div>
         <div>
           <label class="form-label">Amount</label>
-          <input name="amount" type="number" step="any" min="0" class="form-control" style="width:120px"
-                 placeholder="{{ "{:,.2f}".format(outstanding) }}" required>
+          <input name="amount" type="number" step="any" min="0" class="form-control" style="width:120px" placeholder="{{ '{:,.2f}'.format(outstanding) }}" required>
         </div>
         <div>
           <label class="form-label">Method</label>
@@ -256,44 +278,49 @@
 
   <!-- Credit Notes -->
   {% if credit_notes_list %}
-  <div class="card" style="margin-top:16px">
-    <div class="card-header"><span class="card-title">Credit Notes</span></div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Number</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          {% for cn in credit_notes_list %}
-          <tr>
-            <td class="mono">{{ cn['num'] }}</td>
-            <td>{{ cn['doc_date'] }}</td>
-            <td>£{{ "{:,.2f}".format(cn['total']) }}</td>
-            <td><span class="badge {% if cn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">{{ cn['status'] }}</span></td>
-            <td><a href="{{ url_for('view_credit_note', cnid=cn['id']) }}" class="btn btn-sm">View</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
+    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9">
+      <span style="font-size:14px;font-weight:700;color:#1a1a1a">Credit Notes</span>
     </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f8f7f4">
+          <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Number</th>
+          <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Date</th>
+          <th style="padding:9px 20px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Total</th>
+          <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cn in credit_notes_list %}
+        <tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:11px 20px;font-family:monospace;font-weight:600;color:#1a6ef5">{{ cn['num'] }}</td>
+          <td style="padding:11px 20px;color:#64748b">{{ cn['doc_date'] }}</td>
+          <td style="padding:11px 20px;text-align:right;font-weight:600">{{ sym }}{{ "{:,.2f}".format(cn['total']) }}</td>
+          <td style="padding:11px 20px"><span class="badge {% if cn['status']=='applied' %}badge-success{% else %}badge-warning{% endif %}">{{ cn['status'] }}</span></td>
+          <td style="padding:11px 16px"><a href="{{ url_for('view_credit_note', cnid=cn['id']) }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% endif %}
 
 </div>
 
-<!-- Email Invoice modal -->
+<!-- Email modal -->
 <div id="emailBackdrop" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,0.2);width:100%;max-width:520px">
     <h3 style="margin:0 0 16px;font-size:17px;font-weight:700;color:#1e293b">✉ Email Invoice {{ sale['num'] }}</h3>
     <form method="post" action="{{ url_for('email_invoice', sid=sale['id']) }}">
       <div class="form-group">
         <label class="form-label">To</label>
-        <input name="to" type="email" class="form-control" required
-               value="{{ customer['email'] if customer and customer['email'] else '' }}"
-               placeholder="customer@example.com">
+        <input name="to" type="email" class="form-control" required value="{{ customer['email'] if customer and customer['email'] else '' }}" placeholder="customer@example.com">
       </div>
       <div class="form-group">
         <label class="form-label">Subject</label>
-        <input name="subject" class="form-control"
-               value="Invoice {{ sale['num'] }} from {{ company.co_company or company.co_name or 'us' }}">
+        <input name="subject" class="form-control" value="Invoice {{ sale['num'] }} from {{ company.co_company or company.co_name or 'us' }}">
       </div>
       <div class="form-group">
         <label class="form-label">Message</label>
@@ -301,7 +328,7 @@
 
 Please find attached your invoice {{ sale['num'] }} dated {{ sale['doc_date'] }}.
 
-Total: £{{ '%.2f'|format(sale['total']) }}
+Total: {{ sym }}{{ '%.2f'|format(sale['total']) }}
 
 Thank you for your business.
 
@@ -320,7 +347,8 @@ Thank you for your business.
 function openEmailDialog() { document.getElementById('emailBackdrop').style.display = 'flex'; }
 function closeEmailDialog() { document.getElementById('emailBackdrop').style.display = 'none'; }
 document.getElementById('emailBackdrop').addEventListener('click', function(e) { if (e.target === this) closeEmailDialog(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('emailBackdrop').style.display === 'flex') closeEmailDialog(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('emailBackdrop').style.display==='flex') closeEmailDialog(); });
+document.addEventListener('click', function(e) { if (!e.target.closest('#exportMenu')) document.getElementById('exportDrop').style.display='none'; });
 
 {% if customer and customer['phone'] and invoice_token %}
 function sendWhatsApp() {
