@@ -3,252 +3,247 @@
 {% block page_title %}Items{% endblock %}
 {% block topbar_actions %}
   <a href="{{ url_for('import_products') }}" class="btn">Import</a>
-  <a href="{{ url_for('add_product') }}" class="btn btn-primary" style="gap:5px">
+  <a href="{{ url_for('add_product') }}" class="btn btn-primary" style="gap:5px" id="new-item-btn">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
     New Item
   </a>
 {% endblock %}
 {% block content %}
 
-{% set total_count   = products | length %}
-{% set low_list      = products | selectattr('low') | list %}
-{% set out_list      = products | selectattr('total', '<=', 0) | list %}
-{% set low_count     = low_list | length %}
-{% set out_count     = out_list | length %}
-{% set active_count  = products | selectattr('total', '>', 0) | list | length %}
-
+{% set total_count  = products | length %}
+{% set low_count    = products | selectattr('low') | list | length %}
+{% set out_count    = products | selectattr('total', '<=', 0) | list | length %}
+{% set active_count = products | selectattr('total', '>', 0) | list | length %}
 {% set view = request.args.get('view','all') %}
 
-<!-- Page header -->
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-  <!-- Status tabs -->
-  <div style="display:flex;gap:2px;background:#f1f5f9;border-radius:9px;padding:3px">
-    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='all') }}"
-       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
-              {% if view=='all' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
-      All <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;background:{% if view=='all' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b">{{ total_count }}</span>
+<!-- Status filter tabs -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap">
+  <div style="display:flex;gap:2px;background:#f1f5f9;border-radius:9px;padding:3px;flex-shrink:0">
+    {% for v, label, count, alert in [
+      ('all',    'All',          total_count,  false),
+      ('active', 'In Stock',     active_count, false),
+      ('low',    'Low Stock',    low_count,    low_count > 0),
+      ('out',    'Out of Stock', out_count,    out_count > 0)
+    ] %}
+    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view=v) }}"
+       style="padding:6px 13px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;white-space:nowrap;transition:all .15s;
+              {% if view==v %}background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
+      {{ label }}
+      <span style="margin-left:5px;font-size:10.5px;padding:1px 6px;border-radius:10px;
+        {% if alert and view!=v %}background:#fee2e2;color:#dc2626{% elif view==v %}background:#e2e8f0;color:#64748b{% else %}color:#94a3b8{% endif %}">
+        {{ count }}
+      </span>
     </a>
-    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='active') }}"
-       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
-              {% if view=='active' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
-      In Stock <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;background:{% if view=='active' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b">{{ active_count }}</span>
-    </a>
-    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='low') }}"
-       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
-              {% if view=='low' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
-      Low Stock <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;{% if low_count>0 %}background:#fef3c7;color:#92400e{% else %}background:{% if view=='low' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b{% endif %}">{{ low_count }}</span>
-    </a>
-    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view='out') }}"
-       style="padding:6px 14px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;transition:all .15s;
-              {% if view=='out' %}background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
-      Out of Stock <span style="margin-left:4px;font-size:11px;padding:1px 6px;border-radius:10px;{% if out_count>0 %}background:#fee2e2;color:#dc2626{% else %}background:{% if view=='out' %}#e2e8f0{% else %}transparent{% endif %};color:#64748b{% endif %}">{{ out_count }}</span>
-    </a>
+    {% endfor %}
   </div>
-  <!-- Quick actions -->
   <div style="display:flex;gap:8px">
-    <a href="{{ url_for('product_labels') }}" class="btn" style="font-size:12.5px">Labels</a>
-    <a href="{{ url_for('product_catalog') }}" class="btn" style="font-size:12.5px">Catalog</a>
+    <a href="{{ url_for('product_labels') }}" class="btn" style="font-size:12.5px">Print Labels</a>
+    <a href="{{ url_for('product_catalog') }}" class="btn" style="font-size:12.5px">Catalog PDF</a>
   </div>
 </div>
 
-<!-- Search + filter bar -->
+<!-- Search + filters -->
 <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:12px 16px;margin-bottom:14px">
-  <form class="search-wrap" method="get" id="products-search-form" style="padding:0;border:none;background:none;gap:10px;flex-wrap:wrap;align-items:center">
+  <form method="get" id="products-search-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input type="hidden" name="view" value="{{ view }}">
-    <div style="position:relative;flex:1;min-width:220px">
+    <div style="position:relative;flex:1;min-width:200px">
       <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#94a3b8;pointer-events:none" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
       <input name="q" value="{{ q }}" id="products-q" autocomplete="off"
-             placeholder="Search by name, SKU or barcode…"
+             placeholder="Search name, SKU or barcode… (press / to focus)"
              style="width:100%;padding:8px 12px 8px 32px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;font-family:inherit;color:#0f172a;background:#f8fafc;transition:all .15s;outline:none"
              onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,.1)';this.style.background='#fff'"
              onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none';this.style.background='#f8fafc'">
     </div>
-    <select name="cat" id="filter-cat" class="form-control" style="width:160px" onchange="filterSubcatOptions();this.form.submit()">
+    <select name="cat" id="filter-cat" class="form-control" style="width:155px" onchange="filterSubcatOptions();this.form.submit()">
       <option value="">All categories</option>
       {% for c in categories %}<option value="{{ c['category'] }}" {{ 'selected' if cat==c['category'] }}>{{ c['category'] }}</option>{% endfor %}
     </select>
-    <select name="subcat" id="filter-subcat" class="form-control" style="width:160px" onchange="this.form.submit()">
+    <select name="subcat" id="filter-subcat" class="form-control" style="width:155px" onchange="this.form.submit()">
       <option value="">All subcategories</option>
       {% for s in subcategories %}<option value="{{ s['subcategory'] }}" data-cat="{{ s['category'] }}" {{ 'selected' if subcat==s['subcategory'] }}>{{ s['subcategory'] }}</option>{% endfor %}
     </select>
     {% if q or cat or subcat %}
-    <a href="{{ url_for('products', view=view) }}" class="btn" style="font-size:12.5px">Clear</a>
+    <a href="{{ url_for('products', view=view) }}" class="btn" style="font-size:12.5px;flex-shrink:0">Clear</a>
     {% endif %}
   </form>
 </div>
 
+<!-- Keyboard hint -->
+<div style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;display:flex;gap:16px;align-items:center">
+  <span>Click a row to edit &nbsp;·&nbsp; <kbd style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">/</kbd> to search &nbsp;·&nbsp; <kbd style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">N</kbd> new item</span>
+</div>
+
 {% set filtered = products %}
 {% if view == 'active' %}{% set filtered = products | selectattr('total', '>', 0) | list %}
-{% elif view == 'low' %}{% set filtered = products | selectattr('low') | list %}
-{% elif view == 'out' %}{% set filtered = products | selectattr('total', '<=', 0) | list %}
+{% elif view == 'low'    %}{% set filtered = products | selectattr('low') | list %}
+{% elif view == 'out'    %}{% set filtered = products | selectattr('total', '<=', 0) | list %}
 {% endif %}
 
 <!-- Table -->
 <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
-  {% if filtered %}
-  <table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead>
-      <tr style="background:#f8f7f4;border-bottom:2px solid #e8e6df">
-        <th style="padding:11px 16px;width:36px"><input type="checkbox" id="select-all"></th>
-        <th style="padding:11px 14px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;min-width:220px">Item Details</th>
-        <th style="padding:11px 14px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Category</th>
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Cost</th>
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Price</th>
-        {% for w in warehouses %}
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">{{ w['name'] }}</th>
-        {% endfor %}
-        <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Stock</th>
-        <th style="padding:11px 14px;text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8">Status</th>
-        <th style="padding:11px 12px;width:44px"></th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for row in filtered %}{% set p = row['product'] %}
-    <tr style="border-bottom:1px solid #f1f5f9;transition:background .12s"
-        onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''">
-
-      <!-- Checkbox -->
-      <td style="padding:13px 16px"><input type="checkbox" class="bulk-cb" value="{{ p['id'] }}"></td>
-
-      <!-- Item details: icon + name + codes -->
-      <td style="padding:12px 14px">
-        <div style="display:flex;align-items:center;gap:12px">
-          <!-- Product icon placeholder -->
-          <div style="width:38px;height:38px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.3"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
-          </div>
-          <div style="min-width:0">
-            <a href="{{ url_for('edit_product', pid=p['id']) }}"
-               style="font-size:13.5px;font-weight:600;color:#1a1a1a;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px"
-               onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#1a1a1a'">
-              {{ p['name'] }}
-            </a>
-            <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">
-              {% if p['sku'] %}
-              <span style="font-size:11px;color:#94a3b8;font-family:'SF Mono','Fira Mono',monospace;background:#f8fafc;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0">{{ p['sku'] }}</span>
-              {% endif %}
-              {% if p['barcode'] %}
-              <span style="font-size:11px;color:#94a3b8;font-family:'SF Mono','Fira Mono',monospace">{{ p['barcode'] }}</span>
-              {% endif %}
-            </div>
-          </div>
+{% if filtered %}
+<div style="overflow-x:auto">
+<table id="products-table" style="width:100%;border-collapse:collapse;font-size:13px">
+  <thead>
+    <tr style="background:#f8f7f4;border-bottom:2px solid #e8e6df">
+      <th style="padding:11px 16px;width:36px" onclick="event.stopPropagation()"><input type="checkbox" id="select-all"></th>
+      <th class="sortable" data-col="0" style="padding:11px 14px;text-align:left;cursor:pointer;user-select:none;min-width:240px">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
+          Item <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
         </div>
-      </td>
-
-      <!-- Category -->
-      <td style="padding:12px 14px">
-        {% if p['category'] %}
-        <span style="font-size:12px;color:#374151">{{ p['category'] }}</span>
-        {% if p['subcategory'] %}<div style="font-size:11px;color:#94a3b8;margin-top:2px">{{ p['subcategory'] }}</div>{% endif %}
-        {% else %}
-        <span style="color:#cbd5e1;font-size:12px">—</span>
-        {% endif %}
-      </td>
-
-      <!-- Cost -->
-      <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12.5px;white-space:nowrap">£{{ "{:,.2f}".format(p['cost']) }}</td>
-
-      <!-- Selling price -->
-      <td style="padding:12px 14px;text-align:right;white-space:nowrap">
-        <span style="font-size:13px;font-weight:600;color:#1a1a1a">£{{ "{:,.2f}".format(p['price']) }}</span>
-      </td>
-
-      <!-- Per-warehouse stock -->
+      </th>
+      <th class="sortable" data-col="1" style="padding:11px 14px;text-align:left;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
+          Category <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
+        </div>
+      </th>
+      <th class="sortable" data-col="2" style="padding:11px 14px;text-align:right;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
+          Cost <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
+        </div>
+      </th>
+      <th class="sortable" data-col="3" style="padding:11px 14px;text-align:right;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
+          Price <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
+        </div>
+      </th>
       {% for w in warehouses %}
-      <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12px">{{ row['stock'].get(w['id'], 0)|int }}</td>
+      <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">{{ w['name'] }}</th>
       {% endfor %}
+      <th class="sortable" data-col="{{ 4 + warehouses|length }}" style="padding:11px 14px;text-align:right;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
+          Stock <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
+        </div>
+      </th>
+      <th style="padding:11px 14px;text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">Status</th>
+      <th style="padding:11px 12px;width:44px"></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for row in filtered %}{% set p = row['product'] %}
+  {% set edit_url = url_for('edit_product', pid=p['id']) %}
+  <tr class="product-row" data-href="{{ edit_url }}"
+      style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+      onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''"
+      onclick="rowClick(event, '{{ edit_url }}')">
 
-      <!-- Total stock with unit -->
-      <td style="padding:12px 14px;text-align:right">
-        <span style="font-size:14px;font-weight:700;color:{% if row['total'] <= 0 %}#dc2626{% elif row['low'] %}#d97706{% else %}#16a34a{% endif %}">
-          {{ row['total']|int }}
-        </span>
-        <span style="font-size:11px;color:#94a3b8;margin-left:2px">{{ p['unit'] }}</span>
-        {% if p['carton_qty'] and p['carton_qty'] > 0 %}
-        <div style="font-size:11px;color:#cbd5e1;margin-top:2px">{{ (row['total'] / p['carton_qty'])|round(1) }} CTN</div>
-        {% endif %}
-      </td>
+    <td style="padding:13px 16px" onclick="event.stopPropagation()">
+      <input type="checkbox" class="bulk-cb" value="{{ p['id'] }}">
+    </td>
 
-      <!-- Status badge -->
-      <td style="padding:12px 14px;text-align:center">
-        {% if row['total'] <= 0 %}
-        <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fee2e2;color:#dc2626;white-space:nowrap">Out of Stock</span>
-        {% elif row['low'] %}
-        <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fef3c7;color:#92400e;white-space:nowrap">Low Stock</span>
-        {% else %}
-        <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#dcfce7;color:#15803d;white-space:nowrap">Active</span>
-        {% endif %}
-      </td>
-
-      <!-- Action menu -->
-      <td style="padding:12px 10px">
-        <div style="position:relative;display:inline-block" class="row-menu">
-          <button onclick="toggleMenu(this)"
-                  style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;color:#64748b;font-size:16px;line-height:1;transition:all .15s"
-                  onmouseover="this.style.background='#f8fafc';this.style.borderColor='#cbd5e1'" onmouseout="this.style.background='#fff';this.style.borderColor='#e2e8f0'">
-            ···
-          </button>
-          <div class="row-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:160px;z-index:100;overflow:hidden;padding:4px">
-            <button onclick="showDetails({{ p['id'] }}, '{{ p['name']|e }}', {{ p['length'] or 0 }}, {{ p['width'] or 0 }}, {{ p['height'] or 0 }}, {{ p['weight'] or 0 }}, {{ p['cbm'] or 0 }}, {{ p['carton_qty']|int if p['carton_qty'] else 0 }}, {{ p['china_price'] or 0 }}, '{{ p['china_currency'] or 'RMB' }}')"
-                    style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
-                    onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-              Dimensions &amp; Details
-            </button>
-            <a href="{{ url_for('stock_movements', pid=p['id']) }}"
-               style="display:block;padding:8px 12px;font-size:12.5px;color:#374151;text-decoration:none;border-radius:6px"
-               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Stock History</a>
-            <a href="{{ url_for('edit_product', pid=p['id']) }}"
-               style="display:block;padding:8px 12px;font-size:12.5px;color:#374151;text-decoration:none;border-radius:6px"
-               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Edit Item</a>
-            <form method="post" action="{{ url_for('duplicate_product', pid=p['id']) }}">
-              <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
-                      onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Duplicate</button>
-            </form>
-            <div style="height:1px;background:#f1f5f9;margin:4px 0"></div>
-            <form method="post" action="{{ url_for('delete_product', pid=p['id']) }}" onsubmit="return confirm('Delete this item?')">
-              <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#dc2626;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
-                      onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background=''">Delete</button>
-            </form>
+    <td style="padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:36px;height:36px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.3"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
+        </div>
+        <div style="min-width:0">
+          <div style="font-size:13.5px;font-weight:600;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">{{ p['name'] }}</div>
+          <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">
+            {% if p['sku'] %}<span style="font-size:11px;color:#94a3b8;font-family:monospace;background:#f8fafc;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0">{{ p['sku'] }}</span>{% endif %}
+            {% if p['barcode'] %}<span style="font-size:11px;color:#94a3b8;font-family:monospace">{{ p['barcode'] }}</span>{% endif %}
           </div>
         </div>
-      </td>
-    </tr>
+      </div>
+    </td>
+
+    <td style="padding:12px 14px;font-size:12.5px;color:#374151">
+      {{ p['category'] or '—' }}
+      {% if p['subcategory'] %}<div style="font-size:11px;color:#94a3b8;margin-top:2px">{{ p['subcategory'] }}</div>{% endif %}
+    </td>
+
+    <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12.5px;white-space:nowrap" data-val="{{ p['cost'] }}">£{{ "{:,.2f}".format(p['cost']) }}</td>
+
+    <td style="padding:12px 14px;text-align:right;white-space:nowrap" data-val="{{ p['price'] }}">
+      <span style="font-size:13px;font-weight:600;color:#1a1a1a">£{{ "{:,.2f}".format(p['price']) }}</span>
+    </td>
+
+    {% for w in warehouses %}
+    <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12px" data-val="{{ row['stock'].get(w['id'], 0)|int }}">{{ row['stock'].get(w['id'], 0)|int }}</td>
     {% endfor %}
-    </tbody>
-  </table>
 
-  <!-- Row count footer -->
-  <div style="padding:10px 18px;border-top:1px solid #f1f5f9;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
-    <span>{{ filtered | length }} item{% if filtered|length != 1 %}s{% endif %}</span>
-    {% if filtered | length < total_count %}
-    <a href="{{ url_for('products') }}" style="font-size:12px;color:#2563eb;text-decoration:none">Show all {{ total_count }}</a>
-    {% endif %}
-  </div>
+    <td style="padding:12px 14px;text-align:right" data-val="{{ row['total']|int }}">
+      <span style="font-size:14px;font-weight:700;color:{% if row['total'] <= 0 %}#dc2626{% elif row['low'] %}#d97706{% else %}#16a34a{% endif %}">
+        {{ row['total']|int }}
+      </span>
+      <span style="font-size:11px;color:#94a3b8;margin-left:2px">{{ p['unit'] }}</span>
+      {% if p['carton_qty'] and p['carton_qty'] > 0 %}
+      <div style="font-size:11px;color:#cbd5e1">{{ (row['total'] / p['carton_qty'])|round(1) }} ctn</div>
+      {% endif %}
+    </td>
 
-  {% else %}
-  <div style="text-align:center;padding:72px 20px;color:#94a3b8">
-    <div style="width:56px;height:56px;background:#f1f5f9;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
-      <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="#cbd5e1" stroke-width="1.2"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
-    </div>
-    <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">No items found</div>
-    <div style="font-size:13px;margin-bottom:20px">
-      {% if q or cat or subcat %}Try clearing your filters.
-      {% else %}Add your first inventory item to get started.{% endif %}
-    </div>
-    {% if q or cat or subcat %}
-    <a href="{{ url_for('products', view=view) }}" class="btn">Clear filters</a>
-    {% else %}
-    <a href="{{ url_for('add_product') }}" class="btn btn-primary">+ New Item</a>
-    {% endif %}
-  </div>
+    <td style="padding:12px 14px;text-align:center">
+      {% if row['total'] <= 0 %}
+      <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fee2e2;color:#dc2626;white-space:nowrap">Out of stock</span>
+      {% elif row['low'] %}
+      <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fef3c7;color:#92400e;white-space:nowrap">Low stock</span>
+      {% else %}
+      <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#dcfce7;color:#15803d;white-space:nowrap">Active</span>
+      {% endif %}
+    </td>
+
+    <td style="padding:12px 10px" onclick="event.stopPropagation()">
+      <div style="position:relative;display:inline-block" class="row-menu">
+        <button onclick="toggleMenu(this)"
+                style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;color:#64748b;font-size:16px;transition:all .15s"
+                onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fff'">···</button>
+        <div class="row-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:168px;z-index:200;overflow:hidden;padding:4px">
+          <button onclick="showDetails({{ p['id'] }}, '{{ p['name']|e }}', {{ p['length'] or 0 }}, {{ p['width'] or 0 }}, {{ p['height'] or 0 }}, {{ p['weight'] or 0 }}, {{ p['cbm'] or 0 }}, {{ p['carton_qty']|int if p['carton_qty'] else 0 }}, {{ p['china_price'] or 0 }}, '{{ p['china_currency'] or 'RMB' }}')"
+                  style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
+                  onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Dimensions</button>
+          <a href="{{ url_for('stock_movements', pid=p['id']) }}"
+             style="display:block;padding:8px 12px;font-size:12.5px;color:#374151;text-decoration:none;border-radius:6px"
+             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Stock History</a>
+          <a href="{{ url_for('edit_product', pid=p['id']) }}"
+             style="display:block;padding:8px 12px;font-size:12.5px;color:#374151;text-decoration:none;border-radius:6px"
+             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Edit</a>
+          <form method="post" action="{{ url_for('duplicate_product', pid=p['id']) }}">
+            <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
+                    onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Duplicate</button>
+          </form>
+          <div style="height:1px;background:#f1f5f9;margin:4px 0"></div>
+          <form method="post" action="{{ url_for('delete_product', pid=p['id']) }}" onsubmit="return confirm('Delete this item?')">
+            <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#dc2626;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
+                    onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background=''">Delete</button>
+          </form>
+        </div>
+      </div>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div style="padding:10px 18px;border-top:1px solid #f1f5f9;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
+  <span id="visible-count">{{ filtered|length }} item{% if filtered|length != 1 %}s{% endif %}</span>
+  {% if filtered|length < total_count %}
+  <a href="{{ url_for('products') }}" style="font-size:12px;color:#2563eb;text-decoration:none">Show all {{ total_count }}</a>
   {% endif %}
+</div>
+
+{% else %}
+<div style="text-align:center;padding:72px 20px;color:#94a3b8">
+  <div style="width:56px;height:56px;background:#f1f5f9;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+    <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="#cbd5e1" stroke-width="1.2"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
+  </div>
+  <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">No items found</div>
+  <div style="font-size:13px;margin-bottom:20px">
+    {% if q or cat or subcat %}Try clearing your filters.{% else %}Add your first inventory item.{% endif %}
+  </div>
+  {% if q or cat or subcat %}
+  <a href="{{ url_for('products', view=view) }}" class="btn">Clear filters</a>
+  {% else %}
+  <a href="{{ url_for('add_product') }}" class="btn btn-primary">+ New Item</a>
+  {% endif %}
+</div>
+{% endif %}
 </div>
 
 <!-- Bulk bar -->
 <div id="bulk-bar" class="bulk-bar">
   <span id="bulk-count">0 selected</span>
   <select id="bulk-action">
-    <option value="">— Bulk action —</option>
+    <option value="">— Action —</option>
     <option value="edit">Edit fields</option>
     <option value="catalog">View in Catalog</option>
     <option value="labels">Print Labels</option>
@@ -284,7 +279,7 @@
       </div>
       <div class="form-group">
         <label class="form-label">Price &amp; Cost Adjustment (%)</label>
-        <input name="price_adj" type="number" step="0.1" class="form-control" placeholder="e.g. 10 = +10%, -5 = −5%">
+        <input name="price_adj" type="number" step="0.1" class="form-control" placeholder="e.g. 10 = +10%,  -5 = −5%">
       </div>
       <div class="form-group">
         <label class="form-label">Min Stock</label>
@@ -298,39 +293,63 @@
   </div>
 </div>
 
-<!-- Details modal -->
+<!-- Dimensions modal -->
 <div id="details-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;width:100%;max-width:400px;box-shadow:0 24px 60px rgba(0,0,0,.22);overflow:hidden">
-    <div style="padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
-      <h3 id="dm-name" style="margin:0;font-size:14px;font-weight:700;color:#0f172a;max-width:310px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></h3>
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.22);overflow:hidden">
+    <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+      <h3 id="dm-name" style="margin:0;font-size:14px;font-weight:700;color:#0f172a;max-width:290px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></h3>
       <button onclick="closeDetails()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;flex-shrink:0">×</button>
     </div>
-    <div style="padding:4px 24px 20px">
+    <div style="padding:4px 22px 20px">
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
-        {% set rows = [('Length','dm-length'),('Width','dm-width'),('Height','dm-height'),('CBM (m³)','dm-cbm'),('Weight','dm-weight'),('Qty / Carton','dm-carton'),('China Purchase Price','dm-china')] %}
-        {% for label, id in rows %}
-        <tr style="border-bottom:1px solid #f8fafc">
-          <td style="padding:9px 0;color:#94a3b8;font-size:12.5px">{{ label }}</td>
-          <td id="{{ id }}" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td>
-        </tr>
-        {% endfor %}
+        <tr style="border-bottom:1px solid #f8fafc"><td style="padding:9px 0;color:#94a3b8;font-size:12.5px">Length</td><td id="dm-length" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td></tr>
+        <tr style="border-bottom:1px solid #f8fafc"><td style="padding:9px 0;color:#94a3b8;font-size:12.5px">Width</td><td id="dm-width" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td></tr>
+        <tr style="border-bottom:1px solid #f8fafc"><td style="padding:9px 0;color:#94a3b8;font-size:12.5px">Height</td><td id="dm-height" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td></tr>
+        <tr style="border-bottom:1px solid #f8fafc"><td style="padding:9px 0;color:#94a3b8;font-size:12.5px">CBM</td><td id="dm-cbm" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td></tr>
+        <tr style="border-bottom:1px solid #f8fafc"><td style="padding:9px 0;color:#94a3b8;font-size:12.5px">Weight</td><td id="dm-weight" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td></tr>
+        <tr style="border-bottom:1px solid #f8fafc"><td style="padding:9px 0;color:#94a3b8;font-size:12.5px">Qty / Carton</td><td id="dm-carton" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td></tr>
+        <tr><td style="padding:9px 0;color:#94a3b8;font-size:12.5px">China Purchase Price</td><td id="dm-china" style="padding:9px 0;font-weight:600;text-align:right;color:#1a1a1a"></td></tr>
       </table>
     </div>
   </div>
 </div>
 
 <script>
-initBulk("{{ url_for('bulk_products') }}", "Apply '{a}' to {n} item(s)?");
+// ── Row click → edit ──────────────────────────────────────────────
+function rowClick(e, url) {
+  if (e.target.closest('input,button,a,form,.row-menu')) return;
+  window.location.href = url;
+}
 
-// Auto-search
+// ── Keyboard shortcuts ────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  const tag = document.activeElement.tagName;
+  const inInput = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+  if (!inInput && e.key === '/') {
+    e.preventDefault();
+    const q = document.getElementById('products-q');
+    q.focus(); q.select();
+  }
+  if (!inInput && (e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey) {
+    window.location.href = document.getElementById('new-item-btn').href;
+  }
+  if (e.key === 'Escape') {
+    closeDetails(); closeBulkEdit();
+    document.querySelectorAll('.row-dropdown').forEach(d => d.style.display='none');
+  }
+});
+
+// ── Auto-search on input ──────────────────────────────────────────
 (function() {
   const q = document.getElementById('products-q');
-  q.focus(); q.setSelectionRange(q.value.length, q.value.length);
-  let t;
-  q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => document.getElementById('products-search-form').submit(), 350); });
+  if (q) {
+    q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+    let t;
+    q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => document.getElementById('products-search-form').submit(), 350); });
+  }
 })();
 
-// Subcategory filter sync
+// ── Subcategory filter sync ───────────────────────────────────────
 const allSubcats = {{ subcategories | tojson }};
 function filterSubcatOptions() {
   const cat = document.getElementById('filter-cat').value;
@@ -352,7 +371,34 @@ function filterBeSubcats() {
   sel.value = '';
 }
 
-// Row menu
+// ── Column sort ───────────────────────────────────────────────────
+let sortCol = null, sortDir = 1;
+document.querySelectorAll('.sortable').forEach(th => {
+  th.addEventListener('click', function() {
+    const col = parseInt(this.dataset.col);
+    if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; }
+    sortTable(col, sortDir);
+    document.querySelectorAll('.sortable .sort-icon').forEach(ic => ic.style.opacity = '.3');
+    this.querySelector('.sort-icon').style.opacity = '1';
+  });
+});
+function sortTable(col, dir) {
+  const tbody = document.querySelector('#products-table tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const getCellVal = row => {
+      const td = row.querySelectorAll('td')[col + 1]; // +1 for checkbox col
+      const v = td?.dataset.val;
+      return v !== undefined ? parseFloat(v) || v.toLowerCase() : (td?.textContent.trim().toLowerCase() || '');
+    };
+    const av = getCellVal(a), bv = getCellVal(b);
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+    return String(av).localeCompare(String(bv)) * dir;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// ── Row menu ──────────────────────────────────────────────────────
 function toggleMenu(btn) {
   const dd = btn.nextElementSibling;
   document.querySelectorAll('.row-dropdown').forEach(d => { if (d !== dd) d.style.display='none'; });
@@ -362,20 +408,19 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.row-menu')) document.querySelectorAll('.row-dropdown').forEach(d => d.style.display='none');
 });
 
-// Bulk overrides
+// ── Bulk actions ──────────────────────────────────────────────────
+initBulk("{{ url_for('bulk_products') }}", "Apply '{a}' to {n} item(s)?");
 document.getElementById('bulk-submit').addEventListener('click', function(e) {
   const action = document.getElementById('bulk-action').value;
   const checked = document.querySelectorAll('.bulk-cb:checked');
   const ids = Array.from(checked).map(cb => cb.value).join(',');
   if (action === 'catalog') {
     e.stopImmediatePropagation();
-    window.open("{{ url_for('product_catalog') }}" + (ids ? '?ids='+ids : ''), '_blank');
-    return;
+    window.open("{{ url_for('product_catalog') }}" + (ids ? '?ids='+ids : ''), '_blank'); return;
   }
   if (action === 'labels') {
     e.stopImmediatePropagation();
-    window.open("{{ url_for('product_labels') }}" + (ids ? '?ids='+ids : ''), '_blank');
-    return;
+    window.open("{{ url_for('product_labels') }}" + (ids ? '?ids='+ids : ''), '_blank'); return;
   }
   if (action === 'edit') {
     e.stopImmediatePropagation();
@@ -390,11 +435,10 @@ document.getElementById('bulk-submit').addEventListener('click', function(e) {
     document.getElementById('bulk-edit-modal').style.display='flex';
   }
 }, true);
-
 function closeBulkEdit() { document.getElementById('bulk-edit-modal').style.display='none'; }
-document.getElementById('bulk-edit-modal').addEventListener('click', function(e) { if(e.target===this) closeBulkEdit(); });
+document.getElementById('bulk-edit-modal').addEventListener('click', e => { if(e.target===document.getElementById('bulk-edit-modal')) closeBulkEdit(); });
 
-// Details modal
+// ── Dimensions modal ──────────────────────────────────────────────
 function showDetails(id, name, l, w, h, weight, cbm, carton, chinaPrice, chinaCur) {
   document.getElementById('dm-name').textContent = name;
   document.getElementById('dm-length').textContent = l + ' cm';
@@ -404,10 +448,10 @@ function showDetails(id, name, l, w, h, weight, cbm, carton, chinaPrice, chinaCu
   document.getElementById('dm-weight').textContent = weight + ' kg';
   document.getElementById('dm-carton').textContent = carton + ' units';
   const sym = chinaCur==='USD' ? '$' : '¥';
-  document.getElementById('dm-china').textContent = chinaPrice > 0 ? (sym + chinaPrice.toFixed(3) + ' ' + chinaCur) : '—';
+  document.getElementById('dm-china').textContent = chinaPrice > 0 ? sym + chinaPrice.toFixed(3) + ' ' + chinaCur : '—';
   document.getElementById('details-modal').style.display='flex';
 }
 function closeDetails() { document.getElementById('details-modal').style.display='none'; }
-document.getElementById('details-modal').addEventListener('click', function(e) { if(e.target===this) closeDetails(); });
+document.getElementById('details-modal').addEventListener('click', e => { if(e.target===document.getElementById('details-modal')) closeDetails(); });
 </script>
 {% endblock %}
