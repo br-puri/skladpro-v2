@@ -5,6 +5,9 @@
   <a href="{{ url_for('export_sale_pdf', sid=sale['id']) }}" class="btn btn-primary">↓ Invoice PDF</a>
   <a href="{{ url_for('export_delivery_note', sid=sale['id']) }}" class="btn">↓ Delivery Note</a>
   <button type="button" class="btn" onclick="openEmailDialog()">✉ Email Invoice</button>
+  {% if customer and customer['phone'] %}
+  <button type="button" class="btn" style="background:#25D366;color:#fff;border-color:#25D366" onclick="sendWhatsApp()">📱 WhatsApp</button>
+  {% endif %}
   <a href="{{ url_for('export_sale_excel', sid=sale['id']) }}" class="btn">↓ Excel</a>
   {% if sale['status'] != 'cancelled' %}
   <a href="{{ url_for('edit_sale', sid=sale['id']) }}" class="btn">Edit</a>
@@ -318,5 +321,16 @@ function openEmailDialog() { document.getElementById('emailBackdrop').style.disp
 function closeEmailDialog() { document.getElementById('emailBackdrop').style.display = 'none'; }
 document.getElementById('emailBackdrop').addEventListener('click', function(e) { if (e.target === this) closeEmailDialog(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('emailBackdrop').style.display === 'flex') closeEmailDialog(); });
+
+{% if customer and customer['phone'] %}
+function sendWhatsApp() {
+  let phone = {{ customer['phone'] | tojson }};
+  phone = phone.replace(/\D/g, '');
+  if (phone.startsWith('0')) phone = '44' + phone.slice(1);
+  const sym = {'GBP':'£','USD':'$','EUR':'€','PLN':'zł'}[{{ sale['currency'] | tojson }}] || '£';
+  const msg = `Hi {{ (customer['company'] or customer['name']) | replace("'", "\\'") }}, please find your invoice {{ sale['num'] }} for ${sym}{{ '%.2f'|format(sale['total']) }}. Thank you for your business!`;
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+}
+{% endif %}
 </script>
 {% endblock %}
