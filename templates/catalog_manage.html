@@ -94,7 +94,7 @@
                 style="width:16px;height:16px;accent-color:#d9a024;flex-shrink:0">
               <div style="width:36px;height:36px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center">
                 {% if p.photo %}
-                <img src="{{ url_for('static', filename='uploads/products/' + p.photo) }}" alt="" style="width:100%;height:100%;object-fit:cover">
+                <img src="{{ photo_url(p.photo) }}" alt="" style="width:100%;height:100%;object-fit:cover">
                 {% else %}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
                 {% endif %}

@@ -23,6 +23,12 @@ app.secret_key = os.environ.get('SECRET_KEY', 'skladpro-secret-2026')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'}
+
+import cloudinary
+import cloudinary.uploader
+_CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+if _CLOUDINARY_URL:
+    cloudinary.config(cloudinary_url=_CLOUDINARY_URL)
 CHROME_PATH = os.environ.get('CHROME_PATH', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
 
 # One-time tokens for headless catalog rendering (no auth needed for the renderer)
@@ -71,6 +77,17 @@ def inject_defaults():
     with get_db() as db:
         wh = db.execute("SELECT id FROM warehouses WHERE LOWER(name) LIKE %s LIMIT 1", ('%brent%',)).fetchone()
     return {'default_wh_id': wh['id'] if wh else None}
+
+
+@app.context_processor
+def inject_photo_url():
+    def photo_url(photo):
+        if not photo:
+            return None
+        if photo.startswith('http'):
+            return photo
+        return url_for('static', filename='uploads/products/' + photo)
+    return {'photo_url': photo_url}
 
 
 def allowed_file(filename):
@@ -1285,12 +1302,18 @@ def delete_category(cid):
 def _save_photo(file):
     if file and file.filename and allowed_file(file.filename):
         from PIL import Image
-        import time
-        filename = f"{int(time.time())}.jpg"
-        path = os.path.join(UPLOAD_FOLDER, filename)
         img = Image.open(file.stream).convert('RGB')
         img.thumbnail((1200, 1200), Image.LANCZOS)
-        img.save(path, 'JPEG', quality=82, optimize=True)
+        buf = io.BytesIO()
+        img.save(buf, 'JPEG', quality=82, optimize=True)
+        buf.seek(0)
+        if _CLOUDINARY_URL:
+            result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
+            return result['secure_url']
+        # local fallback (dev only — Render filesystem is ephemeral)
+        filename = f"{int(time.time())}.jpg"
+        with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
+            f.write(buf.read())
         return filename
     return None
 

@@ -121,7 +121,7 @@
     <label class="form-label">Product Photo</label>
     {% if product and product['photo'] %}
     <div style="margin-bottom:8px">
-      <img src="{{ url_for('static', filename='uploads/products/' + product['photo']) }}" style="height:100px;border-radius:6px;object-fit:cover;border:1px solid #eaecf0">
+      <img src="{{ photo_url(product['photo']) }}" style="height:100px;border-radius:6px;object-fit:cover;border:1px solid #eaecf0">
     </div>
     {% endif %}
     <input name="photo" type="file" accept="image/*" class="form-control" style="padding:6px">
