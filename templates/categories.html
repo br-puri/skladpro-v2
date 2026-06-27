@@ -13,26 +13,26 @@
 {% set total_products = cat_counts.values() | sum %}
 
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Categories</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ total_cats }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Subcategories</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ total_subs }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Products Categorised</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ total_products }}</div>
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
 
   {% if parents %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>
-      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+      <tr style="background:#f8f9fb;border-bottom:1px solid #eaecf0">
         <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Name</th>
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Description</th>
         <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Products</th>
@@ -42,7 +42,7 @@
     <tbody>
     {% for c in parents %}
       <!-- Parent row -->
-      <tr style="border-bottom:1px solid {% if children.get(c['id']) %}#f1f5f9{% else %}#f1f5f9{% endif %};background:#fafafa;transition:background .1s"
+      <tr style="border-bottom:1px solid {% if children.get(c['id']) %}#f0f2f5{% else %}#f0f2f5{% endif %};background:#fafafa;transition:background .1s"
           onmouseover="this.style.background='#f5f5f3'" onmouseout="this.style.background='#fafafa'">
         <td style="padding:14px 20px">
           <div style="display:flex;align-items:center;gap:10px">
@@ -93,7 +93,7 @@
 
       <!-- Subcategory rows -->
       {% for sub in children.get(c['id'], []) %}
-      <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+      <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s"
           onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
         <td style="padding:11px 20px 11px 58px">
           <div style="display:flex;align-items:center;gap:8px">
@@ -137,7 +137,7 @@
 
   {% else %}
   <div style="text-align:center;padding:60px 20px;color:#94a3b8">
-    <div style="width:48px;height:48px;background:#f1f5f9;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+    <div style="width:48px;height:48px;background:#f0f2f5;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
       <svg width="22" height="22" viewBox="0 0 16 16" fill="#94a3b8"><path d="M1 3a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H2a1 1 0 01-1-1V3zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H10a1 1 0 01-1-1V3zM1 11a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1H2a1 1 0 01-1-1v-2zm8 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1H10a1 1 0 01-1-1v-2z"/></svg>
     </div>
     <div style="font-size:15px;font-weight:600;color:#475569;margin-bottom:6px">No categories yet</div>

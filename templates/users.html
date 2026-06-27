@@ -6,14 +6,14 @@
 <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">
 
   <!-- User list -->
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
-    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden">
+    <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
       <span style="font-size:13px;font-weight:600;color:#374151">All Users</span>
       <span style="font-size:12px;color:#94a3b8">{{ users | length }} user{{ 's' if users | length != 1 }}</span>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:13.5px">
       <thead>
-        <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+        <tr style="background:#f8f9fb;border-bottom:1px solid #eaecf0">
           <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Username</th>
           <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Role</th>
           <th style="padding:11px 20px"></th>
@@ -21,7 +21,7 @@
       </thead>
       <tbody>
       {% for u in users %}
-      <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+      <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s"
           onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
         <td style="padding:13px 20px">
           <span style="font-weight:600;color:#1e293b">{{ u['username'] }}</span>
@@ -65,8 +65,8 @@
   <!-- Right column -->
   <div style="display:flex;flex-direction:column;gap:16px">
     <!-- Add user form -->
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
-      <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden">
+      <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa">
         <span style="font-size:13px;font-weight:600;color:#374151">Add New User</span>
       </div>
       <form method="POST" action="{{ url_for('add_user') }}" style="padding:18px 20px">
@@ -90,14 +90,14 @@
     </div>
 
     <!-- Permissions reference -->
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:18px 20px">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;padding:18px 20px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px">Role Permissions</div>
       <div style="display:flex;flex-direction:column;gap:12px;font-size:12.5px">
         <div>
           <div style="font-weight:700;color:#1d4ed8;margin-bottom:4px">Admin</div>
           <div style="color:#64748b;line-height:1.7">View, add, edit, delete all records. Import products, manage settings and users.</div>
         </div>
-        <div style="border-top:1px solid #f1f5f9;padding-top:12px">
+        <div style="border-top:1px solid #f0f2f5;padding-top:12px">
           <div style="font-weight:700;color:#64748b;margin-bottom:4px">Viewer</div>
           <div style="color:#94a3b8;line-height:1.7">View all pages and reports. Export PDFs and Excel. Cannot add, edit, or delete. No Settings or Users access.</div>
         </div>

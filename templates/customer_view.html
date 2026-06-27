@@ -38,7 +38,7 @@
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
 
   <!-- Contact details card -->
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:22px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;padding:22px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:16px">Contact Details</div>
     <div style="display:flex;flex-direction:column;gap:12px;font-size:13.5px">
       {% if customer['phone'] %}
@@ -85,14 +85,14 @@
       </div>
       {% endif %}
       {% if customer['notes'] %}
-      <div style="padding-top:12px;border-top:1px solid #f1f5f9;color:#64748b;font-size:12px;line-height:1.6">{{ customer['notes'] }}</div>
+      <div style="padding-top:12px;border-top:1px solid #f0f2f5;color:#64748b;font-size:12px;line-height:1.6">{{ customer['notes'] }}</div>
       {% endif %}
     </div>
   </div>
 
   <!-- Add note card -->
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
-    <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa">
       <span style="font-size:13px;font-weight:600;color:#374151">Add Interaction Note</span>
     </div>
     <form method="post" action="{{ url_for('add_customer_note', cid=customer['id']) }}" style="padding:18px 20px">
@@ -114,8 +114,8 @@
 
 <!-- Interaction history -->
 {% if history %}
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
-  <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:20px">
+  <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa">
     <span style="font-size:13px;font-weight:600;color:#374151">Interaction History</span>
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -128,10 +128,10 @@
     </thead>
     <tbody>
     {% for h in history %}
-    <tr style="border-top:1px solid #f1f5f9">
+    <tr style="border-top:1px solid #f0f2f5">
       <td style="padding:11px 20px;color:#64748b;white-space:nowrap">{{ h['event_date'] }}</td>
       <td style="padding:11px 16px">
-        <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:#f1f5f9;color:#64748b">{{ h['event_type'] }}</span>
+        <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:#f0f2f5;color:#64748b">{{ h['event_type'] }}</span>
       </td>
       <td style="padding:11px 20px;color:#374151">{{ h['desc'] }}</td>
     </tr>
@@ -143,8 +143,8 @@
 
 <!-- Sales -->
 {% if sales %}
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
-  <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:20px">
+  <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:13px;font-weight:600;color:#374151">Sales</span>
     <span style="font-size:12px;color:#94a3b8">{{ sales | length }} order{{ 's' if sales | length != 1 }}</span>
   </div>
@@ -159,7 +159,7 @@
     </thead>
     <tbody>
     {% for s in sales %}
-    <tr style="border-top:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+    <tr style="border-top:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
         onclick="window.location='{{ url_for('view_sale', sid=s['id']) }}'"
         onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
       <td style="padding:11px 20px">
@@ -183,8 +183,8 @@
 {% endif %}
 
 <!-- Products purchased -->
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
-  <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:20px">
+  <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <span style="font-size:13px;font-weight:600;color:#374151">Products Purchased</span>
     <form method="get" style="display:flex;align-items:center;gap:8px">
       <label style="font-size:12px;color:#64748b;white-space:nowrap">From</label>
@@ -207,7 +207,7 @@
     </thead>
     <tbody>
     {% for p in products_bought %}
-    <tr style="border-top:1px solid #f1f5f9">
+    <tr style="border-top:1px solid #f0f2f5">
       <td style="padding:11px 20px;font-weight:500;color:#1e293b">{{ p['product_name'] }}</td>
       <td style="padding:11px 16px;font-family:monospace;font-size:12px;color:#94a3b8">{{ p['sku'] or '—' }}</td>
       <td style="padding:11px 16px;text-align:right;color:#64748b">{{ p['total_qty']|int }} {{ p['unit'] }}</td>
@@ -231,8 +231,8 @@
 
 <!-- Purchases (if supplier) -->
 {% if purchases %}
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
-  <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden">
+  <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:13px;font-weight:600;color:#374151">Purchases</span>
     <span style="font-size:12px;color:#94a3b8">{{ purchases | length }} order{{ 's' if purchases | length != 1 }}</span>
   </div>
@@ -247,7 +247,7 @@
     </thead>
     <tbody>
     {% for p in purchases %}
-    <tr style="border-top:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+    <tr style="border-top:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
         onclick="window.location='{{ url_for('view_purchase', pid=p['id']) }}'"
         onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
       <td style="padding:11px 20px">

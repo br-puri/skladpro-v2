@@ -66,7 +66,7 @@
 
       <div class="sub-list" data-cat="{{ cat }}">
       {% for sub, prods in subcats.items() %}
-      <div class="sub-block" data-cat="{{ cat }}" data-sub="{{ sub }}" style="{% if sub %}border-bottom:1px solid #f1f5f9{% endif %}">
+      <div class="sub-block" data-cat="{{ cat }}" data-sub="{{ sub }}" style="{% if sub %}border-bottom:1px solid #f0f2f5{% endif %}">
         {% if sub %}
         <input type="hidden" name="sub_order[]" value="{{ cat }}|||{{ sub }}">
         <div style="padding:8px 16px 2px;display:flex;align-items:center;gap:8px">
@@ -101,7 +101,7 @@
               </div>
               <span style="flex:1;font-size:14px;color:#1e293b;font-weight:500">{{ p.name }}</span>
               {% if p.sku %}
-              <span style="font-size:11px;color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:2px 7px;flex-shrink:0">{{ p.sku }}</span>
+              <span style="font-size:11px;color:#94a3b8;background:#f0f2f5;border-radius:4px;padding:2px 7px;flex-shrink:0">{{ p.sku }}</span>
               {% endif %}
             </label>
           </div>

@@ -50,8 +50,8 @@
 
   <!-- Left: items + actions -->
   <div>
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
-      <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:20px">
+      <div style="padding:16px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:13px;font-weight:600;color:#374151">Line Items</span>
         <span style="font-size:12px;color:#94a3b8">{{ items | length }} product{{ 's' if items | length != 1 }}</span>
       </div>
@@ -68,7 +68,7 @@
         </thead>
         <tbody>
         {% for item in items %}
-        <tr style="border-top:1px solid #f1f5f9">
+        <tr style="border-top:1px solid #f0f2f5">
           <td style="padding:12px 20px;font-weight:500;color:#1e293b">{{ item['product_name'] }}</td>
           <td style="padding:12px 10px;color:#94a3b8;font-size:12px">{{ item['wh_name'] }}</td>
           <td style="padding:12px 10px;text-align:right;color:#64748b">{{ item['qty'] }} {{ item['unit'] }}</td>
@@ -82,7 +82,7 @@
         </tbody>
         <tfoot>
           {% if quote['subtotal'] and quote['subtotal'] != quote['total'] %}
-          <tr style="border-top:1px solid #f1f5f9">
+          <tr style="border-top:1px solid #f0f2f5">
             <td colspan="5" style="padding:8px 10px;text-align:right;color:#94a3b8;font-size:12px">Subtotal</td>
             <td style="padding:8px 20px;text-align:right;color:#94a3b8;font-size:12px">£{{ "{:,.2f}".format(quote['subtotal']) }}</td>
           </tr>
@@ -116,12 +116,12 @@
 
   <!-- Right: details -->
   <div style="display:flex;flex-direction:column;gap:16px">
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;padding:20px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:12px">Customer</div>
       <div style="font-size:15px;font-weight:700;color:#0f172a">{{ quote['customer'] or '—' }}</div>
     </div>
 
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;padding:20px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px">Details</div>
       <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -130,7 +130,7 @@
             {% if quote['status']=='accepted' %}background:#dcfce7;color:#16a34a
             {% elif quote['status'] in ('rejected','expired') %}background:#fee2e2;color:#dc2626
             {% elif quote['status']=='sent' %}background:#dbeafe;color:#1d4ed8
-            {% else %}background:#f1f5f9;color:#64748b{% endif %}">
+            {% else %}background:#f0f2f5;color:#64748b{% endif %}">
             {{ quote['status'] | capitalize }}
           </span>
         </div>
@@ -151,7 +151,7 @@
         </div>
         {% endif %}
         {% if quote['notes'] %}
-        <div style="padding-top:10px;border-top:1px solid #f1f5f9;color:#64748b;font-size:12px;line-height:1.5">
+        <div style="padding-top:10px;border-top:1px solid #f0f2f5;color:#64748b;font-size:12px;line-height:1.5">
           {{ quote['notes'] }}
         </div>
         {% endif %}

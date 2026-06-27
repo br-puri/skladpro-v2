@@ -8,7 +8,7 @@
     <label class="form-label">Company Logo <span style="font-weight:400;color:#888">(shown on invoice)</span></label>
     {% if s.get('co_logo') %}
     <div style="margin-bottom:8px">
-      <img src="{{ url_for('static', filename='uploads/' + s['co_logo']) }}" style="height:60px;object-fit:contain;border:1px solid #e8e6df;border-radius:6px;padding:4px;background:#fff">
+      <img src="{{ url_for('static', filename='uploads/' + s['co_logo']) }}" style="height:60px;object-fit:contain;border:1px solid #eaecf0;border-radius:6px;padding:4px;background:#fff">
     </div>
     {% endif %}
     <input name="co_logo" type="file" accept="image/*" class="form-control" style="padding:6px">

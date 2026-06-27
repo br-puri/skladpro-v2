@@ -39,8 +39,8 @@
 <div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start">
   <!-- Left: items -->
   <div>
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:20px">
-      <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:20px">
+      <div style="padding:16px 20px;border-bottom:1px solid #f0f2f5;background:#fafafa;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:13px;font-weight:600;color:#374151">Line Items</span>
         <span style="font-size:12px;color:#94a3b8">{{ items | length }} product{{ 's' if items | length != 1 }}</span>
       </div>
@@ -55,7 +55,7 @@
         </thead>
         <tbody>
         {% for item in items %}
-        <tr style="border-top:1px solid #f1f5f9">
+        <tr style="border-top:1px solid #f0f2f5">
           <td style="padding:12px 20px;font-weight:500;color:#1e293b">{{ item['product_name'] }}</td>
           <td style="padding:12px 16px;text-align:right;color:#64748b">{{ item['qty'] }} {{ item['unit'] or '' }}</td>
           <td style="padding:12px 16px;text-align:right;color:#64748b">£{{ "{:,.3f}".format(item['price']) }}</td>
@@ -94,11 +94,11 @@
 
   <!-- Right: details -->
   <div style="display:flex;flex-direction:column;gap:16px">
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;padding:20px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:12px">Supplier</div>
       <div style="font-size:15px;font-weight:700;color:#0f172a">{{ dn['supplier'] or '—' }}</div>
     </div>
-    <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;padding:20px">
+    <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;padding:20px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px">Details</div>
       <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -112,7 +112,7 @@
         </div>
         {% endif %}
         {% if dn['notes'] %}
-        <div style="padding-top:10px;border-top:1px solid #f1f5f9;color:#64748b;font-size:12px;line-height:1.5">
+        <div style="padding-top:10px;border-top:1px solid #f0f2f5;color:#64748b;font-size:12px;line-height:1.5">
           {{ dn['notes'] }}
         </div>
         {% endif %}

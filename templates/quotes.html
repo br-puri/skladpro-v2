@@ -11,29 +11,29 @@
 {% set total_val = quotes | sum(attribute='total') %}
 
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Quotes</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ quotes | length }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Value</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">£{{ "{:,.0f}".format(total_val) }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Accepted</div>
     <div style="font-size:26px;font-weight:700;color:#16a34a">{{ accepted | length }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Open</div>
     <div style="font-size:26px;font-weight:700;color:{{ '#ca8a04' if pending else '#64748b' }}">{{ pending | length }}</div>
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if quotes %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>
-      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+      <tr style="background:#f8f9fb;border-bottom:1px solid #eaecf0">
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;width:32px">
           <input type="checkbox" id="select-all">
         </th>
@@ -48,7 +48,7 @@
     </thead>
     <tbody>
     {% for q in quotes %}
-    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+    <tr style="border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
         onclick="rowClick(event,'{{ url_for('view_quote', qid=q['id']) }}')"
         onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
       <td style="padding:13px 16px" onclick="event.stopPropagation()">
@@ -75,7 +75,7 @@
           {% if q['status']=='accepted' %}background:#dcfce7;color:#16a34a
           {% elif q['status'] in ('rejected','expired') %}background:#fee2e2;color:#dc2626
           {% elif q['status']=='sent' %}background:#dbeafe;color:#1d4ed8
-          {% else %}background:#f1f5f9;color:#64748b{% endif %}">
+          {% else %}background:#f0f2f5;color:#64748b{% endif %}">
           {{ q['status'] | capitalize }}
         </span>
       </td>

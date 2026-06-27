@@ -10,14 +10,14 @@
     </button>
     <div id="exportDrop" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;z-index:200;overflow:hidden">
       <a href="{{ url_for('export_sale_pdf', sid=sale['id']) }}"
-         style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f1f5f9"
-         onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Invoice PDF</a>
+         style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f0f2f5"
+         onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''">Invoice PDF</a>
       <a href="{{ url_for('export_delivery_note', sid=sale['id']) }}"
-         style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f1f5f9"
-         onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Delivery Note</a>
+         style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none;border-bottom:1px solid #f0f2f5"
+         onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''">Delivery Note</a>
       <a href="{{ url_for('export_sale_excel', sid=sale['id']) }}"
          style="display:block;padding:10px 16px;font-size:13px;color:#1a1a1a;text-decoration:none"
-         onmouseover="this.style.background='#f8f7f4'" onmouseout="this.style.background=''">Excel</a>
+         onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''">Excel</a>
     </div>
   </div>
   <button type="button" class="btn" onclick="openEmailDialog()">✉ Email</button>
@@ -42,7 +42,7 @@
   {% endif %}
 
   <!-- Invoice card -->
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:16px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:16px">
 
     <!-- Card header band -->
     <div style="background:#0f172a;padding:20px 28px;display:flex;justify-content:space-between;align-items:center">
@@ -75,8 +75,8 @@
     </div>
 
     <!-- Bill to + details -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #f1f5f9">
-      <div style="padding:20px 28px;border-right:1px solid #f1f5f9">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #f0f2f5">
+      <div style="padding:20px 28px;border-right:1px solid #f0f2f5">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:10px">Bill To</div>
         {% if customer %}
           <div style="font-size:15px;font-weight:700;color:#1a1a1a">{{ customer['company'] if customer['company'] else customer['name'] }}</div>
@@ -114,7 +114,7 @@
     <div style="padding:0 28px">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
-          <tr style="border-bottom:2px solid #f1f5f9">
+          <tr style="border-bottom:2px solid #f0f2f5">
             <th style="padding:14px 0 10px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Product</th>
             <th style="padding:14px 0 10px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Warehouse</th>
             <th style="padding:14px 0 10px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Qty</th>
@@ -125,7 +125,7 @@
         </thead>
         <tbody>
         {% for item in items %}
-        <tr style="border-bottom:1px solid #f8f7f4">
+        <tr style="border-bottom:1px solid #f8f9fb">
           <td style="padding:13px 0;font-weight:500;color:#1a1a1a">{{ item['product_name'] }}</td>
           <td style="padding:13px 0;color:#94a3b8;font-size:12px">{{ item['wh_name'] }}</td>
           <td style="padding:13px 0;text-align:right;color:#1a1a1a">{{ item['qty']|int }} <span style="color:#94a3b8;font-size:11px">{{ item['unit'] }}</span></td>
@@ -181,7 +181,7 @@
 
     <!-- Footer -->
     {% if company.get('co_bank') or company.get('co_email') or company.get('co_phone') %}
-    <div style="padding:12px 28px;border-top:1px solid #f1f5f9;font-size:11.5px;color:#94a3b8;display:flex;gap:16px;flex-wrap:wrap">
+    <div style="padding:12px 28px;border-top:1px solid #f0f2f5;font-size:11.5px;color:#94a3b8;display:flex;gap:16px;flex-wrap:wrap">
       {% if company.get('co_bank') %}<span>🏦 {{ company['co_bank'] }}</span>{% endif %}
       {% if company.get('co_email') %}<span>✉ {{ company['co_email'] }}</span>{% endif %}
       {% if company.get('co_phone') %}<span>📞 {{ company['co_phone'] }}</span>{% endif %}
@@ -203,8 +203,8 @@
   {% endif %}
 
   <!-- Payments -->
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;margin-bottom:16px">
-    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:16px">
+    <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:14px;font-weight:700;color:#1a1a1a">Payments</span>
       <div style="font-size:12px;color:#64748b">
         Paid: <strong style="color:#15803d">{{ sym }}{{ "{:,.2f}".format(paid_total) }}</strong>
@@ -215,7 +215,7 @@
     {% if payments %}
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
-        <tr style="background:#f8f7f4">
+        <tr style="background:#f8f9fb">
           <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Date</th>
           <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Method</th>
           <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Notes</th>
@@ -225,7 +225,7 @@
       </thead>
       <tbody>
         {% for p in payments %}
-        <tr style="border-top:1px solid #f1f5f9">
+        <tr style="border-top:1px solid #f0f2f5">
           <td style="padding:11px 20px;color:#64748b">{{ p['payment_date'] }}</td>
           <td style="padding:11px 20px"><span class="badge badge-info">{{ p['method'] }}</span></td>
           <td style="padding:11px 20px;color:#94a3b8">{{ p['notes'] or '—' }}</td>
@@ -246,7 +246,7 @@
     {% endif %}
 
     {% if session.get('role')=='admin' and sale['status'] != 'cancelled' %}
-    <div style="padding:16px 20px;border-top:1px solid #f1f5f9;background:#fafafa">
+    <div style="padding:16px 20px;border-top:1px solid #f0f2f5;background:#fafafa">
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Record Payment</div>
       <form method="post" action="{{ url_for('add_payment', sid=sale['id']) }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
         <div>
@@ -278,13 +278,13 @@
 
   <!-- Credit Notes -->
   {% if credit_notes_list %}
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
-    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden">
+    <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5">
       <span style="font-size:14px;font-weight:700;color:#1a1a1a">Credit Notes</span>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
-        <tr style="background:#f8f7f4">
+        <tr style="background:#f8f9fb">
           <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Number</th>
           <th style="padding:9px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Date</th>
           <th style="padding:9px 20px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8">Total</th>
@@ -294,7 +294,7 @@
       </thead>
       <tbody>
         {% for cn in credit_notes_list %}
-        <tr style="border-top:1px solid #f1f5f9">
+        <tr style="border-top:1px solid #f0f2f5">
           <td style="padding:11px 20px;font-family:monospace;font-weight:600;color:#1a6ef5">{{ cn['num'] }}</td>
           <td style="padding:11px 20px;color:#64748b">{{ cn['doc_date'] }}</td>
           <td style="padding:11px 20px;text-align:right;font-weight:600">{{ sym }}{{ "{:,.2f}".format(cn['total']) }}</td>

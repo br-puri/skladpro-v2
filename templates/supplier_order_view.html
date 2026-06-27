@@ -39,9 +39,9 @@
   </span>
 </div>
 
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden">
   {% if order['notes'] %}
-  <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#64748b;font-style:italic">
+  <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;font-size:13px;color:#64748b;font-style:italic">
     {{ order['notes'] }}
   </div>
   {% endif %}
@@ -49,7 +49,7 @@
   {% if items %}
   <table style="width:100%;border-collapse:collapse;font-size:13px">
     <thead>
-      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+      <tr style="background:#f8f9fb;border-bottom:1px solid #eaecf0">
         <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;width:80px">Photo</th>
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Name</th>
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Article</th>
@@ -65,7 +65,7 @@
         {% set total_cbm = (it['ctns'] or 0) * (it['cbm'] or 0) %}
         {% set ns.t_ctns = ns.t_ctns + (it['ctns'] or 0) %}
         {% set ns.t_cbm  = ns.t_cbm  + total_cbm %}
-      <tr style="border-bottom:1px solid #f1f5f9;transition:background .1s"
+      <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s"
           onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
         <td style="padding:12px 20px">
           {% if it['photo'] %}

@@ -8,15 +8,15 @@
 {% set total_products = warehouses | sum(attribute='product_count') %}
 
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Warehouses</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ warehouses | length }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Products with Stock</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ total_products }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Stock Value</div>
     <div style="font-size:26px;font-weight:700;color:#16a34a">£{{ "{:,.0f}".format(total_value) }}</div>
   </div>
@@ -24,7 +24,7 @@
 
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
   {% for row in warehouses %}
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:12px;overflow:hidden;transition:box-shadow .15s"
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;transition:box-shadow .15s"
        onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow=''">
     <div style="background:#0f172a;padding:16px 20px;display:flex;align-items:center;gap:12px">
       <div style="width:36px;height:36px;background:rgba(255,255,255,.12);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -50,14 +50,14 @@
       </div>
       <a href="{{ url_for('edit_warehouse', wid=row['wh']['id']) }}"
          style="display:block;width:100%;padding:8px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#374151;text-decoration:none;font-size:13px;font-weight:500;text-align:center;transition:all .15s"
-         onmouseover="this.style.background='#f1f5f9';this.style.borderColor='#cbd5e1'"
+         onmouseover="this.style.background='#f0f2f5';this.style.borderColor='#cbd5e1'"
          onmouseout="this.style.background='#f8fafc';this.style.borderColor='#e2e8f0'">
         Edit Warehouse
       </a>
     </div>
   </div>
   {% else %}
-  <div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#94a3b8;background:#fff;border:1px solid #e8e6df;border-radius:12px">
+  <div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#94a3b8;background:#fff;border:1px solid #eaecf0;border-radius:12px">
     <div style="font-size:15px;font-weight:500;margin-bottom:6px">No warehouses yet</div>
     <div style="font-size:13px"><a href="{{ url_for('add_warehouse') }}" style="color:#1a6ef5">Add your first warehouse</a></div>
   </div>

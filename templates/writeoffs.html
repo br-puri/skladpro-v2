@@ -7,21 +7,21 @@
 {% set total_cost = writeoffs | sum(attribute='total_cost') %}
 
 <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Write-offs</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ writeoffs | length }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:16px 20px">
+  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Cost Written Off</div>
     <div style="font-size:26px;font-weight:700;color:#dc2626">£{{ "{:,.2f}".format(total_cost) }}</div>
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if writeoffs %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>
-      <tr style="background:#f8f7f4;border-bottom:1px solid #e8e6df">
+      <tr style="background:#f8f9fb;border-bottom:1px solid #eaecf0">
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Document</th>
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Date</th>
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Warehouse</th>
@@ -32,12 +32,12 @@
     </thead>
     <tbody>
     {% for w in writeoffs %}
-    <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+    <tr style="border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
         onclick="rowClick(event,'{{ url_for('view_writeoff', wid=w['id']) }}')"
         onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
       <td style="padding:13px 16px">
         <a href="{{ url_for('view_writeoff', wid=w['id']) }}"
-           style="font-family:monospace;font-size:13px;font-weight:600;color:#64748b;text-decoration:none;background:#f1f5f9;padding:3px 8px;border-radius:5px;white-space:nowrap">
+           style="font-family:monospace;font-size:13px;font-weight:600;color:#64748b;text-decoration:none;background:#f0f2f5;padding:3px 8px;border-radius:5px;white-space:nowrap">
           {{ w['num'] }}
         </a>
       </td>

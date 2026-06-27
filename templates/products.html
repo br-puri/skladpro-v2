@@ -18,7 +18,7 @@
 
 <!-- Status filter tabs -->
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap">
-  <div style="display:flex;gap:2px;background:#f1f5f9;border-radius:9px;padding:3px;flex-shrink:0">
+  <div style="display:flex;gap:2px;background:#f0f2f5;border-radius:9px;padding:3px;flex-shrink:0">
     {% for v, label, count, alert in [
       ('all',    'All',          total_count,  false),
       ('active', 'In Stock',     active_count, false),
@@ -43,7 +43,7 @@
 </div>
 
 <!-- Search + filters -->
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;padding:12px 16px;margin-bottom:14px">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:12px 16px;margin-bottom:14px">
   <form method="get" id="products-search-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input type="hidden" name="view" value="{{ view }}">
     <div class="search-input-wrap">
@@ -67,7 +67,7 @@
 
 <!-- Keyboard hint -->
 <div style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;display:flex;gap:16px;align-items:center">
-  <span>Click a row to edit &nbsp;·&nbsp; <kbd style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">/</kbd> to search &nbsp;·&nbsp; <kbd style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">N</kbd> new item</span>
+  <span>Click a row to edit &nbsp;·&nbsp; <kbd style="background:#f0f2f5;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">/</kbd> to search &nbsp;·&nbsp; <kbd style="background:#f0f2f5;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">N</kbd> new item</span>
 </div>
 
 {% set filtered = products %}
@@ -77,12 +77,12 @@
 {% endif %}
 
 <!-- Table -->
-<div style="background:#fff;border:1px solid #e8e6df;border-radius:10px;overflow:hidden">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
 {% if filtered %}
 <div style="overflow-x:auto">
 <table id="products-table" style="width:100%;border-collapse:collapse;font-size:13px">
   <thead>
-    <tr style="background:#f8f7f4;border-bottom:2px solid #e8e6df">
+    <tr style="background:#f8f9fb;border-bottom:2px solid #eaecf0">
       <th style="padding:11px 16px;width:36px" onclick="event.stopPropagation()"><input type="checkbox" id="select-all"></th>
       <th class="sortable" data-col="0" style="padding:11px 14px;text-align:left;cursor:pointer;user-select:none;min-width:240px">
         <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
@@ -120,7 +120,7 @@
   {% for row in filtered %}{% set p = row['product'] %}
   {% set edit_url = url_for('edit_product', pid=p['id']) %}
   <tr class="product-row" data-href="{{ edit_url }}"
-      style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+      style="border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
       onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''"
       onclick="rowClick(event, '{{ edit_url }}')">
 
@@ -130,7 +130,7 @@
 
     <td style="padding:12px 14px">
       <div style="display:flex;align-items:center;gap:11px">
-        <div style="width:36px;height:36px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <div style="width:36px;height:36px;border-radius:8px;background:#f0f2f5;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.3"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
         </div>
         <div style="min-width:0">
@@ -182,7 +182,7 @@
       <div style="position:relative;display:inline-block" class="row-menu">
         <button onclick="toggleMenu(this)"
                 style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;color:#64748b;font-size:16px;transition:all .15s"
-                onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fff'">···</button>
+                onmouseover="this.style.background='#f0f2f5'" onmouseout="this.style.background='#fff'">···</button>
         <div class="row-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:168px;z-index:200;overflow:hidden;padding:4px">
           <button onclick="showDetails({{ p['id'] }}, '{{ p['name']|e }}', {{ p['length'] or 0 }}, {{ p['width'] or 0 }}, {{ p['height'] or 0 }}, {{ p['weight'] or 0 }}, {{ p['cbm'] or 0 }}, {{ p['carton_qty']|int if p['carton_qty'] else 0 }}, {{ p['china_price'] or 0 }}, '{{ p['china_currency'] or 'RMB' }}')"
                   style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
@@ -197,7 +197,7 @@
             <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
                     onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">Duplicate</button>
           </form>
-          <div style="height:1px;background:#f1f5f9;margin:4px 0"></div>
+          <div style="height:1px;background:#f0f2f5;margin:4px 0"></div>
           <form method="post" action="{{ url_for('delete_product', pid=p['id']) }}" onsubmit="return confirm('Delete this item?')">
             <button style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#dc2626;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
                     onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background=''">Delete</button>
@@ -211,7 +211,7 @@
 </table>
 </div>
 
-<div style="padding:10px 18px;border-top:1px solid #f1f5f9;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
+<div style="padding:10px 18px;border-top:1px solid #f0f2f5;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
   <span id="visible-count">{{ filtered|length }} item{% if filtered|length != 1 %}s{% endif %}</span>
   {% if filtered|length < total_count %}
   <a href="{{ url_for('products') }}" style="font-size:12px;color:#2563eb;text-decoration:none">Show all {{ total_count }}</a>
@@ -220,7 +220,7 @@
 
 {% else %}
 <div style="text-align:center;padding:72px 20px;color:#94a3b8">
-  <div style="width:56px;height:56px;background:#f1f5f9;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+  <div style="width:56px;height:56px;background:#f0f2f5;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
     <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="#cbd5e1" stroke-width="1.2"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
   </div>
   <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">No items found</div>
@@ -293,7 +293,7 @@
 <!-- Dimensions modal -->
 <div id="details-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.22);overflow:hidden">
-    <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+    <div style="padding:18px 22px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between">
       <h3 id="dm-name" style="margin:0;font-size:14px;font-weight:700;color:#0f172a;max-width:290px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></h3>
       <button onclick="closeDetails()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;flex-shrink:0">×</button>
     </div>
