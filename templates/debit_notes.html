@@ -7,12 +7,24 @@
   {% endif %}
 {% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .dn-kpi{grid-template-columns:repeat(2,1fr)!important}
+  .dn-desk-wrap{display:none!important}
+  .dn-mob-list{display:block!important}
+}
+.dn-mob-list{display:none}
+.dn-card{display:block;background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;-webkit-tap-highlight-color:transparent}
+.dn-card:active{background:#f8f9fb}
+.dn-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dn-row+.dn-row{margin-top:7px}
+</style>
 
 {% set applied = notes | selectattr('status', 'equalto', 'applied') | list %}
 {% set draft = notes | selectattr('status', 'equalto', 'draft') | list %}
 {% set total_val = notes | sum(attribute='total') %}
 
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+<div class="dn-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Debit Notes</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ notes | length }}</div>
@@ -27,7 +39,32 @@
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="dn-mob-list">
+  {% if notes %}
+  {% for n in notes %}
+  <a class="dn-card" href="{{ url_for('view_debit_note', dnid=n['id']) }}">
+    <div class="dn-row">
+      <span style="font-family:monospace;font-size:13px;font-weight:700;color:#d97706;background:#fffbeb;padding:3px 8px;border-radius:5px">{{ n['num'] }}</span>
+      <span style="font-size:16px;font-weight:700;color:#d97706">£{{ "{:,.2f}".format(n['total']) }}</span>
+    </div>
+    <div class="dn-row">
+      <span style="font-size:14px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ n['supplier'] or '—' }}</span>
+      <span style="font-size:12px;color:#64748b;white-space:nowrap">{{ n['doc_date'] }}</span>
+    </div>
+    <div class="dn-row">
+      <span style="font-size:12px;color:#94a3b8">{{ n['wh_name'] or '—' }}</span>
+      <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+        {% if n['status']=='applied' %}background:#dcfce7;color:#16a34a{% else %}background:#fef9c3;color:#ca8a04{% endif %}">{{ n['status']|capitalize }}</span>
+    </div>
+  </a>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No debit notes yet</div>
+  {% endif %}
+</div>
+
+<div class="dn-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if notes %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

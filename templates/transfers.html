@@ -3,6 +3,16 @@
 {% block page_title %}Stock Transfers{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_transfer') }}" class="btn btn-primary">+ New Transfer</a>{% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .tr-desk-wrap{display:none!important}
+  .tr-mob-list{display:block!important}
+}
+.tr-mob-list{display:none}
+.tr-card{background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.tr-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tr-row+.tr-row{margin-top:7px}
+</style>
 
 {% set total_qty = transfers | sum(attribute='qty') %}
 
@@ -17,7 +27,37 @@
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="tr-mob-list">
+  {% if transfers %}
+  {% for t in transfers %}
+  <div class="tr-card">
+    <div class="tr-row">
+      <span style="font-family:monospace;font-size:12px;font-weight:600;color:#64748b;background:#f0f2f5;padding:3px 8px;border-radius:5px">TRF-{{ "%03d"|format(t['id']) }}</span>
+      <span style="font-size:12px;color:#64748b">{{ t['doc_date'] }}</span>
+    </div>
+    <div class="tr-row">
+      <span style="font-size:14px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ t['product_name'] }}</span>
+      <span style="font-size:14px;font-weight:700;color:#1a1a1a">{{ t['qty']|int }} <span style="font-size:11px;color:#94a3b8;font-weight:400">{{ t['unit'] }}</span></span>
+    </div>
+    <div class="tr-row">
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;padding:2px 8px;border-radius:5px;background:#fef3c7;color:#92400e;font-weight:500">{{ t['from_name'] }}</span>
+        <span style="color:#94a3b8;font-size:12px">→</span>
+        <span style="font-size:12px;padding:2px 8px;border-radius:5px;background:#d1fae5;color:#065f46;font-weight:500">{{ t['to_name'] }}</span>
+      </div>
+    </div>
+    {% if t['notes'] %}
+    <div class="tr-row" style="margin-top:4px"><span style="font-size:12px;color:#94a3b8">{{ t['notes'] }}</span></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No transfers yet</div>
+  {% endif %}
+</div>
+
+<div class="tr-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if transfers %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

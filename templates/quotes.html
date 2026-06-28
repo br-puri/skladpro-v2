@@ -5,12 +5,24 @@
   <a href="{{ url_for('add_quote') }}" class="btn btn-primary">+ New Quote</a>
 {% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .qu-kpi{grid-template-columns:repeat(2,1fr)!important}
+  .qu-desk-wrap{display:none!important}
+  .qu-mob-list{display:block!important}
+}
+.qu-mob-list{display:none}
+.qu-card{display:block;background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;-webkit-tap-highlight-color:transparent}
+.qu-card:active{background:#f8f9fb}
+.qu-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.qu-row+.qu-row{margin-top:7px}
+</style>
 
 {% set accepted = quotes | selectattr('status', 'equalto', 'accepted') | list %}
 {% set pending = quotes | selectattr('status', 'in', ['draft', 'sent']) | list %}
 {% set total_val = quotes | sum(attribute='total') %}
 
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+<div class="qu-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Quotes</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ quotes | length }}</div>
@@ -29,7 +41,37 @@
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="qu-mob-list">
+  {% if quotes %}
+  {% for q in quotes %}
+  <a class="qu-card" href="{{ url_for('view_quote', qid=q['id']) }}">
+    <div class="qu-row">
+      <span style="font-family:monospace;font-size:13px;font-weight:700;color:#7c3aed;background:#f5f3ff;padding:3px 8px;border-radius:5px">{{ q['num'] }}</span>
+      <span style="font-size:16px;font-weight:700;color:#1a1a1a">£{{ "{:,.2f}".format(q['total']) }}</span>
+    </div>
+    <div class="qu-row">
+      <span style="font-size:14px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ q['customer'] or '—' }}</span>
+      <span style="font-size:12px;color:#64748b;white-space:nowrap">{{ q['doc_date'] }}</span>
+    </div>
+    <div class="qu-row">
+      {% if q['expiry_date'] %}
+      <span style="font-size:12px;color:#94a3b8">Expires {{ q['expiry_date'] }}</span>
+      {% else %}<span></span>{% endif %}
+      <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+        {% if q['status']=='accepted' %}background:#dcfce7;color:#16a34a
+        {% elif q['status'] in ('rejected','expired') %}background:#fee2e2;color:#dc2626
+        {% elif q['status']=='sent' %}background:#dbeafe;color:#1d4ed8
+        {% else %}background:#f0f2f5;color:#64748b{% endif %}">{{ q['status']|capitalize }}</span>
+    </div>
+  </a>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No quotes yet</div>
+  {% endif %}
+</div>
+
+<div class="qu-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if quotes %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

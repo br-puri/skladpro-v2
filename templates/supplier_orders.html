@@ -3,11 +3,23 @@
 {% block page_title %}Supplier Orders{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_supplier_order') }}" class="btn btn-primary">+ New Order</a>{% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .so-kpi{grid-template-columns:repeat(2,1fr)!important}
+  .so-desk-wrap{display:none!important}
+  .so-mob-list{display:block!important}
+}
+.so-mob-list{display:none}
+.so-card{display:block;background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;-webkit-tap-highlight-color:transparent}
+.so-card:active{background:#f8f9fb}
+.so-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.so-row+.so-row{margin-top:7px}
+</style>
 
 {% set total_ctns = orders | sum(attribute='total_ctns') %}
 {% set total_cbm = orders | sum(attribute='total_cbm') %}
 
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+<div class="so-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Orders</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ orders | length }}</div>
@@ -22,7 +34,31 @@
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="so-mob-list">
+  {% if orders %}
+  {% for o in orders %}
+  <a class="so-card" href="{{ url_for('view_supplier_order', oid=o['id']) }}">
+    <div class="so-row">
+      <span style="font-family:monospace;font-size:13px;font-weight:700;color:#1a6ef5;background:#eff6ff;padding:3px 8px;border-radius:5px">{{ o['num'] }}</span>
+      <span style="font-size:12px;color:#64748b">{{ o['doc_date'] }}</span>
+    </div>
+    <div class="so-row">
+      <span style="font-size:14px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ o['supplier'] or '—' }}</span>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="so-row">
+      <span style="font-size:12px;color:#94a3b8">{{ o['item_count'] }} items</span>
+      <span style="font-size:12px;color:#64748b">{{ "{:,.0f}".format(o['total_ctns']) }} ctns · {{ "{:,.2f}".format(o['total_cbm']) }} m³</span>
+    </div>
+  </a>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No supplier orders yet</div>
+  {% endif %}
+</div>
+
+<div class="so-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if orders %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

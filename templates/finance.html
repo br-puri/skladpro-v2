@@ -5,6 +5,18 @@
   <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">+ Add Transaction</a>
 {% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .fi-filter-bar{flex-wrap:wrap!important;gap:8px!important}
+  .fi-filter-bar input,.fi-filter-bar select{width:100%!important;min-width:0!important}
+  .fi-desk-wrap{display:none!important}
+  .fi-mob-list{display:block!important}
+}
+.fi-mob-list{display:none}
+.fi-card{background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.fi-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.fi-row+.fi-row{margin-top:7px}
+</style>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
@@ -29,7 +41,7 @@
   </div>
 </div>
 
-<form class="filter-bar" method="get">
+<form class="filter-bar fi-filter-bar" method="get">
   <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:150px">
   <span style="color:#94a3b8;font-size:13px">to</span>
   <input type="date" name="date_to" value="{{ date_to }}" class="form-control" style="width:150px">
@@ -42,7 +54,37 @@
   {% if date_from or date_to or method %}<a href="{{ url_for('finance') }}" class="btn">Clear</a>{% endif %}
 </form>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="fi-mob-list">
+  {% if transactions %}
+  {% for t in transactions %}
+  <div class="fi-card">
+    <div class="fi-row">
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if t['type']=='income' %}background:#dcfce7;color:#16a34a{% else %}background:#fee2e2;color:#dc2626{% endif %}">{{ t['type']|capitalize }}</span>
+        {% if t.get('method') %}
+        <span style="font-size:11px;padding:2px 7px;border-radius:4px;background:#f0f2f5;color:#64748b;font-weight:500">{{ t['method']|capitalize }}</span>
+        {% endif %}
+      </div>
+      <span style="font-size:16px;font-weight:700;color:{{ '#16a34a' if t['type']=='income' else '#dc2626' }}">
+        {{ '+' if t['type']=='income' else '-' }}£{{ "{:,.2f}".format(t['amount']) }}</span>
+    </div>
+    <div class="fi-row">
+      <span style="font-size:13px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ t['desc'] or '—' }}</span>
+      <span style="font-size:12px;color:#64748b;white-space:nowrap;margin-left:8px">{{ t['doc_date'] }}</span>
+    </div>
+    {% if t['contact'] %}
+    <div class="fi-row"><span style="font-size:12px;color:#94a3b8">{{ t['contact'] }}</span></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No transactions yet</div>
+  {% endif %}
+</div>
+
+<div class="fi-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if transactions %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

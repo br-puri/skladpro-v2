@@ -3,8 +3,45 @@
 {% block page_title %}Transport Notes (TTN){% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_ttn') }}" class="btn btn-primary">+ New TTN</a>{% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .ttn-desk-wrap{display:none!important}
+  .ttn-mob-list{display:block!important}
+}
+.ttn-mob-list{display:none}
+.ttn-card{background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.ttn-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ttn-row+.ttn-row{margin-top:7px}
+</style>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="ttn-mob-list">
+  {% if ttns %}
+  {% for t in ttns %}
+  <div class="ttn-card">
+    <div class="ttn-row">
+      <span style="font-family:monospace;font-size:13px;font-weight:600;color:#374151;background:#f0f2f5;padding:3px 8px;border-radius:5px">{{ t['num'] }}</span>
+      <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+        {% if t['status']=='delivered' %}background:#dcfce7;color:#16a34a
+        {% elif t['status']=='returned' %}background:#fee2e2;color:#dc2626
+        {% else %}background:#fef9c3;color:#ca8a04{% endif %}">{{ t['status'].replace('_',' ')|capitalize }}</span>
+    </div>
+    <div class="ttn-row">
+      <span style="font-size:13px;color:#374151"><span style="color:#94a3b8;font-size:11px">FROM </span>{{ t['sender'] or '—' }}</span>
+      <span style="font-size:12px;color:#64748b">{{ t['doc_date'] }}</span>
+    </div>
+    <div class="ttn-row">
+      <span style="font-size:13px;color:#374151"><span style="color:#94a3b8;font-size:11px">TO </span>{{ t['receiver'] or '—' }}</span>
+      <a href="{{ url_for('edit_ttn', tid=t['id']) }}" style="font-size:12px;font-weight:500;padding:4px 10px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none">Edit</a>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No TTNs yet</div>
+  {% endif %}
+</div>
+
+<div class="ttn-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if ttns %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

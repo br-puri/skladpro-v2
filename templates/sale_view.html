@@ -30,10 +30,27 @@
   <a href="{{ url_for('sales') }}" class="back-link">← Back</a>
 {% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .sv-wrap{padding:0!important}
+  .sv-header{flex-direction:column!important;gap:10px!important;padding:16px!important}
+  .sv-header>div:last-child{text-align:left!important}
+  .sv-header>div:last-child>div:last-child{justify-content:flex-start!important}
+  .sv-bill-grid{grid-template-columns:1fr!important}
+  .sv-bill-grid>div:last-child{border-top:1px solid #f0f2f5}
+  .sv-items-pad{padding:0 12px!important}
+  .sv-items-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .sv-totals{flex-direction:column!important;align-items:stretch!important;padding:12px 16px 20px!important}
+  .sv-totals>div:first-child{margin-bottom:8px}
+  .sv-totals>div:last-child{min-width:0!important;width:100%}
+  .sv-footer-band{padding:10px 16px!important}
+  .sv-pay-hdr{flex-direction:column!important;gap:4px!important;padding:12px 16px!important}
+}
+</style>
 
 {% set sym = '$' if sale['currency']=='USD' else '€' if sale['currency']=='EUR' else 'zł' if sale['currency']=='PLN' else '£' %}
 
-<div style="max-width:820px;margin:0 auto">
+<div class="sv-wrap" style="max-width:820px;margin:0 auto">
 
   {% if sale['status'] == 'cancelled' %}
   <div style="background:#fff3f3;border:1px solid #fca5a5;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#dc2626;font-size:13px;font-weight:600">
@@ -45,7 +62,7 @@
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:16px">
 
     <!-- Card header band -->
-    <div style="background:#0f172a;padding:20px 28px;display:flex;justify-content:space-between;align-items:center">
+    <div class="sv-header" style="background:#0f172a;padding:20px 28px;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:4px">From</div>
         <div style="font-size:16px;font-weight:700;color:#fff">{{ company.get('co_company') or company.get('co_name','') }}</div>
@@ -75,7 +92,7 @@
     </div>
 
     <!-- Bill to + details -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #f0f2f5">
+    <div class="sv-bill-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #f0f2f5">
       <div style="padding:20px 28px;border-right:1px solid #f0f2f5">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:10px">Bill To</div>
         {% if customer %}
@@ -111,7 +128,8 @@
     </div>
 
     <!-- Line items -->
-    <div style="padding:0 28px">
+    <div class="sv-items-pad" style="padding:0 28px">
+      <div class="sv-items-wrap">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="border-bottom:2px solid #f0f2f5">
@@ -136,12 +154,13 @@
         {% endfor %}
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Totals -->
     {% set total_ctns = namespace(val=0) %}
     {% for item in items %}{% if item['carton_qty'] and item['carton_qty'] > 0 %}{% set total_ctns.val = total_ctns.val + item['qty'] / item['carton_qty'] %}{% endif %}{% endfor %}
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;padding:16px 28px 24px;gap:16px">
+    <div class="sv-totals" style="display:flex;justify-content:space-between;align-items:flex-end;padding:16px 28px 24px;gap:16px">
       <div style="font-size:12px;color:#94a3b8">
         {% if total_ctns.val > 0 %}Total cartons: <strong style="color:#64748b">{{ total_ctns.val|round(2) }} CTNs</strong>{% endif %}
       </div>
@@ -204,7 +223,7 @@
 
   <!-- Payments -->
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;margin-bottom:16px">
-    <div style="padding:14px 20px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between">
+    <div class="sv-pay-hdr" style="padding:14px 20px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:14px;font-weight:700;color:#1a1a1a">Payments</span>
       <div style="font-size:12px;color:#64748b">
         Paid: <strong style="color:#15803d">{{ sym }}{{ "{:,.2f}".format(paid_total) }}</strong>

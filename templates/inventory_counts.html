@@ -3,11 +3,23 @@
 {% block page_title %}Inventory Counts{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_inventory_count') }}" class="btn btn-primary">+ New Count</a>{% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .ic-kpi{grid-template-columns:repeat(2,1fr)!important}
+  .ic-desk-wrap{display:none!important}
+  .ic-mob-list{display:block!important}
+}
+.ic-mob-list{display:none}
+.ic-card{display:block;background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;-webkit-tap-highlight-color:transparent}
+.ic-card:active{background:#f8f9fb}
+.ic-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ic-row+.ic-row{margin-top:7px}
+</style>
 
 {% set applied = counts | selectattr('status', 'equalto', 'applied') | list %}
 {% set draft = counts | selectattr('status', 'equalto', 'draft') | list %}
 
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+<div class="ic-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Counts</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ counts | length }}</div>
@@ -22,7 +34,31 @@
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="ic-mob-list">
+  {% if counts %}
+  {% for c in counts %}
+  <a class="ic-card" href="{{ url_for('edit_inventory_count', cid=c['id']) }}">
+    <div class="ic-row">
+      <span style="font-family:monospace;font-size:13px;font-weight:600;color:#64748b;background:#f0f2f5;padding:3px 8px;border-radius:5px">{{ c['num'] }}</span>
+      <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+        {% if c['status']=='applied' %}background:#dcfce7;color:#16a34a{% else %}background:#fef9c3;color:#ca8a04{% endif %}">{{ c['status']|capitalize }}</span>
+    </div>
+    <div class="ic-row">
+      <span style="font-size:14px;font-weight:500;color:#1a1a1a">{{ c['wh_name'] }}</span>
+      <span style="font-size:12px;color:#64748b">{{ c['doc_date'] }}</span>
+    </div>
+    {% if c['notes'] %}
+    <div class="ic-row" style="margin-top:2px"><span style="font-size:12px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c['notes'] }}</span></div>
+    {% endif %}
+  </a>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No inventory counts yet</div>
+  {% endif %}
+</div>
+
+<div class="ic-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if counts %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

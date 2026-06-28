@@ -3,6 +3,17 @@
 {% block page_title %}Write-offs{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_writeoff') }}" class="btn btn-primary">+ New Write-off</a>{% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .wo-desk-wrap{display:none!important}
+  .wo-mob-list{display:block!important}
+}
+.wo-mob-list{display:none}
+.wo-card{display:block;background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;-webkit-tap-highlight-color:transparent}
+.wo-card:active{background:#f8f9fb}
+.wo-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.wo-row+.wo-row{margin-top:7px}
+</style>
 
 {% set total_cost = writeoffs | sum(attribute='total_cost') %}
 
@@ -17,7 +28,32 @@
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="wo-mob-list">
+  {% if writeoffs %}
+  {% for w in writeoffs %}
+  <a class="wo-card" href="{{ url_for('view_writeoff', wid=w['id']) }}">
+    <div class="wo-row">
+      <span style="font-family:monospace;font-size:13px;font-weight:700;color:#64748b;background:#f0f2f5;padding:3px 8px;border-radius:5px">{{ w['num'] }}</span>
+      <span style="font-size:16px;font-weight:700;color:#dc2626">£{{ "{:,.2f}".format(w['total_cost']) }}</span>
+    </div>
+    <div class="wo-row">
+      <span style="font-size:12px;color:#94a3b8">{{ w['wh_name'] or '—' }}</span>
+      <span style="font-size:12px;color:#64748b">{{ w['doc_date'] }}</span>
+    </div>
+    {% if w['reason'] %}
+    <div class="wo-row" style="margin-top:2px">
+      <span style="font-size:13px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w['reason'] }}</span>
+    </div>
+    {% endif %}
+  </a>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No write-offs yet</div>
+  {% endif %}
+</div>
+
+<div class="wo-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if writeoffs %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

@@ -3,6 +3,18 @@
 {% block page_title %}Contacts{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('add_customer') }}" class="btn btn-primary">+ Add Contact</a>{% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .cu-kpi{grid-template-columns:repeat(2,1fr)!important}
+  .cu-desk-wrap{display:none!important}
+  .cu-mob-list{display:block!important}
+}
+.cu-mob-list{display:none}
+.cu-card{display:block;background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;-webkit-tap-highlight-color:transparent}
+.cu-card:active{background:#f8f9fb}
+.cu-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cu-row+.cu-row{margin-top:7px}
+</style>
 
 <form class="filter-bar" method="get">
   <div class="search-input-wrap">
@@ -21,7 +33,7 @@
 {% set supplier_count = customers | selectattr('contact.type', 'equalto', 'supplier') | list | length %}
 {% set total_outstanding = customers | sum(attribute='outstanding') %}
 
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+<div class="cu-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Customers</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ customer_count }}</div>
@@ -36,7 +48,38 @@
   </div>
 </div>
 
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<!-- Mobile card list -->
+<div class="cu-mob-list">
+  {% if customers %}
+  {% for row in customers %}{% set c = row['contact'] %}
+  <a class="cu-card" href="{{ url_for('view_customer', cid=c['id']) }}">
+    <div class="cu-row">
+      <span style="font-size:15px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ c['company'] if c['company'] else c['name'] }}</span>
+      <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
+        {{ 'background:#dbeafe;color:#1d4ed8' if c['type']=='customer' else 'background:#f0f2f5;color:#64748b' }}">
+        {{ c['type']|capitalize }}</span>
+    </div>
+    {% if c['company'] and c['name'] != c['company'] %}
+    <div class="cu-row" style="margin-top:2px">
+      <span style="font-size:12px;color:#94a3b8">{{ c['name'] }}</span>
+    </div>
+    {% endif %}
+    <div class="cu-row">
+      <span style="font-size:13px;color:#64748b">{{ c['phone'] or c['email'] or '—' }}</span>
+      {% if row['outstanding'] > 0 %}
+      <span style="font-size:13px;font-weight:700;color:#dc2626">£{{ "{:,.2f}".format(row['outstanding']) }}</span>
+      {% else %}
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No contacts found</div>
+  {% endif %}
+</div>
+
+<div class="cu-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if customers %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

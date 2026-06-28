@@ -6,13 +6,29 @@
   <a href="{{ url_for('add_sale') }}" class="btn btn-primary">+ New Sale</a>
 {% endblock %}
 {% block content %}
+<style>
+@media(max-width:768px){
+  .sl-kpi{grid-template-columns:repeat(2,1fr)!important}
+  .sl-kpi>div:nth-child(3){display:none!important}
+  .sl-desk-wrap{display:none!important}
+  .sl-mob-list{display:block!important}
+  .sl-filter-bar{flex-wrap:wrap!important;gap:8px!important}
+  .sl-filter-bar select,.sl-filter-bar input{width:100%!important;min-width:0!important}
+}
+.sl-mob-list{display:none}
+.sl-card{display:block;background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.sl-card:active{background:#f8f9fb}
+.sl-card-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sl-card-row+.sl-card-row{margin-top:8px}
+.sl-card-row2{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+</style>
 
 {% set total_rev = sales | sum(attribute='total') %}
 {% set unpaid_sales = sales | selectattr('paid', 'equalto', 0) | selectattr('status', 'equalto', 'completed') | list %}
 {% set outstanding = unpaid_sales | sum(attribute='total') %}
 
 <!-- Summary strip -->
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+<div class="sl-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
   <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Sales</div>
     <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ sales | length }}</div>
@@ -28,7 +44,7 @@
 </div>
 
 <!-- Filter bar -->
-<form class="filter-bar" method="get">
+<form class="filter-bar sl-filter-bar" method="get">
   <select name="customer_id" class="form-control" style="width:200px">
     <option value="">All customers</option>
     {% for c in customers %}
@@ -43,8 +59,40 @@
   {% endif %}
 </form>
 
+<!-- Mobile card list -->
+<div class="sl-mob-list">
+  {% if sales %}
+  {% for s in sales %}
+  <a class="sl-card" href="{{ url_for('view_sale', sid=s['id']) }}">
+    <div class="sl-card-row">
+      <span style="font-family:monospace;font-size:13px;font-weight:700;color:#1a6ef5;background:#eff6ff;padding:3px 8px;border-radius:5px">{{ s['num'] }}</span>
+      <span style="font-size:16px;font-weight:700;color:#1a1a1a">£{{ "{:,.2f}".format(s['total']) }}</span>
+    </div>
+    <div class="sl-card-row2">
+      <span style="font-size:14px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ s['customer'] }}</span>
+      <span style="font-size:12px;color:#64748b;white-space:nowrap">{{ s['doc_date'] }}</span>
+    </div>
+    <div class="sl-card-row2">
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if s['status']=='completed' %}background:#dcfce7;color:#16a34a
+          {% elif s['status']=='cancelled' %}background:#fee2e2;color:#dc2626
+          {% else %}background:#fef9c3;color:#ca8a04{% endif %}">{{ s['status']|capitalize }}</span>
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if s['paid'] %}background:#dcfce7;color:#16a34a{% else %}background:#fee2e2;color:#dc2626{% endif %}">
+          {{ 'Paid' if s['paid'] else 'Unpaid' }}</span>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </a>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px">No sales found</div>
+  {% endif %}
+</div>
+
 <!-- Sales table -->
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<div class="sl-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   {% if sales %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>
