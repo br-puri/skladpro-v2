@@ -42,6 +42,10 @@
 </div>
 
 <div class="ttn-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+  <div class="card-header">
+    <span class="card-title">Transport Notes</span>
+    <span style="font-size:12px;color:#94a3b8">{{ ttns | length }} record{{ 's' if ttns | length != 1 }}</span>
+  </div>
   {% if ttns %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

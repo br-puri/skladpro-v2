@@ -19,25 +19,25 @@
 </style>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Income</div>
-    <div style="font-size:22px;font-weight:700;color:#16a34a">£{{ "{:,.0f}".format(income) }}</div>
+  <div class="metric">
+    <div class="metric-label">Income</div>
+    <div class="metric-value green">£{{ "{:,.0f}".format(income) }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Expenses</div>
-    <div style="font-size:22px;font-weight:700;color:#dc2626">£{{ "{:,.0f}".format(expenses) }}</div>
+  <div class="metric">
+    <div class="metric-label">Expenses</div>
+    <div class="metric-value red">£{{ "{:,.0f}".format(expenses) }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Net</div>
-    <div style="font-size:22px;font-weight:700;color:{{ '#16a34a' if net >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(net) }}</div>
+  <div class="metric">
+    <div class="metric-label">Net</div>
+    <div class="metric-value {% if net >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(net) }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Cash Balance</div>
-    <div style="font-size:22px;font-weight:700;color:{{ '#16a34a' if cash_balance >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(cash_balance) }}</div>
+  <div class="metric">
+    <div class="metric-label">Cash Balance</div>
+    <div class="metric-value {% if cash_balance >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(cash_balance) }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Bank Balance</div>
-    <div style="font-size:22px;font-weight:700;color:{{ '#16a34a' if bank_balance >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(bank_balance) }}</div>
+  <div class="metric">
+    <div class="metric-label">Bank Balance</div>
+    <div class="metric-value {% if bank_balance >= 0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(bank_balance) }}</div>
   </div>
 </div>
 
@@ -85,6 +85,10 @@
 </div>
 
 <div class="fi-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+  <div class="card-header">
+    <span class="card-title">Transactions</span>
+    <span style="font-size:12px;color:#94a3b8">{{ transactions | length }} record{{ 's' if transactions | length != 1 }}</span>
+  </div>
   {% if transactions %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

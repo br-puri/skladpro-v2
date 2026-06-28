@@ -34,17 +34,17 @@
 {% set total_outstanding = customers | sum(attribute='outstanding') %}
 
 <div class="cu-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Customers</div>
-    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ customer_count }}</div>
+  <div class="metric">
+    <div class="metric-label">Customers</div>
+    <div class="metric-value">{{ customer_count }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Suppliers</div>
-    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ supplier_count }}</div>
+  <div class="metric">
+    <div class="metric-label">Suppliers</div>
+    <div class="metric-value">{{ supplier_count }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Outstanding</div>
-    <div style="font-size:26px;font-weight:700;color:{{ '#dc2626' if total_outstanding > 0 else '#1a1a1a' }}">£{{ "{:,.0f}".format(total_outstanding) }}</div>
+  <div class="metric">
+    <div class="metric-label">Total Outstanding</div>
+    <div class="metric-value {% if total_outstanding > 0 %}red{% endif %}">£{{ "{:,.0f}".format(total_outstanding) }}</div>
   </div>
 </div>
 
@@ -80,6 +80,10 @@
 </div>
 
 <div class="cu-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+  <div class="card-header">
+    <span class="card-title">Contacts</span>
+    <span style="font-size:12px;color:#94a3b8">{{ customers | length }} record{{ 's' if customers | length != 1 }}</span>
+  </div>
   {% if customers %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

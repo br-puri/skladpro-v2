@@ -25,17 +25,17 @@
 {% set total_val = notes | sum(attribute='total') %}
 
 <div class="dn-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Debit Notes</div>
-    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ notes | length }}</div>
+  <div class="metric">
+    <div class="metric-label">Total Debit Notes</div>
+    <div class="metric-value">{{ notes | length }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Value</div>
-    <div style="font-size:26px;font-weight:700;color:#d97706">£{{ "{:,.2f}".format(total_val) }}</div>
+  <div class="metric">
+    <div class="metric-label">Total Value</div>
+    <div class="metric-value" style="color:#d97706">£{{ "{:,.2f}".format(total_val) }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Pending</div>
-    <div style="font-size:26px;font-weight:700;color:{{ '#ca8a04' if draft else '#64748b' }}">{{ draft | length }}</div>
+  <div class="metric">
+    <div class="metric-label">Pending</div>
+    <div class="metric-value {% if draft %}blue{% endif %}">{{ draft | length }}</div>
   </div>
 </div>
 
@@ -65,6 +65,10 @@
 </div>
 
 <div class="dn-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+  <div class="card-header">
+    <span class="card-title">Debit Notes</span>
+    <span style="font-size:12px;color:#94a3b8">{{ notes | length }} record{{ 's' if notes | length != 1 }}</span>
+  </div>
   {% if notes %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>

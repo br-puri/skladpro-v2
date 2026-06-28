@@ -20,17 +20,17 @@
 {% set draft = counts | selectattr('status', 'equalto', 'draft') | list %}
 
 <div class="ic-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Total Counts</div>
-    <div style="font-size:26px;font-weight:700;color:#1a1a1a">{{ counts | length }}</div>
+  <div class="metric">
+    <div class="metric-label">Total Counts</div>
+    <div class="metric-value">{{ counts | length }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Applied</div>
-    <div style="font-size:26px;font-weight:700;color:#16a34a">{{ applied | length }}</div>
+  <div class="metric">
+    <div class="metric-label">Applied</div>
+    <div class="metric-value green">{{ applied | length }}</div>
   </div>
-  <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:16px 20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:6px">Draft</div>
-    <div style="font-size:26px;font-weight:700;color:{{ '#ca8a04' if draft else '#64748b' }}">{{ draft | length }}</div>
+  <div class="metric">
+    <div class="metric-label">Draft</div>
+    <div class="metric-value {% if draft %}blue{% endif %}">{{ draft | length }}</div>
   </div>
 </div>
 
@@ -59,6 +59,10 @@
 </div>
 
 <div class="ic-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+  <div class="card-header">
+    <span class="card-title">Inventory Counts</span>
+    <span style="font-size:12px;color:#94a3b8">{{ counts | length }} record{{ 's' if counts | length != 1 }}</span>
+  </div>
   {% if counts %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead>
