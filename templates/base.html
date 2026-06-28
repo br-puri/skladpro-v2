@@ -221,7 +221,7 @@ input[type=checkbox].bulk-cb, input[type=checkbox]#select-all { width: 15px; hei
   }
 
   /* Content */
-  .content { padding: 14px; }
+  .content { padding: 14px; padding-bottom: 80px; }
 
   /* Tables */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -249,7 +249,45 @@ input[type=checkbox].bulk-cb, input[type=checkbox]#select-all { width: 15px; hei
 
   div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
   div[style*="grid-template-columns:1fr 340px"] { grid-template-columns: 1fr !important; }
+
+  /* Bottom tab bar */
+  #mob-tabbar { display: flex !important; }
 }
+
+/* Bottom tab bar — hidden on desktop */
+#mob-tabbar {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 58px;
+  background: #fff;
+  border-top: 1px solid #e8eaed;
+  box-shadow: 0 -2px 12px rgba(0,0,0,.07);
+  z-index: 300;
+  padding-bottom: env(safe-area-inset-bottom);
+  align-items: stretch;
+}
+#mob-tabbar a, #mob-tabbar button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-decoration: none;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 2px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color .12s;
+}
+#mob-tabbar a.tab-active, #mob-tabbar button.tab-active { color: #1a6ef5; }
+#mob-tabbar a svg, #mob-tabbar button svg { flex-shrink: 0; }
 </style>
 <script>
 function initBulk(submitUrl, confirmMsg) {
@@ -751,5 +789,42 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/static/sw.js');
 }
 </script>
+
+<!-- Mobile bottom tab bar -->
+<nav id="mob-tabbar">
+  {% set ep = request.endpoint %}
+  <a href="{{ url_for('dashboard') }}" class="{{ 'tab-active' if ep == 'dashboard' else '' }}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+    </svg>
+    Dashboard
+  </a>
+  <a href="{{ url_for('sales') }}" class="{{ 'tab-active' if ep in ('sales','view_sale','add_sale') else '' }}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
+    </svg>
+    Sales
+  </a>
+  <a href="{{ url_for('products') }}" class="{{ 'tab-active' if ep in ('products','product_form','edit_product') else '' }}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+    </svg>
+    Products
+  </a>
+  <a href="{{ url_for('purchases') }}" class="{{ 'tab-active' if ep in ('purchases','view_purchase','add_purchase') else '' }}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+    </svg>
+    Purchases
+  </a>
+  <button onclick="openMobMenu()" class="{{ 'tab-active' if ep not in ('dashboard','sales','view_sale','add_sale','products','product_form','edit_product','purchases','view_purchase','add_purchase') else '' }}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+    More
+  </button>
+</nav>
 </body>
 </html>

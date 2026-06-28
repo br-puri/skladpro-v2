@@ -120,14 +120,111 @@
 .dash-section table td,
 .dash-section table th { padding: 8px 12px; }
 
+/* Quick actions — mobile only */
+.mob-actions {
+  display: none;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.mob-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px 6px;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  text-decoration: none;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .1s;
+}
+.mob-action-btn:active { background: #f0f7ff; }
+.mob-action-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile sales cards */
+.mob-sale-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f2f5;
+  text-decoration: none;
+  color: inherit;
+  gap: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+.mob-sale-card:last-child { border-bottom: none; }
+.mob-sale-card:active { background: #f8fafc; }
+
 @media (max-width: 1100px) {
   .kpi-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .chart-grid, .dash-bottom { grid-template-columns: 1fr; }
+  .kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .kpi-card { padding: 10px 12px; }
+  .kpi-icon { width: 26px; height: 26px; margin-bottom: 8px; border-radius: 6px; }
+  .kpi-label { font-size: 9.5px; }
+  .kpi-value { font-size: 16px; }
+
+  /* Hide charts on mobile — not readable */
+  .chart-grid, .dash-charts-hide { display: none !important; }
+
+  /* Show quick actions */
+  .mob-actions { display: grid; }
+
+  /* Bottom section stacked */
+  .dash-bottom { grid-template-columns: 1fr; gap: 10px; }
+
+  /* Hide desktop table, show card list */
+  .dash-desk-sales { display: none !important; }
+  .mob-sales-wrap { display: block !important; }
 }
 </style>
+
+<!-- Quick actions (mobile only) -->
+<div class="mob-actions">
+  <a href="{{ url_for('add_sale') }}" class="mob-action-btn">
+    <div class="mob-action-icon" style="background:#eff6ff">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </div>
+    New Sale
+  </a>
+  <a href="{{ url_for('add_purchase') }}" class="mob-action-btn">
+    <div class="mob-action-icon" style="background:#fff7ed">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </div>
+    Purchase
+  </a>
+  <a href="{{ url_for('products') }}" class="mob-action-btn">
+    <div class="mob-action-icon" style="background:#f5f3ff">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+    </div>
+    Products
+  </a>
+  <a href="{{ url_for('report_stock') }}" class="mob-action-btn">
+    <div class="mob-action-icon" style="background:#ecfdf5">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </div>
+    Stock
+  </a>
+</div>
 
 <!-- KPI Row -->
 <div class="kpi-grid">
@@ -180,8 +277,8 @@
 
 </div>
 
-<!-- Charts -->
-<div class="chart-grid">
+<!-- Charts (hidden on mobile) -->
+<div class="chart-grid dash-charts-hide">
   <div class="dash-card">
     <div class="dash-card-label">Monthly Revenue</div>
     <canvas id="revenueChart" height="115"></canvas>
@@ -192,7 +289,7 @@
   </div>
 </div>
 
-<div class="dash-card" style="margin-bottom:12px">
+<div class="dash-card dash-charts-hide" style="margin-bottom:12px">
   <div class="dash-card-label">Top Products by Revenue</div>
   <canvas id="topProductsChart" height="58"></canvas>
 </div>
@@ -206,7 +303,8 @@
       <a href="{{ url_for('sales') }}" class="btn btn-sm">View all</a>
     </div>
     {% if recent_sales %}
-    <div class="table-wrap">
+    <!-- Desktop table -->
+    <div class="table-wrap dash-desk-sales">
       <table>
         <thead><tr><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
         <tbody>
@@ -221,6 +319,22 @@
         {% endfor %}
         </tbody>
       </table>
+    </div>
+    <!-- Mobile card list (hidden on desktop) -->
+    <div class="mob-sales-wrap" style="display:none">
+      {% for s in recent_sales %}
+      <a href="{{ url_for('view_sale', sid=s['id']) }}" class="mob-sale-card">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+            <span style="font-size:12px;font-weight:700;color:#2563eb;font-family:monospace">{{ s['num'] }}</span>
+            <span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}" style="font-size:10px">{{ s['status'] }}</span>
+          </div>
+          <div style="font-size:13px;font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s['customer'] or '—' }}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:1px">{{ s['doc_date'] }}</div>
+        </div>
+        <div style="font-size:15px;font-weight:700;color:#0d1b2a;white-space:nowrap;flex-shrink:0">£{{ "{:,.0f}".format(s['total']) }}</div>
+      </a>
+      {% endfor %}
     </div>
     {% else %}
     <div class="empty">No sales yet — <a href="{{ url_for('add_sale') }}">create one</a></div>
