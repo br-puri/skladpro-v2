@@ -2,13 +2,114 @@
 {% block title %}Products{% endblock %}
 {% block page_title %}Items{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('import_products') }}" class="btn">Import</a>
+  <a href="{{ url_for('import_products') }}" class="btn mob-hide">Import</a>
   <a href="{{ url_for('add_product') }}" class="btn btn-primary" style="gap:5px" id="new-item-btn">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
     New Item
   </a>
 {% endblock %}
 {% block content %}
+<style>
+/* Mobile product cards */
+.mob-prod-list { display: none; }
+.mob-prod-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #f0f2f5;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .1s;
+}
+.mob-prod-card:last-child { border-bottom: none; }
+.mob-prod-card:active { background: #f8fafc; }
+.mob-prod-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #f0f2f5;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mob-prod-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mob-prod-body { flex: 1; min-width: 0; }
+.mob-prod-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mob-prod-meta {
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mob-prod-right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.mob-prod-stock {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+}
+.mob-prod-price {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.mob-stock-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+/* Scrollable filter tabs */
+.prod-tab-strip {
+  display: flex;
+  gap: 2px;
+  background: #f0f2f5;
+  border-radius: 9px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  /* Filter row stacks */
+  .prod-filter-row { flex-direction: column !important; align-items: stretch !important; }
+  .prod-tab-strip {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    border-radius: 9px;
+  }
+  .prod-tab-strip::-webkit-scrollbar { display: none; }
+  .prod-extra-btns { display: none !important; }
+  .prod-search-form { flex-direction: column !important; gap: 8px !important; }
+  .prod-search-form .form-control { width: 100% !important; }
+  .prod-keyboard-hint { display: none !important; }
+
+  /* Hide desktop table, show cards */
+  .prod-desk-table { display: none !important; }
+  .mob-prod-list { display: block; }
+}
+</style>
 
 {% set total_count  = products | length %}
 {% set low_count    = products | selectattr('low') | list | length %}
@@ -17,8 +118,8 @@
 {% set view = request.args.get('view','all') %}
 
 <!-- Status filter tabs -->
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap">
-  <div style="display:flex;gap:2px;background:#f0f2f5;border-radius:9px;padding:3px;flex-shrink:0">
+<div class="prod-filter-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap">
+  <div class="prod-tab-strip">
     {% for v, label, count, alert in [
       ('all',    'All',          total_count,  false),
       ('active', 'In Stock',     active_count, false),
@@ -36,7 +137,7 @@
     </a>
     {% endfor %}
   </div>
-  <div style="display:flex;gap:8px">
+  <div class="prod-extra-btns" style="display:flex;gap:8px">
     <a href="{{ url_for('product_labels') }}" class="btn" style="font-size:12.5px">Print Labels</a>
     <a href="{{ url_for('product_catalog') }}" class="btn" style="font-size:12.5px">Catalog PDF</a>
   </div>
@@ -44,7 +145,7 @@
 
 <!-- Search + filters -->
 <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:12px 16px;margin-bottom:14px">
-  <form method="get" id="products-search-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <form method="get" id="products-search-form" class="prod-search-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input type="hidden" name="view" value="{{ view }}">
     <div class="search-input-wrap">
       <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
@@ -66,7 +167,7 @@
 </div>
 
 <!-- Keyboard hint -->
-<div style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;display:flex;gap:16px;align-items:center">
+<div class="prod-keyboard-hint" style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;display:flex;gap:16px;align-items:center">
   <span>Click a row to edit &nbsp;·&nbsp; <kbd style="background:#f0f2f5;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">/</kbd> to search &nbsp;·&nbsp; <kbd style="background:#f0f2f5;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:10.5px;font-family:inherit">N</kbd> new item</span>
 </div>
 
@@ -76,10 +177,12 @@
 {% elif view == 'out'    %}{% set filtered = products | selectattr('total', '<=', 0) | list %}
 {% endif %}
 
-<!-- Table -->
+<!-- Table / Card list -->
 <div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
 {% if filtered %}
-<div style="overflow-x:auto">
+
+<!-- Desktop table -->
+<div class="prod-desk-table" style="overflow-x:auto">
 <table id="products-table" style="width:100%;border-collapse:collapse;font-size:13px">
   <thead>
     <tr style="background:#f8f9fb;border-bottom:2px solid #eaecf0">
@@ -209,7 +312,48 @@
   {% endfor %}
   </tbody>
 </table>
-</div>
+</div><!-- /prod-desk-table -->
+
+<!-- Mobile card list -->
+<div class="mob-prod-list">
+  {% for row in filtered %}{% set p = row['product'] %}
+  <a href="{{ url_for('edit_product', pid=p['id']) }}" class="mob-prod-card">
+    <div class="mob-prod-thumb">
+      {% if p['photo'] %}
+      <img src="{{ photo_url(p['photo']) }}" alt="">
+      {% else %}
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      {% endif %}
+    </div>
+    <div class="mob-prod-body">
+      <div class="mob-prod-name">{{ p['name'] }}</div>
+      <div class="mob-prod-meta">
+        {% if p['sku'] %}{{ p['sku'] }}{% endif %}
+        {% if p['sku'] and p['category'] %} · {% endif %}
+        {% if p['category'] %}{{ p['category'] }}{% endif %}
+        {% if p['subcategory'] %} / {{ p['subcategory'] }}{% endif %}
+      </div>
+      <div style="margin-top:4px">
+        <span class="mob-stock-badge {% if row['total'] <= 0 %}
+          " style="background:#fee2e2;color:#dc2626">Out of stock
+        {% elif row['low'] %}
+          " style="background:#fef3c7;color:#92400e">Low stock
+        {% else %}
+          " style="background:#dcfce7;color:#15803d">In stock
+        {% endif %}</span>
+      </div>
+    </div>
+    <div class="mob-prod-right">
+      <div class="mob-prod-stock" style="color:{% if row['total'] <= 0 %}#dc2626{% elif row['low'] %}#d97706{% else %}#16a34a{% endif %}">
+        {{ row['total']|int }}
+        <span style="font-size:11px;font-weight:400;color:#94a3b8">{{ p['unit'] }}</span>
+      </div>
+      <div class="mob-prod-price">£{{ "{:,.2f}".format(p['price']) }}</div>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round"><path d="M6 3l5 5-5 5"/></svg>
+    </div>
+  </a>
+  {% endfor %}
+</div><!-- /mob-prod-list -->
 
 <div style="padding:10px 18px;border-top:1px solid #f0f2f5;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
   <span id="visible-count">{{ filtered|length }} item{% if filtered|length != 1 %}s{% endif %}</span>
