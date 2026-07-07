@@ -3437,15 +3437,19 @@ def report_profit():
             "SELECT DISTINCT customer FROM sales WHERE status='completed' AND customer IS NOT NULL AND customer!='' ORDER BY customer"
         ).fetchall()]
         q = """SELECT s.doc_date, s.num, s.customer,
-               SUM(si.qty*si.price*(1-si.discount_pct/100)) as revenue,
-               SUM(si.qty*p.cost) as cost
+               COALESCE(SUM(si.qty*si.price*(1-COALESCE(si.discount_pct,0)/100)), 0) as revenue,
+               COALESCE(SUM(si.qty*COALESCE(p.cost,0)), 0) as cost
                FROM sales s JOIN sale_items si ON si.sale_id=s.id
                JOIN products p ON p.id=si.product_id WHERE s.status='completed'"""
         params = []
         if date_from: q += " AND s.doc_date>=%s"; params.append(date_from)
         if date_to: q += " AND s.doc_date<=%s"; params.append(date_to)
         if customer_filter: q += " AND s.customer=%s"; params.append(customer_filter)
-        rows = db.execute(q + " GROUP BY s.id, s.doc_date, s.num, s.customer ORDER BY s.doc_date DESC", params).fetchall()
+        rows = [dict(r) for r in db.execute(q + " GROUP BY s.id, s.doc_date, s.num, s.customer ORDER BY s.doc_date DESC", params).fetchall()]
+        # Coerce Decimal/None to float so Jinja formatting and Python arithmetic work uniformly
+        for r in rows:
+            r['revenue'] = float(r['revenue'] or 0)
+            r['cost']    = float(r['cost'] or 0)
         total_rev = sum(r['revenue'] for r in rows)
         total_cost = sum(r['cost'] for r in rows)
     return render_template('report_profit.html', rows=rows, total_rev=total_rev,
