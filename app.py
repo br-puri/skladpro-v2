@@ -3433,7 +3433,7 @@ def report_profit():
     date_to = request.args.get('to', '')
     customer_filter = request.args.get('customer', '')
     with get_db() as db:
-        customers = [r[0] for r in db.execute(
+        customers = [r['customer'] for r in db.execute(
             "SELECT DISTINCT customer FROM sales WHERE status='completed' AND customer IS NOT NULL AND customer!='' ORDER BY customer"
         ).fetchall()]
         q = """SELECT s.doc_date, s.num, s.customer,
