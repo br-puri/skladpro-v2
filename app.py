@@ -1086,7 +1086,6 @@ def catalog_pdf_download():
     def _category_banner(cat_name):
         """Gold rounded banner at the top-left of a category page."""
         p = Paragraph(cat_name.upper(), s_cat_banner)
-        p._toc_entry = cat_name  # register with TOC via afterFlowable
         banner = Table([[p]], colWidths=[UW * 0.55], rowHeights=[15*mm])
         banner.setStyle(TableStyle([
             ('BACKGROUND',   (0,0), (-1,-1), GOLD),
@@ -1094,6 +1093,8 @@ def catalog_pdf_download():
             ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
             ('ROUNDEDCORNERS',[0, 0, 18, 0]),
         ]))
+        # Attach TOC entry to the outer flowable that afterFlowable actually sees
+        banner._toc_entry = cat_name
         return banner
 
     def _product_block(p):
