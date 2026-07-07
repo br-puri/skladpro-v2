@@ -178,6 +178,8 @@
 
 /* card body */
 .cat-body{padding:12px 14px 14px;display:flex;flex-direction:column;flex:1}
+.print-spec{display:none}
+.print-toc{display:none}
 .cat-name{font-size:13.5px;font-weight:700;color:#0f172a;line-height:1.35;margin-bottom:3px}
 .cat-sku{font-family:'SF Mono',monospace;font-size:10px;color:#94a3b8;letter-spacing:.04em;margin-bottom:10px}
 
@@ -263,6 +265,39 @@
   .pc-bigtitle small{display:block;font-size:20pt;font-weight:400;color:rgba(255,255,255,.8);margin-top:3mm}
   .pc-meta{font-size:9pt;color:rgba(255,255,255,.75);line-height:1.7;padding-top:8mm;border-top:1px solid rgba(255,255,255,.2)}
   .pc-meta strong{color:#fff;font-weight:700}
+  /* ── Contents page ────────────────────────────────────────────── */
+  .print-toc{
+    display:block!important;width:210mm;min-height:297mm;
+    margin:0;padding:0 20mm 20mm 20mm;box-sizing:border-box;
+    page-break-after:always;break-after:page;background:#fff;
+  }
+  .print-toc-banner{
+    background:#d9a024!important;color:#fff!important;
+    font-size:18pt;font-weight:700;letter-spacing:.04em;
+    padding:6mm 12mm 6mm 20mm;margin:0 -20mm 22mm -20mm;
+    border-radius:0 0 10mm 0;width:65%;
+  }
+  .print-toc-head{
+    display:flex;justify-content:space-between;
+    font-size:8pt;color:#94a3b8;font-weight:600;letter-spacing:.08em;
+    padding-bottom:3mm;margin-bottom:4mm;
+  }
+  .print-toc-list{padding:0}
+  .print-toc-row{
+    display:flex;align-items:baseline;gap:12mm;
+    padding:4mm 0;border-bottom:1px solid #d9a024;
+  }
+  .print-toc-num{
+    font-size:14pt;font-weight:700;color:#d9a024;
+    width:22mm;flex-shrink:0;text-decoration:none;
+  }
+  .print-toc-num::after{
+    content:target-counter(attr(href), page);
+  }
+  .print-toc-name{
+    font-size:11pt;font-weight:600;color:#1e293b;letter-spacing:.05em;
+  }
+
   .print-header{
     display:flex!important;align-items:center;justify-content:space-between;
     padding-bottom:4mm;margin-bottom:5mm;border-bottom:2px solid #d9a024;
@@ -270,28 +305,77 @@
   .print-header img{height:9mm;max-width:30mm;object-fit:contain}
   .print-header-right{font-size:8.5pt;color:#64748b;text-align:right;line-height:1.6}
   .print-header-right strong{color:#0f172a;font-weight:600}
-  .cat-section{page-break-inside:auto;margin-bottom:8mm}
+  /* ── Magnum-style trade catalogue layout ─────────────────────────── */
+  .cat-section{page-break-before:always;break-before:page;page-break-inside:auto;margin-bottom:6mm;margin-left:-10mm;margin-right:-10mm}
+  .cat-section:first-of-type{page-break-before:auto;break-before:auto}
+  .print-header{display:none!important}
   .cat-section-header{
-    page-break-after:avoid;background:#c08e1c!important;color:#fff!important;
-    padding:1.5mm 8mm;border-radius:0;margin-bottom:3mm;
+    page-break-after:avoid;
+    background:#d9a024!important;color:#fff!important;
+    padding:5mm 10mm 5mm 20mm;
+    border-radius:0 0 8mm 0;
+    margin-bottom:6mm;
+    width:70%;
+    box-shadow:none;
   }
-  .cat-section-title{color:#fff!important;font-size:10pt}
-  .cat-section-count{background:rgba(255,255,255,.2)!important;color:#fff!important}
-  .cat-section-line{display:none}
-  .cat-subsection{margin-bottom:5mm;page-break-inside:auto}
-  .cat-subheader{page-break-after:avoid;break-after:avoid}
-  .cat-grid{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:5mm!important}
-  .cat-card{break-inside:avoid;box-shadow:none!important;border:1px solid #e2e8f0!important;transform:none!important;border-radius:4pt!important}
-  .cat-img{width:100%!important;height:52mm!important;aspect-ratio:unset!important}
-  .cat-img img{padding:3mm}
-  .cat-body{padding:2.5mm 3mm}
-  .cat-name{font-size:8pt;margin-bottom:.5mm}
-  .cat-sku{font-size:6.5pt;margin-bottom:1mm}
-  .cat-info{display:none!important}
-  .cat-price-area{padding-top:2mm}
-  .cat-price{font-size:11pt}
-  .cat-price-unit{font-size:7pt}
-  .cat-ctn{font-size:7pt}
+  .cat-section-title{color:#fff!important;font-size:14pt;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+  .cat-section-count{display:none!important}
+  .cat-section-line{display:none!important}
+  .cat-subsection{margin:0 10mm 4mm;page-break-inside:auto}
+  .cat-subheader{page-break-after:avoid;break-after:avoid;margin:4mm 0 3mm}
+  .cat-subtitle-text{font-size:10pt;font-weight:600;color:#d9a024;text-transform:uppercase;letter-spacing:.05em}
+  .cat-subcount{display:none!important}
+
+  /* Single-column stack of horizontal product blocks */
+  .cat-grid{display:block!important;margin:0!important}
+  .cat-card{
+    display:flex!important;flex-direction:row!important;align-items:stretch!important;
+    break-inside:avoid;page-break-inside:avoid;
+    box-shadow:none!important;border:none!important;
+    transform:none!important;border-radius:0!important;
+    margin-bottom:5mm!important;background:transparent!important;
+    padding:0 10mm 0 10mm;
+  }
+  .cat-img{
+    width:36mm!important;height:36mm!important;aspect-ratio:unset!important;
+    flex:0 0 36mm!important;border:none!important;background:transparent!important;
+    border-radius:0!important;
+  }
+  .cat-img img{
+    width:100%!important;height:100%!important;
+    object-fit:contain!important;padding:0!important;background:transparent!important;
+  }
+  .cat-img-placeholder{color:#e2e8f0!important}
+  .cat-stock,.cat-overlay{display:none!important}
+  .cat-body{
+    flex:1!important;padding:0 0 0 6mm!important;
+    display:flex!important;flex-direction:column!important;justify-content:flex-start!important;
+  }
+  .cat-name{
+    font-size:10pt!important;font-weight:700!important;color:#1e293b!important;
+    letter-spacing:.01em;text-transform:uppercase;margin-bottom:1.5mm!important;
+    line-height:1.2;
+  }
+  .cat-sku,.cat-info,.cat-price-area{display:none!important}
+
+  /* Show and style the Magnum-style spec table on print */
+  .print-spec{
+    display:table!important;width:100%;border-collapse:collapse;
+    font-size:8pt;margin-top:.5mm;
+  }
+  .print-spec thead th{
+    background:#f8fafc;color:#94a3b8;
+    font-size:7pt;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+    padding:1.5mm 3mm;text-align:left;
+    border-bottom:1px solid #e2e8f0;
+  }
+  .print-spec thead th:last-child{text-align:right}
+  .print-spec tbody td{
+    padding:2mm 3mm;font-size:9pt;color:#1e293b;
+    border-bottom:1px solid #f1f5f9;
+  }
+  .print-spec-code{font-weight:700}
+  .print-spec-carton{text-align:right;color:#475569}
   .print-last-page{
     display:flex!important;page-break-before:always;
     width:210mm;min-height:297mm;margin:0;padding:20mm;
@@ -320,6 +404,20 @@
       {% set _reg=[co.get('co_address'),co.get('co_city'),co.get('co_postcode')]|select|list %}
       {% if _reg %}<br><span style="opacity:.75">Registered ·</span> <strong>{{ _reg|join(', ') }}</strong>{% endif %}
       {% if co.get('co_phone') %}&nbsp;· <strong>{{ co['co_phone'] }}</strong>{% endif %}
+    </div>
+  </div>
+
+  <!-- PRINT contents page -->
+  <div class="print-toc">
+    <div class="print-toc-banner">CONTENTS</div>
+    <div class="print-toc-list">
+      <div class="print-toc-head"><span>PAGE</span><span></span></div>
+      {% for cat in categories %}
+      <div class="print-toc-row">
+        <a class="print-toc-num" href="#cat-{{ loop.index }}"></a>
+        <span class="print-toc-name">{{ cat|upper }}</span>
+      </div>
+      {% endfor %}
     </div>
   </div>
 
@@ -399,7 +497,7 @@
   <!-- Products body -->
   <div id="catalogBody">
   {% for cat in categories %}{% set subgroups = cat_groups.get(cat, {}) %}
-  <div class="cat-section" data-category="{{ cat }}">
+  <div class="cat-section" id="cat-{{ loop.index }}" data-category="{{ cat }}">
     <div class="cat-section-header">
       <div class="cat-section-title">{{ cat }}</div>
       <div class="cat-section-count">{{ subgroups.values()|map('length')|sum }} items</div>
@@ -453,6 +551,21 @@
           <div class="cat-body">
             <div class="cat-name">{{ p['name'] }}</div>
             <div class="cat-sku">{{ p['sku'] or '—' }}</div>
+
+            <!-- Print-only Magnum-style spec table -->
+            <table class="print-spec">
+              <thead>
+                <tr><th>CODE</th><th>CARTON</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="print-spec-code">{{ p['sku'] or '—' }}</td>
+                  <td class="print-spec-carton">
+                    {% if p['carton_qty'] %}{{ p['carton_qty']|int }} {{ p['unit'] or 'pcs' }}/ctn{% else %}—{% endif %}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
             {% set tags = [] %}
             {% if p['barcode'] %}{% set _ = tags.append(p['barcode']) %}{% endif %}
