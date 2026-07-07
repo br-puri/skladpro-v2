@@ -708,6 +708,7 @@ def settings_page():
     if request.method == 'POST':
         fields = ['co_name', 'co_company', 'co_address', 'co_address2', 'co_city', 'co_postcode',
                   'co_country', 'co_vat', 'co_email', 'co_phone',
+                  'co_tagline', 'co_subtitle',
                   'co_delivery_address', 'co_delivery_address2', 'co_delivery_city', 'co_delivery_postcode', 'co_delivery_country',
                   'co_bank_name', 'co_sort_code', 'co_account_number',
                   'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_tls']
@@ -993,35 +994,50 @@ def catalog_pdf_download():
     story = []
 
     # ── Cover ─────────────────────────────────────────────────────────────────
-    # Gold full-bleed page with logo centered, title, and address at bottom
+    # Magnum-inspired: white page with big logo/name centered, tagline, then
+    # slim "PRODUCT CATALOGUE" label at the bottom above a gold accent strip.
+    s_cover_brand    = ps('cv_br', fontSize=52, fontName='Helvetica-Bold', textColor=GOLD, leading=58, alignment=TA_CENTER, letterSpacing=1.5)
+    s_cover_tagline  = ps('cv_tg', fontSize=13, fontName='Helvetica-Bold', textColor=DARK, leading=17, alignment=TA_CENTER, letterSpacing=3)
+    s_cover_subitalic= ps('cv_si', fontSize=10, fontName='Helvetica-Oblique', textColor=SLATE, leading=14, alignment=TA_CENTER)
+    s_cover_bottom   = ps('cv_bt', fontSize=12, fontName='Helvetica-Bold', textColor=DARK, leading=15, alignment=TA_CENTER, letterSpacing=5)
+
+    tagline  = (co.get('co_tagline')  or 'A TRUSTED NAME IN QUALITY PRODUCTS').upper()
+    subtitle = co.get('co_subtitle')  or 'Committed to High Quality, Outstanding Service & Competitive Prices'
+
     cover_rows = []
-    cover_rows.append([Spacer(1, 40*mm)])
+    cover_rows.append([Spacer(1, 55*mm)])
+
+    # Logo (bigger) or company name as fallback
     if logo_path:
         try:
             pil = PILImage.open(logo_path)
             lw, lh = pil.size
-            ratio = min(80*mm / lw, 30*mm / lh)
-            logo_img = Image(logo_path, width=lw*ratio, height=lh*ratio)
-            cover_rows.append([logo_img])
+            ratio = min(120*mm / lw, 55*mm / lh)
+            cover_rows.append([Image(logo_path, width=lw*ratio, height=lh*ratio)])
         except Exception:
-            pass
+            cover_rows.append([Paragraph(co_name.upper(), s_cover_brand)])
     else:
-        cover_rows.append([Paragraph(co_name.upper(), s_cover_title)])
+        cover_rows.append([Paragraph(co_name.upper(), s_cover_brand)])
 
-    cover_rows.append([Spacer(1, 30*mm)])
-    cover_rows.append([Paragraph('PRODUCT CATALOGUE', s_cover_title)])
-    cover_rows.append([Spacer(1, 4*mm)])
-    cover_rows.append([Paragraph(str(date.today().year), s_cover_year)])
-    cover_rows.append([Spacer(1, 1)])  # push address to bottom
-    cover_rows.append([Paragraph(address.upper() if address else '', s_cover_addr)])
+    cover_rows.append([Spacer(1, 12*mm)])
+    # Thin gold rule
+    from reportlab.platypus import HRFlowable
+    cover_rows.append([HRFlowable(width=100*mm, thickness=0.7, color=GOLD, spaceBefore=0, spaceAfter=0)])
     cover_rows.append([Spacer(1, 8*mm)])
-    cover_rows.append([Paragraph(today_str, s_cover_sub)])
+    cover_rows.append([Paragraph(tagline, s_cover_tagline)])
+    cover_rows.append([Spacer(1, 5*mm)])
+    cover_rows.append([Paragraph(subtitle, s_cover_subitalic)])
+    # Push the bottom content down
+    cover_rows.append([Spacer(1, 90*mm)])
+    cover_rows.append([Paragraph('PRODUCT CATALOGUE', s_cover_bottom)])
+    cover_rows.append([Spacer(1, 3*mm)])
+    cover_rows.append([Paragraph(str(date.today().year), s_cover_subitalic)])
 
     cover_tbl = Table(cover_rows, colWidths=[W])
     cover_tbl.setStyle(TableStyle([
-        ('BACKGROUND',   (0,0), (-1,-1), GOLD),
+        ('BACKGROUND',   (0,0), (-1,-1), colors.white),
         ('ALIGN',        (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
+        ('VALIGN',       (0,0), (-1,-1), 'TOP'),
         ('LEFTPADDING',  (0,0), (-1,-1), 20*mm),
         ('RIGHTPADDING', (0,0), (-1,-1), 20*mm),
         ('TOPPADDING',   (0,0), (-1,-1), 0),
@@ -1045,26 +1061,38 @@ def catalog_pdf_download():
         ('ROUNDEDCORNERS',[0, 0, 20, 0]),
     ]))
     story.append(toc_banner)
-    story.append(Spacer(1, 15*mm))
+    story.append(Spacer(1, 20*mm))
 
-    # Header row: PAGE
+    # Column header
     story.append(Paragraph('PAGE', s_toc_head))
-    story.append(Spacer(1, 3*mm))
+    story.append(Spacer(1, 5*mm))
 
+    # TOC with per-row gold underline and roomier leading
     toc = TableOfContents()
     toc.levelStyles = [
-        ps('toc_lvl', fontSize=11, fontName='Helvetica-Bold', textColor=DARK,
-           leftIndent=0, firstLineIndent=0, spaceBefore=8, leading=14,
-           letterSpacing=0.5),
+        ps('toc_lvl',
+           fontSize=13, fontName='Helvetica-Bold', textColor=DARK,
+           leftIndent=0, firstLineIndent=0,
+           spaceBefore=6, spaceAfter=8,
+           leading=18,
+           letterSpacing=1,
+           borderPadding=(0, 0, 6, 0),
+           # Gold underline under each entry
+           underlineWidth=0.4, underlineOffset=-8,
+        ),
     ]
+    # Fallback: some ReportLab versions ignore underline props on TOC style,
+    # so we also draw a manual bottom border via ParagraphStyle borderColor.
+    toc.levelStyles[0].__dict__.update(borderColor=GOLD, borderWidth=0)
     story.append(toc)
     story.append(PageBreak())
 
     # ── Category pages ───────────────────────────────────────────────────────
     story.append(NextPageTemplate('normal'))
 
-    IMG_W = 36*mm
-    IMG_H = 36*mm
+    IMG_W = 45*mm
+    IMG_H = 45*mm
+    TINT = colors.HexColor('#fbf3dc')  # very light gold tint for spec header
 
     def _img_cell(photo):
         img_path = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products', photo) if photo else ''
@@ -1097,10 +1125,11 @@ def catalog_pdf_download():
         banner._toc_entry = cat_name
         return banner
 
-    def _product_block(p):
-        """Horizontal product block: image left, name + spec table right."""
+    def _product_block(p, is_last):
+        """Horizontal product block: image left, name + spec table right.
+        Draws a thin horizontal rule at the bottom (unless it's the last of the group)."""
         img = _img_cell(p.get('photo') or '')
-        # Spec table with CODE / CARTON columns
+        # Spec table with CODE / CARTON columns (tinted header row)
         code = p.get('sku') or '—'
         if p.get('carton_qty'):
             carton = f'{int(p["carton_qty"])} {p.get("unit") or "pcs"}/ctn'
@@ -1111,23 +1140,24 @@ def catalog_pdf_download():
                 [Paragraph('CODE', s_tbl_head), Paragraph('CARTON', s_tbl_head)],
                 [Paragraph(code, s_tbl_code),   Paragraph(carton, s_tbl_carton)],
             ],
-            colWidths=[(UW - IMG_W - 6*mm) * 0.5, (UW - IMG_W - 6*mm) * 0.5]
+            colWidths=[(UW - IMG_W - 8*mm) * 0.5, (UW - IMG_W - 8*mm) * 0.5]
         )
         spec_tbl.setStyle(TableStyle([
-            ('BACKGROUND',    (0,0), (-1,0), LIGHT),
-            ('LINEBELOW',     (0,0), (-1,0), 0.5, LINE),
-            ('LINEBELOW',     (0,1), (-1,1), 0.5, LINE),
+            ('BACKGROUND',    (0,0), (-1,0), TINT),          # gold-tinted header row
+            ('LINEBELOW',     (0,0), (-1,0), 0.6, GOLD),
             ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
-            ('LEFTPADDING',   (0,0), (-1,-1), 4),
-            ('RIGHTPADDING',  (0,0), (-1,-1), 4),
-            ('TOPPADDING',    (0,0), (-1,-1), 3),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING',   (0,0), (-1,-1), 8),
+            ('RIGHTPADDING',  (0,0), (-1,-1), 8),
+            ('TOPPADDING',    (0,0), (-1,0),  5),
+            ('BOTTOMPADDING', (0,0), (-1,0),  5),
+            ('TOPPADDING',    (0,1), (-1,1),  6),
+            ('BOTTOMPADDING', (0,1), (-1,1),  6),
         ]))
         info_cell = Table(
             [[Paragraph(p.get('name') or '', s_prod_name)],
-             [Spacer(1, 2*mm)],
+             [Spacer(1, 3*mm)],
              [spec_tbl]],
-            colWidths=[UW - IMG_W - 6*mm]
+            colWidths=[UW - IMG_W - 8*mm]
         )
         info_cell.setStyle(TableStyle([
             ('LEFTPADDING',  (0,0), (-1,-1), 0),
@@ -1136,18 +1166,20 @@ def catalog_pdf_download():
             ('BOTTOMPADDING',(0,0), (-1,-1), 0),
         ]))
         block = Table([[img, info_cell]], colWidths=[IMG_W, UW - IMG_W])
-        block.setStyle(TableStyle([
+        block_style = [
             ('VALIGN',       (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING',  (0,0), (0,0),    0),
-            ('RIGHTPADDING', (0,0), (0,0),    6*mm),
+            ('RIGHTPADDING', (0,0), (0,0),    8*mm),
             ('LEFTPADDING',  (1,0), (1,0),    0),
             ('RIGHTPADDING', (1,0), (1,0),    0),
-            ('TOPPADDING',   (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING',(0,0), (-1,-1), 0),
-        ]))
-        # Wrap with page-break-inside avoid using KeepTogether
+            ('TOPPADDING',   (0,0), (-1,-1), 3*mm),
+            ('BOTTOMPADDING',(0,0), (-1,-1), 3*mm),
+        ]
+        if not is_last:
+            block_style.append(('LINEBELOW', (0,0), (-1,-1), 0.4, LINE))
+        block.setStyle(TableStyle(block_style))
         from reportlab.platypus import KeepTogether
-        return KeepTogether([block, Spacer(1, 5*mm)])
+        return KeepTogether([block])
 
     first_category = True
     for cat in categories:
@@ -1169,8 +1201,8 @@ def catalog_pdf_download():
             if sub:
                 story.append(Paragraph(sub.upper(), s_sub_head))
                 story.append(Spacer(1, 3*mm))
-            for prod in sub_prods:
-                story.append(_product_block(prod))
+            for idx, prod in enumerate(sub_prods):
+                story.append(_product_block(prod, is_last=(idx == len(sub_prods) - 1)))
 
     # multiBuild does two passes so TOC page numbers resolve correctly
     doc.multiBuild(story)
