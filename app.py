@@ -1312,11 +1312,12 @@ def add_category():
     if name:
         with get_db() as db:
             try:
-                cur = db.execute("INSERT INTO categories(name,description,parent_id) VALUES(%s,%s,%s)",
+                cur = db.execute("INSERT INTO categories(name,description,parent_id) VALUES(%s,%s,%s) RETURNING id",
                                  (name, request.form.get('description', ''), parent_id))
+                new_id = cur.fetchone()['id']
                 db.commit()
                 if is_ajax:
-                    return jsonify({'ok': True, 'id': cur.lastrowid, 'name': name,
+                    return jsonify({'ok': True, 'id': new_id, 'name': name,
                                     'parent_id': int(parent_id) if parent_id else None})
                 flash('Category added', 'success')
             except Exception:
@@ -1414,10 +1415,10 @@ def add_product():
         fields = _product_fields(request.form)
         with get_db() as db:
             cur = db.execute(
-                "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 fields + (photo or '',)
             )
-            pid = cur.lastrowid
+            pid = cur.fetchone()['id']
             for w in warehouses:
                 db.execute("INSERT INTO stock VALUES(%s,%s,%s)", (pid, w['id'], float(request.form.get(f'stock_{w["id"]}', 0))))
             db.commit()
@@ -1461,7 +1462,7 @@ def duplicate_product(pid):
     with get_db() as db:
         p = db.execute("SELECT * FROM products WHERE id=%s", (pid,)).fetchone()
         cur = db.execute(
-            "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             ('', p['barcode'], p['name'] + ' (Copy)', p['category'], p['subcategory'] or '', p['unit'], p['cost'], p['price'],
              p['min_stock'], p['description'], p['length'], p['width'], p['height'],
              p['weight'], p['cbm'], p['carton_qty'],
@@ -1469,8 +1470,8 @@ def duplicate_product(pid):
              (dict(p).get('china_price') or 0),
              (dict(p).get('china_currency') or 'RMB'),
              p['photo']))
+        new_id = cur.fetchone()['id']
         db.commit()
-        new_id = cur.lastrowid
     flash('Product duplicated — update the name and SKU as needed', 'success')
     return redirect(url_for('edit_product', pid=new_id))
 
@@ -1683,9 +1684,9 @@ def add_writeoff():
                 for e in errors: flash(e, 'error')
                 return render_template('writeoff_form.html', warehouses=warehouses, products=products, today=date.today().isoformat())
             num = next_num('WO', 'writeoffs')
-            cur = db.execute("INSERT INTO writeoffs(num,doc_date,warehouse_id,reason,notes,total_cost) VALUES(%s,%s,%s,%s,%s,0)",
+            cur = db.execute("INSERT INTO writeoffs(num,doc_date,warehouse_id,reason,notes,total_cost) VALUES(%s,%s,%s,%s,%s,0) RETURNING id",
                 (num, request.form['doc_date'], wid, request.form.get('reason',''), request.form.get('notes','')))
-            wo_id = cur.lastrowid
+            wo_id = cur.fetchone()['id']
             total_cost = 0
             for pid, qty in zip(pids, qtys):
                 if pid and float(qty) > 0:
@@ -1726,9 +1727,9 @@ def add_inventory_count():
         if request.method == 'POST':
             wid = int(request.form['warehouse_id'])
             num = next_num('INV', 'inventory_counts')
-            cur = db.execute("INSERT INTO inventory_counts(num,doc_date,warehouse_id,status,notes) VALUES(%s,%s,%s,%s,%s)",
+            cur = db.execute("INSERT INTO inventory_counts(num,doc_date,warehouse_id,status,notes) VALUES(%s,%s,%s,%s,%s) RETURNING id",
                 (num, request.form['doc_date'], wid, 'draft', request.form.get('notes','')))
-            count_id = cur.lastrowid
+            count_id = cur.fetchone()['id']
             prods = db.execute("SELECT p.id, COALESCE(s.qty,0) as qty FROM products p LEFT JOIN stock s ON s.product_id=p.id AND s.warehouse_id=%s", (wid,)).fetchall()
             for p in prods:
                 db.execute("INSERT INTO inventory_count_items(count_id,product_id,qty_system,qty_actual) VALUES(%s,%s,%s,%s)",
@@ -1792,8 +1793,8 @@ def warehouses():
 def add_warehouse():
     if request.method == 'POST':
         with get_db() as db:
-            cur = db.execute("INSERT INTO warehouses(name,location) VALUES(%s,%s)", (request.form['name'], request.form.get('location','')))
-            wid = cur.lastrowid
+            cur = db.execute("INSERT INTO warehouses(name,location) VALUES(%s,%s) RETURNING id", (request.form['name'], request.form.get('location','')))
+            wid = cur.fetchone()['id']
             for p in db.execute("SELECT id FROM products").fetchall():
                 db.execute("INSERT INTO stock VALUES(%s,%s,0) ON CONFLICT DO NOTHING", (p['id'], wid))
             db.commit()
@@ -2026,11 +2027,11 @@ def add_purchase():
             wid         = int(request.form['warehouse_id'])
             supplier_id = request.form.get('supplier_id') or None
             cur = db.execute(
-                "INSERT INTO purchases(num,doc_date,supplier,supplier_id,warehouse_id,subtotal,total,tax_pct,tax_amount,discount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO purchases(num,doc_date,supplier,supplier_id,warehouse_id,subtotal,total,tax_pct,tax_amount,discount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 (num, request.form['doc_date'], request.form['supplier'], supplier_id, wid,
                  subtotal, total, tax_pct, tax_amount, discount,
                  request.form.get('currency','GBP'), 'received', request.form.get('notes','')))
-            purchase_id = cur.lastrowid
+            purchase_id = cur.fetchone()['id']
             for pid, qty, price in zip(pids, qtys, prices):
                 if pid and float(qty or 0) > 0:
                     db.execute("INSERT INTO purchase_items(purchase_id,product_id,qty,price) VALUES(%s,%s,%s,%s)",
@@ -2151,10 +2152,10 @@ def add_supplier_order():
             num = next_num('SO', 'supplier_orders')
             supplier_id = request.form.get('supplier_id') or None
             cur = db.execute(
-                "INSERT INTO supplier_orders(num,doc_date,supplier,supplier_id,notes,status) VALUES(%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO supplier_orders(num,doc_date,supplier,supplier_id,notes,status) VALUES(%s,%s,%s,%s,%s,%s) RETURNING id",
                 (num, request.form['doc_date'], request.form.get('supplier',''),
                  supplier_id, request.form.get('notes',''), 'draft'))
-            order_id = cur.lastrowid
+            order_id = cur.fetchone()['id']
             _save_supplier_order_items(db, order_id)
             db.commit()
             flash(f'Order {num} created', 'success')
@@ -3000,11 +3001,11 @@ def add_quote():
             num = next_num('QUO', 'quotes')
             customer_id = request.form.get('customer_id') or None
             cur = db.execute(
-                "INSERT INTO quotes(num,doc_date,expiry_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO quotes(num,doc_date,expiry_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 (num, request.form['doc_date'], request.form.get('expiry_date',''),
                  request.form['customer'], customer_id, subtotal, total, global_disc,
                  tax_pct, tax_amount, request.form.get('currency','GBP'), 'draft', request.form.get('notes','')))
-            qid = cur.lastrowid
+            qid = cur.fetchone()['id']
             for pid, wid, qty, price, disc in zip(pids, wids, qtys, prices, disc_pcts):
                 if pid and float(qty) > 0:
                     db.execute("INSERT INTO quote_items(quote_id,product_id,warehouse_id,qty,price,discount_pct) VALUES(%s,%s,%s,%s,%s,%s)",
@@ -3102,10 +3103,10 @@ def convert_quote(qid):
             return redirect(url_for('view_quote', qid=qid))
         num = next_num('INV', 'sales')
         cur = db.execute(
-            "INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (num, date.today().isoformat(), q['customer'], q['customer_id'], q['subtotal'], q['total'],
              q['discount'], q['tax_pct'], q['tax_amount'], q['currency'], 'completed', f'Converted from {q["num"]}'))
-        sale_id = cur.lastrowid
+        sale_id = cur.fetchone()['id']
         for item in items:
             db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct) VALUES(%s,%s,%s,%s,%s,%s)",
                 (sale_id, item['product_id'], item['warehouse_id'], item['qty'], item['price'], item['discount_pct']))
@@ -3694,13 +3695,13 @@ def add_credit_note():
             wid = request.form.get('warehouse_id') or None
             customer_id = request.form.get('customer_id') or None
             cur = db.execute(
-                "INSERT INTO credit_notes(num,doc_date,sale_id,customer,customer_id,warehouse_id,total,status,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s)",
+                "INSERT INTO credit_notes(num,doc_date,sale_id,customer,customer_id,warehouse_id,total,status,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s) RETURNING id",
                 (num, request.form['doc_date'],
                  request.form.get('sale_id') or None,
                  request.form['customer'], customer_id, wid, total,
                  request.form.get('notes', ''),
                  datetime.utcnow().isoformat()))
-            cn_id = cur.lastrowid
+            cn_id = cur.fetchone()['id']
             for pid, qty, price in items_data:
                 pname = db.execute("SELECT name FROM products WHERE id=%s", (pid,)).fetchone()['name']
                 db.execute("INSERT INTO credit_note_items(credit_note_id,product_id,qty,price,product_name) VALUES(%s,%s,%s,%s,%s)",
@@ -3803,13 +3804,13 @@ def add_debit_note():
             wid = request.form.get('warehouse_id') or None
             supplier_id = request.form.get('supplier_id') or None
             cur = db.execute(
-                "INSERT INTO debit_notes(num,doc_date,purchase_id,supplier,supplier_id,warehouse_id,total,status,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s)",
+                "INSERT INTO debit_notes(num,doc_date,purchase_id,supplier,supplier_id,warehouse_id,total,status,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s) RETURNING id",
                 (num, request.form['doc_date'],
                  request.form.get('purchase_id') or None,
                  request.form['supplier'], supplier_id, wid, total,
                  request.form.get('notes', ''),
                  datetime.utcnow().isoformat()))
-            dn_id = cur.lastrowid
+            dn_id = cur.fetchone()['id']
             for pid, qty, price in items_data:
                 pname = db.execute("SELECT name FROM products WHERE id=%s", (pid,)).fetchone()['name']
                 db.execute("INSERT INTO debit_note_items(debit_note_id,product_id,qty,price,product_name) VALUES(%s,%s,%s,%s,%s)",
