@@ -1411,26 +1411,20 @@ def add_product():
         cats = db.execute("SELECT * FROM categories WHERE parent_id IS NULL ORDER BY name").fetchall()
         subcats = db.execute("SELECT * FROM categories WHERE parent_id IS NOT NULL ORDER BY name").fetchall()
     if request.method == 'POST':
-        try:
-            photo = _save_photo(request.files.get('photo'))
-            fields = _product_fields(request.form)
-            with get_db() as db:
-                cur = db.execute(
-                    "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-                    fields + (photo or '',)
-                )
-                pid = cur.fetchone()['id']
-                for w in warehouses:
-                    db.execute("INSERT INTO stock VALUES(%s,%s,%s)", (pid, w['id'], float(request.form.get(f'stock_{w["id"]}', 0))))
-                db.commit()
-            flash('Product added', 'success')
-            next_url = request.form.get('next') or url_for('products')
-            return redirect(next_url)
-        except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            app.logger.error("add_product failed:\n%s", tb)
-            return f"<pre>Add product failed: {type(e).__name__}: {e}\n\n{tb}</pre>", 500
+        photo = _save_photo(request.files.get('photo'))
+        fields = _product_fields(request.form)
+        with get_db() as db:
+            cur = db.execute(
+                "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                fields + (photo or '',)
+            )
+            pid = cur.fetchone()['id']
+            for w in warehouses:
+                db.execute("INSERT INTO stock VALUES(%s,%s,%s)", (pid, w['id'], float(request.form.get(f'stock_{w["id"]}', 0))))
+            db.commit()
+        flash('Product added', 'success')
+        next_url = request.form.get('next') or url_for('products')
+        return redirect(next_url)
     next_url = request.args.get('next') or request.referrer or url_for('products')
     return render_template('product_form.html', product=None, warehouses=warehouses, stock={}, cats=cats, subcats=subcats, next_url=next_url)
 
