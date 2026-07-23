@@ -796,7 +796,7 @@ def products():
         base = "SELECT * FROM products WHERE 1=1"
         params = []
         if q:
-            base += " AND (name LIKE %s OR sku LIKE %s OR barcode LIKE %s)"
+            base += " AND (name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s)"
             params += [f'%{q}%', f'%{q}%', f'%{q}%']
         if cat:
             base += " AND category=%s"
@@ -1826,7 +1826,7 @@ def customers():
         base = "SELECT * FROM contacts WHERE 1=1"
         params = []
         if q:
-            base += " AND (name LIKE %s OR company LIKE %s OR email LIKE %s OR phone LIKE %s OR postcode LIKE %s OR city LIKE %s OR address LIKE %s)"
+            base += " AND (name ILIKE %s OR company ILIKE %s OR email ILIKE %s OR phone ILIKE %s OR postcode ILIKE %s OR city ILIKE %s OR address ILIKE %s)"
             like = f'%{q}%'
             params += [like, like, like, like, like, like, like]
         if ctype:
@@ -4974,67 +4974,67 @@ def global_search():
         with get_db() as db:
             results['products'] = db.execute(
                 "SELECT id, sku, name, category, unit FROM products "
-                "WHERE name LIKE %s OR sku LIKE %s OR barcode LIKE %s ORDER BY name LIMIT 20",
+                "WHERE name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s ORDER BY name LIMIT 20",
                 (like, like, like)
             ).fetchall()
 
             results['contacts'] = db.execute(
                 "SELECT id, name, type, email, phone FROM contacts "
-                "WHERE name LIKE %s OR email LIKE %s OR phone LIKE %s ORDER BY name LIMIT 20",
+                "WHERE name ILIKE %s OR email ILIKE %s OR phone ILIKE %s ORDER BY name LIMIT 20",
                 (like, like, like)
             ).fetchall()
 
             results['sales'] = db.execute(
                 "SELECT s.id, s.num, s.doc_date, s.status, s.total, c.name AS contact_name "
                 "FROM sales s LEFT JOIN contacts c ON s.customer_id=c.id "
-                "WHERE s.num LIKE %s OR s.customer LIKE %s OR c.name LIKE %s ORDER BY s.doc_date DESC LIMIT 20",
+                "WHERE s.num ILIKE %s OR s.customer ILIKE %s OR c.name ILIKE %s ORDER BY s.doc_date DESC LIMIT 20",
                 (like, like, like)
             ).fetchall()
 
             results['purchases'] = db.execute(
                 "SELECT p.id, p.num, p.doc_date, p.status, p.total, c.name AS contact_name "
                 "FROM purchases p LEFT JOIN contacts c ON p.supplier_id=c.id "
-                "WHERE p.num LIKE %s OR p.supplier LIKE %s OR c.name LIKE %s ORDER BY p.doc_date DESC LIMIT 20",
+                "WHERE p.num ILIKE %s OR p.supplier ILIKE %s OR c.name ILIKE %s ORDER BY p.doc_date DESC LIMIT 20",
                 (like, like, like)
             ).fetchall()
 
             results['quotes'] = db.execute(
                 "SELECT q.id, q.num, q.doc_date, q.status, q.total, c.name AS contact_name "
                 "FROM quotes q LEFT JOIN contacts c ON q.customer_id=c.id "
-                "WHERE q.num LIKE %s OR q.customer LIKE %s OR c.name LIKE %s ORDER BY q.doc_date DESC LIMIT 20",
+                "WHERE q.num ILIKE %s OR q.customer ILIKE %s OR c.name ILIKE %s ORDER BY q.doc_date DESC LIMIT 20",
                 (like, like, like)
             ).fetchall()
 
             results['writeoffs'] = db.execute(
                 "SELECT w.id, w.num, w.doc_date, w.reason, wh.name AS wh_name "
                 "FROM writeoffs w LEFT JOIN warehouses wh ON w.warehouse_id=wh.id "
-                "WHERE w.num LIKE %s OR w.reason LIKE %s ORDER BY w.doc_date DESC LIMIT 20",
+                "WHERE w.num ILIKE %s OR w.reason ILIKE %s ORDER BY w.doc_date DESC LIMIT 20",
                 (like, like)
             ).fetchall()
 
             results['credit_notes'] = db.execute(
                 "SELECT cn.id, cn.num, cn.doc_date, cn.status, cn.total, c.name AS contact_name "
                 "FROM credit_notes cn LEFT JOIN contacts c ON cn.customer_id=c.id "
-                "WHERE cn.num LIKE %s OR cn.customer LIKE %s OR c.name LIKE %s ORDER BY cn.doc_date DESC LIMIT 20",
+                "WHERE cn.num ILIKE %s OR cn.customer ILIKE %s OR c.name ILIKE %s ORDER BY cn.doc_date DESC LIMIT 20",
                 (like, like, like)
             ).fetchall()
 
             results['debit_notes'] = db.execute(
                 "SELECT dn.id, dn.num, dn.doc_date, dn.status, dn.total, c.name AS supplier "
                 "FROM debit_notes dn LEFT JOIN contacts c ON dn.supplier_id=c.id "
-                "WHERE dn.num LIKE %s OR c.name LIKE %s ORDER BY dn.doc_date DESC LIMIT 20",
+                "WHERE dn.num ILIKE %s OR c.name ILIKE %s ORDER BY dn.doc_date DESC LIMIT 20",
                 (like, like)
             ).fetchall()
 
             results['transactions'] = db.execute(
                 'SELECT t.id, t.doc_date, t.type, t.amount, t."desc" AS notes, c.name AS contact_name '
                 'FROM transactions t LEFT JOIN contacts c ON t.contact_id=c.id '
-                'WHERE t.type LIKE %s OR t."desc" LIKE %s OR c.name LIKE %s ORDER BY t.doc_date DESC LIMIT 20',
+                'WHERE t.type ILIKE %s OR t."desc" ILIKE %s OR c.name ILIKE %s ORDER BY t.doc_date DESC LIMIT 20',
                 (like, like, like)
             ).fetchall()
 
             results['warehouses'] = db.execute(
-                "SELECT id, name, location FROM warehouses WHERE name LIKE %s OR location LIKE %s LIMIT 10",
+                "SELECT id, name, location FROM warehouses WHERE name ILIKE %s OR location ILIKE %s LIMIT 10",
                 (like, like)
             ).fetchall()
 
