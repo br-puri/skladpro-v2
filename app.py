@@ -1094,14 +1094,35 @@ def catalog_pdf_download():
     IMG_H = 45*mm
     TINT = colors.HexColor('#fbf3dc')  # very light gold tint for spec header
 
-    def _img_cell(photo):
-        img_path = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products', photo) if photo else ''
-        if photo and os.path.exists(img_path):
+    def _img_source(photo):
+        """Return a file path or BytesIO of the image, or None.
+        Handles both Cloudinary/remote URLs and local uploads."""
+        if not photo:
+            return None
+        if photo.startswith('http'):
+            # Remote (Cloudinary) — download into memory
             try:
-                pil = PILImage.open(img_path)
+                import urllib.request
+                req = urllib.request.Request(photo, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    return io.BytesIO(resp.read())
+            except Exception:
+                return None
+        # Local file
+        local = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products', photo)
+        return local if os.path.exists(local) else None
+
+    def _img_cell(photo):
+        src = _img_source(photo)
+        if src is not None:
+            try:
+                pil = PILImage.open(src)
                 pw, ph = pil.size
                 ratio = min(IMG_W / pw, IMG_H / ph)
-                img = Image(img_path, width=pw*ratio, height=ph*ratio)
+                # Re-seek BytesIO so ReportLab can read from the start
+                if hasattr(src, 'seek'):
+                    src.seek(0)
+                img = Image(src, width=pw*ratio, height=ph*ratio)
                 return img
             except Exception:
                 pass
