@@ -4173,15 +4173,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     for i in items:
         ctn_qty = i.get('carton_qty') or 0
         line_total = i['qty'] * i['price'] * (1 - i.get('discount_pct', 0) / 100)
-        bc_val = str(i.get('barcode') or '').strip()
-        if bc_val:
-            try:
-                prod_bc = code128.Code128(bc_val, barHeight=5*mm, barWidth=0.5, humanReadable=True, fontSize=6)
-                desc_cell = [Paragraph(i['product_name'], normal), prod_bc]
-            except Exception:
-                desc_cell = Paragraph(i['product_name'], normal)
-        else:
-            desc_cell = Paragraph(i['product_name'], normal)
+        desc_cell = Paragraph(i['product_name'], normal)
         row = [desc_cell, f"{i['qty']:g}", i.get('unit', '')]
         if has_ctns:
             row.append(f"{int(ctn_qty)}" if ctn_qty > 0 else '—')
@@ -4390,15 +4382,7 @@ def generate_delivery_note_pdf(sale, items, customer=None, company=None):
     data = [hdr]
     for i in items:
         ctn_qty = i.get('carton_qty') or 0
-        bc_val = str(i.get('barcode') or '').strip()
-        if bc_val:
-            try:
-                prod_bc = code128.Code128(bc_val, barHeight=5*mm, barWidth=0.5, humanReadable=True, fontSize=6)
-                desc_cell = [Paragraph(i['product_name'], normal), prod_bc]
-            except Exception:
-                desc_cell = Paragraph(i['product_name'], normal)
-        else:
-            desc_cell = Paragraph(i['product_name'], normal)
+        desc_cell = Paragraph(i['product_name'], normal)
         row = [desc_cell, i.get('sku', ''), f"{i['qty']:g}", i.get('unit', '')]
         if has_ctns:
             row.append(f"{int(ctn_qty)}" if ctn_qty > 0 else '—')
