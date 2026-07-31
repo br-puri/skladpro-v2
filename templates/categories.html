@@ -71,12 +71,12 @@
           <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
             <button type="button"
               style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick="openAddModal({{ c['id'] }}, {{ c['name']|tojson }})">
+              onclick='openAddModal({{ c['id'] }}, {{ c['name']|tojson }})'>
               + Sub
             </button>
             <button type="button"
               style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick="openEditModal({{ c['id'] }}, {{ c['name']|tojson }}, {{ (c['description'] or '')|tojson }}, {{ url_for('rename_category', cid=c['id'])|tojson }})">
+              onclick='openEditModal({{ c['id'] }}, {{ c['name']|tojson }}, {{ (c['description'] or '')|tojson }}, {{ url_for('rename_category', cid=c['id'])|tojson }})'>
               Edit
             </button>
             {% if is_admin %}
@@ -117,7 +117,7 @@
           <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
             <button type="button"
               style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick="openEditModal({{ sub['id'] }}, {{ sub['name']|tojson }}, {{ (sub['description'] or '')|tojson }}, {{ url_for('rename_category', cid=sub['id'])|tojson }})">
+              onclick='openEditModal({{ sub['id'] }}, {{ sub['name']|tojson }}, {{ (sub['description'] or '')|tojson }}, {{ url_for('rename_category', cid=sub['id'])|tojson }})'>
               Edit
             </button>
             {% if is_admin %}
