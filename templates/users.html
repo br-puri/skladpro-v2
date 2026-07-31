@@ -33,6 +33,7 @@
           <form method="POST" action="{{ url_for('change_user_role', uid=u['id']) }}" style="display:inline">
             <select name="role" class="form-control" style="width:auto;font-size:12px;padding:4px 8px" onchange="this.form.submit()">
               <option value="admin" {% if u['role']=='admin' %}selected{% endif %}>Admin</option>
+              <option value="editor" {% if u['role']=='editor' %}selected{% endif %}>Editor</option>
               <option value="viewer" {% if u['role']=='viewer' %}selected{% endif %}>Viewer</option>
             </select>
           </form>
@@ -82,6 +83,7 @@
           <label class="form-label">Role</label>
           <select name="role" class="form-control">
             <option value="viewer">Viewer — read only</option>
+            <option value="editor">Editor — add &amp; edit, no delete</option>
             <option value="admin">Admin — full access</option>
           </select>
         </div>
@@ -96,6 +98,10 @@
         <div>
           <div style="font-weight:700;color:#1d4ed8;margin-bottom:4px">Admin</div>
           <div style="color:#64748b;line-height:1.7">View, add, edit, delete all records. Import products, manage settings and users.</div>
+        </div>
+        <div style="border-top:1px solid #f0f2f5;padding-top:12px">
+          <div style="font-weight:700;color:#0f766e;margin-bottom:4px">Editor</div>
+          <div style="color:#64748b;line-height:1.7">View, add and edit all records. Cannot delete, and cannot access Settings or Users.</div>
         </div>
         <div style="border-top:1px solid #f0f2f5;padding-top:12px">
           <div style="font-weight:700;color:#64748b;margin-bottom:4px">Viewer</div>

@@ -538,14 +538,15 @@ function initBulk(submitUrl, confirmMsg) {
 
       <div class="topbar-user-info" style="display:flex;align-items:center;gap:10px;margin-left:12px;padding-left:12px;border-left:1px solid #eaecf0">
         {% set uname = session.get('username','?') %}
-        {% set is_admin = session.get('role') == 'admin' %}
+        {% set _role = session.get('role') %}
+        {% set is_admin = _role == 'admin' %}
         <div style="display:flex;align-items:center;gap:8px">
-          <div style="width:32px;height:32px;border-radius:50%;background:{{ '#1a6ef5' if is_admin else '#64748b' }};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <div style="width:32px;height:32px;border-radius:50%;background:{{ '#1a6ef5' if is_admin else ('#0f766e' if _role == 'editor' else '#64748b') }};display:flex;align-items:center;justify-content:center;flex-shrink:0">
             <span style="font-size:13px;font-weight:700;color:#fff;text-transform:uppercase">{{ uname[0] }}</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:1px">
             <span style="font-size:12px;font-weight:600;color:#1a2332;line-height:1">{{ uname }}</span>
-            <span style="font-size:10px;color:#94a3b8;line-height:1">{{ 'Admin' if is_admin else 'Viewer' }}</span>
+            <span style="font-size:10px;color:#94a3b8;line-height:1">{{ 'Admin' if is_admin else ('Editor' if _role == 'editor' else 'Viewer') }}</span>
           </div>
         </div>
         <a href="{{ url_for('logout') }}" title="Log out" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #eaecf0;border-radius:7px;color:#94a3b8;text-decoration:none;transition:all .14s;background:#fff" onmouseover="this.style.background='#f6f8fb';this.style.color='#374151'" onmouseout="this.style.background='#fff';this.style.color='#94a3b8'">

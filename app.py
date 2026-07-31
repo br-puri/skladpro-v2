@@ -44,6 +44,19 @@ def require_login():
 
 
 def admin_required(f):
+    """Allows admin OR editor. Used for create/edit actions.
+    (Name kept for backward compatibility with existing route decorators.)"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get('role') not in ('admin', 'editor'):
+            flash('Edit access required.', 'error')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def superadmin_required(f):
+    """Admin only. Used for deletes, user management and settings."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if session.get('role') != 'admin':
@@ -88,6 +101,12 @@ def inject_photo_url():
             return photo
         return url_for('static', filename='uploads/products/' + photo)
     return {'photo_url': photo_url}
+
+
+@app.context_processor
+def inject_role_helpers():
+    role = session.get('role')
+    return {'can_edit': role in ('admin', 'editor'), 'is_admin': role == 'admin'}
 
 
 def allowed_file(filename):
@@ -595,7 +614,7 @@ def my_account():
 # ── User Management ───────────────────────────────────────────────────────────
 
 @app.route('/users')
-@admin_required
+@superadmin_required
 def users_list():
     with get_db() as db:
         users = db.execute("SELECT id, username, role FROM users ORDER BY username").fetchall()
@@ -603,7 +622,7 @@ def users_list():
 
 
 @app.route('/users/add', methods=['POST'])
-@admin_required
+@superadmin_required
 def add_user():
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '')
@@ -611,7 +630,7 @@ def add_user():
     if not username or not password:
         flash('Username and password are required', 'error')
         return redirect(url_for('users_list'))
-    if role not in ('admin', 'viewer'):
+    if role not in ('admin', 'editor', 'viewer'):
         role = 'viewer'
     with get_db() as db:
         try:
@@ -625,7 +644,7 @@ def add_user():
 
 
 @app.route('/users/<int:uid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_user(uid):
     if uid == session.get('user_id'):
         flash('Cannot delete your own account', 'error')
@@ -643,7 +662,7 @@ def delete_user(uid):
 
 
 @app.route('/users/<int:uid>/reset-password', methods=['POST'])
-@admin_required
+@superadmin_required
 def reset_user_password(uid):
     password = request.form.get('password', '')
     if not password:
@@ -658,10 +677,10 @@ def reset_user_password(uid):
 
 
 @app.route('/users/<int:uid>/role', methods=['POST'])
-@admin_required
+@superadmin_required
 def change_user_role(uid):
     role = request.form.get('role', 'viewer')
-    if role not in ('admin', 'viewer'):
+    if role not in ('admin', 'editor', 'viewer'):
         role = 'viewer'
     if uid == session.get('user_id') and role != 'admin':
         flash('Cannot remove admin role from your own account', 'error')
@@ -703,7 +722,7 @@ def audit_log():
 
 
 @app.route('/settings', methods=['GET', 'POST'])
-@admin_required
+@superadmin_required
 def settings_page():
     if request.method == 'POST':
         fields = ['co_name', 'co_company', 'co_address', 'co_address2', 'co_city', 'co_postcode',
@@ -1378,7 +1397,7 @@ def rename_category(cid):
 
 
 @app.route('/categories/delete/<int:cid>', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_category(cid):
     with get_db() as db:
         db.execute("DELETE FROM categories WHERE id=%s", (cid,))
@@ -1498,7 +1517,7 @@ def duplicate_product(pid):
 
 
 @app.route('/products/delete/<int:pid>', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_product(pid):
     try:
         with get_db() as db:
@@ -1786,7 +1805,7 @@ def edit_inventory_count(cid):
 
 
 @app.route('/inventory/<int:cid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_inventory_count(cid):
     with get_db() as db:
         db.execute("DELETE FROM inventory_count_items WHERE count_id=%s", (cid,))
@@ -1990,7 +2009,7 @@ def edit_customer(cid):
 
 
 @app.route('/customers/delete/<int:cid>', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_customer(cid):
     with get_db() as db:
         db.execute("DELETE FROM contacts WHERE id=%s", (cid,))
@@ -2384,7 +2403,7 @@ def export_supplier_order_excel(oid):
 
 
 @app.route('/supplier-orders/<int:oid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_supplier_order(oid):
     with get_db() as db:
         photos = db.execute("SELECT photo FROM supplier_order_items WHERE order_id=%s", (oid,)).fetchall()
@@ -2590,7 +2609,7 @@ def toggle_paid(sid):
 
 
 @app.route('/sales/<int:sid>/archive', methods=['POST'])
-@admin_required
+@superadmin_required
 def archive_sale(sid):
     with get_db() as db:
         s = db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone()
@@ -2609,7 +2628,7 @@ def archive_sale(sid):
 
 
 @app.route('/sales/<int:sid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_sale(sid):
     with get_db() as db:
         db.execute("DELETE FROM sales WHERE id=%s", (sid,))
@@ -3139,7 +3158,7 @@ def convert_quote(qid):
 
 
 @app.route('/quotes/<int:qid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_quote(qid):
     with get_db() as db:
         db.execute("DELETE FROM quotes WHERE id=%s", (qid,))
@@ -3345,7 +3364,7 @@ def edit_transaction(tid):
 
 
 @app.route('/finance/delete/<int:tid>', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_transaction(tid):
     with get_db() as db:
         db.execute("DELETE FROM transactions WHERE id=%s", (tid,))
@@ -3772,7 +3791,7 @@ def apply_credit_note(cnid):
 
 
 @app.route('/credit-notes/<int:cnid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_credit_note(cnid):
     with get_db() as db:
         cn = db.execute("SELECT * FROM credit_notes WHERE id=%s", (cnid,)).fetchone()
@@ -3881,7 +3900,7 @@ def apply_debit_note(dnid):
 
 
 @app.route('/debit-notes/<int:dnid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_debit_note(dnid):
     with get_db() as db:
         dn = db.execute("SELECT * FROM debit_notes WHERE id=%s", (dnid,)).fetchone()
@@ -4003,7 +4022,7 @@ def add_payment(sid):
 
 
 @app.route('/sales/<int:sid>/payment/<int:pid>/delete', methods=['POST'])
-@admin_required
+@superadmin_required
 def delete_payment(sid, pid):
     with get_db() as db:
         db.execute("DELETE FROM invoice_payments WHERE id=%s AND sale_id=%s", (pid, sid))
