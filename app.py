@@ -1347,7 +1347,8 @@ def categories():
 @admin_required
 def add_category():
     name = request.form.get('name', '').strip()
-    parent_id = request.form.get('parent_id') or None
+    parent_raw = request.form.get('parent_id') or ''
+    parent_id = int(parent_raw) if parent_raw.strip().isdigit() else None
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('ajax')
     if name:
         with get_db() as db:
@@ -1358,12 +1359,15 @@ def add_category():
                 db.commit()
                 if is_ajax:
                     return jsonify({'ok': True, 'id': new_id, 'name': name,
-                                    'parent_id': int(parent_id) if parent_id else None})
-                flash('Category added', 'success')
-            except Exception:
+                                    'parent_id': parent_id})
+                flash('Subcategory added' if parent_id else 'Category added', 'success')
+                return redirect(url_for('categories'))
+            except Exception as e:
+                db.rollback()
+                msg = 'Category already exists' if 'unique' in str(e).lower() or 'duplicate' in str(e).lower() else f'Could not add: {e}'
                 if is_ajax:
-                    return jsonify({'ok': False, 'error': 'Category already exists'}), 400
-                flash('Category already exists', 'error')
+                    return jsonify({'ok': False, 'error': msg}), 400
+                flash(msg, 'error')
     if is_ajax:
         return jsonify({'ok': False, 'error': 'Name required'}), 400
     return redirect(url_for('categories'))
