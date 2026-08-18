@@ -93,16 +93,20 @@
     const status = document.getElementById('emailTestStatus');
     if (!to) { status.style.display='block'; status.style.color='#dc2626'; status.textContent='Enter a recipient'; return; }
     status.style.display='block'; status.style.color='#64748b'; status.textContent='Sending…';
-    const fd = new FormData(); fd.append('to', to); fd.append('ajax', '1');
+    const fd = new FormData(); fd.append('to', to);
     try {
-      const r = await fetch("{{ url_for('settings_email_test') }}", { method: 'POST', body: fd });
-      // The server redirects with a flash on success; check final status
-      if (r.ok || r.redirected) {
+      const r = await fetch("{{ url_for('settings_email_test') }}?ajax=1", {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      let j = {};
+      try { j = await r.json(); } catch (_) {}
+      if (r.ok && j.ok) {
         status.style.color='#15803d';
-        status.textContent='✓ Sent. Check inbox AND spam folder. Reload the page to see the server message.';
+        status.textContent='✓ ' + (j.message || 'Sent. Check inbox AND spam folder.');
       } else {
         status.style.color='#dc2626';
-        status.textContent='Failed (HTTP ' + r.status + ')';
+        status.textContent='✗ ' + (j.error || ('Failed (HTTP ' + r.status + ')'));
       }
     } catch (e) {
       status.style.color='#dc2626';

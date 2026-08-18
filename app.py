@@ -2876,8 +2876,11 @@ def send_payment_reminders():
 @app.route('/settings/email/test', methods=['POST'])
 @admin_required
 def settings_email_test():
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('ajax')
     to_addr = (request.form.get('to') or '').strip()
     if not to_addr:
+        if is_ajax:
+            return jsonify({'ok': False, 'error': 'Enter a test recipient email'}), 400
         flash('Enter a test recipient email', 'error')
         return redirect(url_for('settings_page'))
     settings = get_settings()
@@ -2894,6 +2897,10 @@ def settings_email_test():
                           subject='NEON SMTP test email',
                           body=body,
                           settings_dict=settings)
+    if is_ajax:
+        if ok:
+            return jsonify({'ok': True, 'message': f'Test email sent to {to_addr}. Check inbox AND spam folder.'})
+        return jsonify({'ok': False, 'error': err or 'Unknown error'}), 400
     if ok:
         flash(f'Test email sent to {to_addr}. Check your inbox AND spam folder.', 'success')
     else:
