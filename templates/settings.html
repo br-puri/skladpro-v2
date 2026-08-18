@@ -53,7 +53,17 @@
   </div>
 
   <hr class="section">
-  <div style="font-weight:600;font-size:14px;margin-bottom:14px;color:#444">Email (SMTP) <span style="font-weight:400;color:#888;font-size:12px">— used for sending invoices</span></div>
+  <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:#444">Email Sending</div>
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#1e40af;line-height:1.6">
+    <strong>Recommended: Resend API.</strong> This server's host (Render) blocks direct SMTP, so plain SMTP email will not send. Sign up free at <strong>resend.com</strong>, verify your domain <strong>neondistro.co.uk</strong>, create an API key, and paste it below. Emails will send over HTTPS (which is not blocked).
+  </div>
+  <div class="form-group">
+    <label class="form-label">Resend API Key</label>
+    <input name="resend_api_key" type="password" class="form-control" value="{{ s.get('resend_api_key','') }}" autocomplete="new-password" placeholder="re_xxxxxxxxxxxxxxxx">
+    <div style="font-size:11px;color:#94a3b8;margin-top:4px">When set, this is used instead of SMTP below. From address uses the "From Address" field in the SMTP section.</div>
+  </div>
+
+  <div style="font-weight:600;font-size:13px;margin:18px 0 10px;color:#475569">SMTP <span style="font-weight:400;color:#94a3b8;font-size:11px">— fallback; only works on hosts that allow outbound SMTP</span></div>
   <div class="form-row">
     <div class="form-group"><label class="form-label">SMTP Host</label><input name="smtp_host" class="form-control" value="{{ s.get('smtp_host','') }}" placeholder="e.g. smtp.gmail.com"></div>
     <div class="form-group"><label class="form-label">Port</label><input name="smtp_port" type="number" class="form-control" value="{{ s.get('smtp_port','587') }}" placeholder="587 (TLS) or 465 (SSL)"></div>

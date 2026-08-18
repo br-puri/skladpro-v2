@@ -730,7 +730,8 @@ def settings_page():
                   'co_tagline', 'co_subtitle',
                   'co_delivery_address', 'co_delivery_address2', 'co_delivery_city', 'co_delivery_postcode', 'co_delivery_country',
                   'co_bank_name', 'co_sort_code', 'co_account_number',
-                  'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_tls']
+                  'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_tls',
+                  'resend_api_key']
         # Boolean toggles (checkboxes)
         with get_db() as db:
             db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
@@ -2745,20 +2746,62 @@ def export_delivery_note(sid):
         mimetype='application/pdf', download_name=f"DeliveryNote-{s['num']}.pdf", as_attachment=True)
 
 
+def _send_email_resend(api_key, from_addr, to_addr, subject, body, attachments=None):
+    """Send via Resend's HTTPS API (works on hosts that block outbound SMTP). Returns (ok, error)."""
+    import base64, json as _json, urllib.request, urllib.error
+    payload = {
+        'from': from_addr,
+        'to': [to_addr],
+        'subject': subject,
+        'text': body,
+    }
+    if attachments:
+        payload['attachments'] = [
+            {'filename': fname, 'content': base64.b64encode(fdata).decode('ascii')}
+            for fname, fdata, _mime in attachments
+        ]
+    data = _json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(
+        'https://api.resend.com/emails', data=data, method='POST',
+        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            resp.read()
+        return True, ''
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode('utf-8', 'replace')
+        except Exception:
+            detail = ''
+        return False, f'Resend API error {e.code}: {detail[:300]}'
+    except Exception as e:
+        return False, f'Resend request failed: {e}'
+
+
 def _send_email(to_addr, subject, body, attachments=None, settings_dict=None):
-    """Send an email via the configured SMTP server. Returns (ok, error_message)."""
+    """Send an email. Prefers Resend HTTP API (works where SMTP is blocked),
+    falls back to SMTP. Returns (ok, error_message)."""
     s = settings_dict or get_settings()
+
+    # From address — shared by both transports
+    smtp_from_setting = (s.get('smtp_from') or '').strip()
+    from_addr = smtp_from_setting or (s.get('smtp_user') or s.get('co_email') or '').strip()
+
+    # ── Preferred: Resend HTTP API (env var or setting) ──
+    resend_key = (os.environ.get('RESEND_API_KEY') or s.get('resend_api_key') or '').strip()
+    if resend_key:
+        if not from_addr:
+            return False, 'No From address set — add it in Settings → Email.'
+        return _send_email_resend(resend_key, from_addr, to_addr, subject, body, attachments)
+
+    # ── Fallback: SMTP (local dev / hosts that allow it) ──
     host = s.get('smtp_host', '').strip()
     port = int(s.get('smtp_port') or 587)
     user = s.get('smtp_user', '').strip()
     pwd = s.get('smtp_pass', '')
-    # IMPORTANT: From must usually match the authenticated user, or the server may silently drop/reject.
-    # If smtp_from is set but differs from user, we prefer user to avoid spoofing issues.
-    smtp_from_setting = (s.get('smtp_from') or '').strip()
-    from_addr = smtp_from_setting if smtp_from_setting else (user or s.get('co_email') or '').strip()
     use_tls = bool(s.get('smtp_tls', '1'))
     if not host or not from_addr:
-        return False, 'SMTP not configured — go to Settings → Email to set it up.'
+        return False, 'Email not configured — add a Resend API key (recommended) or SMTP details in Settings → Email.'
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = from_addr
