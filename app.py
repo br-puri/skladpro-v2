@@ -385,6 +385,14 @@ def init_db():
         except Exception:
             db.rollback()
         try:
+            db.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS delivery_charge REAL DEFAULT 0")
+        except Exception:
+            db.rollback()
+        try:
+            db.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS delivery_method TEXT DEFAULT ''")
+        except Exception:
+            db.rollback()
+        try:
             db.execute("ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_name_snap TEXT DEFAULT ''")
         except Exception:
             db.rollback()
@@ -2508,13 +2516,16 @@ def add_sale():
             disc_pcts = request.form.getlist('discount_pct[]')
             global_disc = float(request.form.get('global_discount', 0))
             tax_pct = float(request.form.get('tax_pct', 0))
+            delivery_charge = float(request.form.get('delivery_charge') or 0)
+            delivery_method = request.form.get('delivery_method', '')
             subtotal = sum(float(q)*float(p)*(1-float(d)/100) for q,p,d in zip(qtys,prices,disc_pcts) if q and p) * (1 - global_disc/100)
             tax_amount = subtotal * tax_pct / 100
-            total = subtotal + tax_amount
+            total = subtotal + tax_amount + delivery_charge
             num = next_num('INV', 'sales')
             customer_id = request.form.get('customer_id') or None
-            cur = db.execute("INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            cur = db.execute("INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,delivery_charge,delivery_method,currency,status,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 (num, request.form['doc_date'], request.form['customer'], customer_id, subtotal, total, global_disc, tax_pct, tax_amount,
+                 delivery_charge, delivery_method,
                  request.form.get('currency','GBP'), 'completed', request.form.get('notes','')))
             sale_id = cur.fetchone()['id']
             for pid, wid, qty, price, disc in zip(pids, wids, qtys, prices, disc_pcts):
@@ -2589,12 +2600,15 @@ def edit_sale(sid):
                     (item['qty'], item['product_id'], item['warehouse_id']))
             global_disc = float(request.form.get('global_discount', 0))
             tax_pct = float(request.form.get('tax_pct', 0))
+            delivery_charge = float(request.form.get('delivery_charge') or 0)
+            delivery_method = request.form.get('delivery_method', '')
             subtotal = sum(float(q)*float(p)*(1-float(d)/100) for q,p,d in zip(qtys,prices,disc_pcts) if q and p) * (1 - global_disc/100)
             tax_amount = subtotal * tax_pct / 100
-            total = subtotal + tax_amount
+            total = subtotal + tax_amount + delivery_charge
             customer_id = request.form.get('customer_id') or None
-            db.execute("UPDATE sales SET doc_date=%s,customer=%s,customer_id=%s,subtotal=%s,total=%s,discount=%s,tax_pct=%s,tax_amount=%s,currency=%s,notes=%s WHERE id=%s",
+            db.execute("UPDATE sales SET doc_date=%s,customer=%s,customer_id=%s,subtotal=%s,total=%s,discount=%s,tax_pct=%s,tax_amount=%s,delivery_charge=%s,delivery_method=%s,currency=%s,notes=%s WHERE id=%s",
                 (request.form['doc_date'], request.form['customer'], customer_id, subtotal, total, global_disc, tax_pct, tax_amount,
+                 delivery_charge, delivery_method,
                  request.form.get('currency', 'GBP'), request.form.get('notes', ''), sid))
             db.execute("DELETE FROM sale_items WHERE sale_id=%s", (sid,))
             for pid, wid, qty, price, disc in zip(pids, wids, qtys, prices, disc_pcts):
@@ -4301,6 +4315,8 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         data.append(total_row(f"Discount ({sale['discount']:g}%)", f"−{sym}{disc_amt:,.2f}"))
     if sale.get('tax_pct', 0):
         data.append(total_row(f"VAT ({sale['tax_pct']:g}%)", f"{sym}{sale['tax_amount']:,.2f}"))
+    if sale.get('delivery_charge', 0):
+        data.append(total_row('Delivery', f"{sym}{sale['delivery_charge']:,.2f}"))
     data.append(total_row('TOTAL DUE', f"{sym}{sale['total']:,.2f}", bold=True))
     if has_ctns:
         total_c = sum(i['qty'] / i['carton_qty'] for i in items if (i.get('carton_qty') or 0) > 0)
@@ -4337,6 +4353,9 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     elements.append(t)
 
     # ── NOTES ─────────────────────────────────────────────────────────────────
+    if sale.get('delivery_method'):
+        elements.append(Spacer(1, 5*mm))
+        elements.append(Paragraph(f"<b>Delivery:</b> {sale['delivery_method']}", small_m))
     if sale.get('notes'):
         elements.append(Spacer(1, 5*mm))
         elements.append(Paragraph(f"<b>Notes:</b> {sale['notes']}", small_m))
