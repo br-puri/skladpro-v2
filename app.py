@@ -1576,7 +1576,23 @@ def bulk_products():
             if fields:
                 for pid in ids:
                     db.execute(f"UPDATE products SET {','.join(fields)} WHERE id=%s", params + [pid])
-                db.commit()
+            # Name prefix / suffix — applied per-product with a guard against re-applying
+            name_prefix = request.form.get('name_prefix', '')
+            name_suffix = request.form.get('name_suffix', '')
+            if name_prefix or name_suffix:
+                rows = db.execute(
+                    f"SELECT id, name FROM products WHERE id IN ({','.join(['%s']*len(ids))})", ids
+                ).fetchall()
+                for r in rows:
+                    nm = r['name'] or ''
+                    new = nm
+                    if name_prefix and not new.lower().startswith(name_prefix.strip().lower()):
+                        new = name_prefix + new
+                    if name_suffix and not new.lower().endswith(name_suffix.strip().lower()):
+                        new = new + name_suffix
+                    if new != nm:
+                        db.execute("UPDATE products SET name=%s WHERE id=%s", (new, r['id']))
+            db.commit()
             flash(f'{len(ids)} product(s) updated', 'success')
     return redirect(url_for('products'))
 
