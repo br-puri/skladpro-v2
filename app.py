@@ -2871,6 +2871,38 @@ def toggle_purchase_paid(pid):
     return redirect(request.referrer or url_for('purchases'))
 
 
+@app.route('/purchases/<int:pid>/toggle_received', methods=['POST'])
+@admin_required
+def toggle_purchase_received(pid):
+    with get_db() as db:
+        p = db.execute("SELECT * FROM purchases WHERE id=%s", (pid,)).fetchone()
+        if not p:
+            flash('Purchase not found', 'error')
+            return redirect(url_for('purchases'))
+        if p['status'] == 'cancelled':
+            flash('Cancelled purchases cannot be received.', 'error')
+            return redirect(request.referrer or url_for('purchases'))
+        items = db.execute("SELECT product_id, qty FROM purchase_items WHERE purchase_id=%s", (pid,)).fetchall()
+        wid = p['warehouse_id']
+        if p['status'] == 'received':
+            # Un-receive: remove the stock that receiving added
+            db.execute("UPDATE purchases SET status='pending' WHERE id=%s", (pid,))
+            for it in items:
+                db.execute("UPDATE stock SET qty=qty-%s WHERE product_id=%s AND warehouse_id=%s",
+                           (it['qty'], it['product_id'], wid))
+            flash('Marked as not received — stock reversed.', 'success')
+        else:
+            # Receive: add stock
+            db.execute("UPDATE purchases SET status='received' WHERE id=%s", (pid,))
+            for it in items:
+                db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) "
+                           "ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=stock.qty+excluded.qty",
+                           (it['product_id'], wid, it['qty']))
+            flash('Marked as received — stock added.', 'success')
+        db.commit()
+    return redirect(request.referrer or url_for('purchases'))
+
+
 @app.route('/sales/<int:sid>/archive', methods=['POST'])
 @superadmin_required
 def archive_sale(sid):

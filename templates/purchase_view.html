@@ -9,6 +9,13 @@
       {{ '✓ Paid' if purchase['paid'] else 'Mark as Paid' }}
     </button>
   </form>
+  {% if purchase['status'] != 'cancelled' %}
+  <form method="post" action="{{ url_for('toggle_purchase_received', pid=purchase['id']) }}" style="display:inline;margin:0">
+    <button type="submit" class="btn" style="{% if purchase['status']=='received' %}background:#dcfce7;border-color:#bbf7d0;color:#16a34a{% else %}background:#fef9c3;border-color:#fde68a;color:#ca8a04{% endif %}">
+      {{ '✓ Received' if purchase['status']=='received' else 'Mark Received' }}
+    </button>
+  </form>
+  {% endif %}
   <a href="{{ url_for('edit_purchase', pid=purchase['id']) }}" class="btn">Edit</a>
   {% if session.get('role')=='admin' %}
   <a href="{{ url_for('add_debit_note') }}?purchase_id={{ purchase['id'] }}" class="btn">Raise Debit Note</a>
