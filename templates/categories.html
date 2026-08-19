@@ -76,7 +76,7 @@
             </button>
             <button type="button"
               style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick='openEditModal({{ c['id'] }}, {{ c['name']|tojson }}, {{ (c['description'] or '')|tojson }}, {{ url_for('rename_category', cid=c['id'])|tojson }})'>
+              onclick='openEditModal({{ c['id'] }}, {{ c['name']|tojson }}, {{ (c['description'] or '')|tojson }}, {{ url_for('rename_category', cid=c['id'])|tojson }}, null)'>
               Edit
             </button>
             {% if is_admin %}
@@ -117,7 +117,7 @@
           <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
             <button type="button"
               style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick='openEditModal({{ sub['id'] }}, {{ sub['name']|tojson }}, {{ (sub['description'] or '')|tojson }}, {{ url_for('rename_category', cid=sub['id'])|tojson }})'>
+              onclick='openEditModal({{ sub['id'] }}, {{ sub['name']|tojson }}, {{ (sub['description'] or '')|tojson }}, {{ url_for('rename_category', cid=sub['id'])|tojson }}, {{ sub['parent_id'] }})'>
               Edit
             </button>
             {% if is_admin %}
@@ -199,6 +199,16 @@
         <label class="form-label">Description</label>
         <input id="editModalDesc" name="description" class="form-control" placeholder="Optional description">
       </div>
+      <div class="form-group">
+        <label class="form-label">Nest under (parent category)</label>
+        <select id="editModalParent" name="parent_id" class="form-control">
+          <option value="">— None (top-level category) —</option>
+          {% for c in parents %}
+          <option value="{{ c['id'] }}">{{ c['name'] }}</option>
+          {% endfor %}
+        </select>
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px">Choose a parent to make this a subcategory of it. Its products move under that parent.</div>
+      </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
         <button type="button" class="btn" onclick="closeEditModal()">Cancel</button>
         <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -230,11 +240,20 @@ function closeAddModal() {
   document.getElementById('addModal').style.display = 'none';
 }
 
-function openEditModal(id, name, desc, url) {
+function openEditModal(id, name, desc, url, parentId) {
   const m = document.getElementById('editModal');
   document.getElementById('editModalForm').action = url;
   document.getElementById('editModalName').value = name;
   document.getElementById('editModalDesc').value = desc || '';
+  // Parent dropdown: preselect current parent, and hide the option for this same
+  // category (a category can't be nested under itself).
+  const sel = document.getElementById('editModalParent');
+  if (sel) {
+    [...sel.options].forEach(o => {
+      o.hidden = (o.value !== '' && parseInt(o.value) === parseInt(id));
+    });
+    sel.value = parentId ? String(parentId) : '';
+  }
   m.style.display = 'flex';
   setTimeout(() => document.getElementById('editModalName').focus(), 60);
 }

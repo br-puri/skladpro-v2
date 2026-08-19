@@ -1388,6 +1388,9 @@ def add_category():
 def rename_category(cid):
     new_name = request.form.get('name', '').strip()
     new_desc = request.form.get('description', '').strip()
+    # '' / 'none' means top-level; otherwise the id of the parent to nest under
+    parent_raw = (request.form.get('parent_id') or '').strip()
+    new_parent = int(parent_raw) if parent_raw.isdigit() else None
     if not new_name:
         flash('Name cannot be empty', 'error')
         return redirect(url_for('categories'))
@@ -1397,16 +1400,51 @@ def rename_category(cid):
             flash('Category not found', 'error')
             return redirect(url_for('categories'))
         old_name = row['name']
+        old_parent = row['parent_id']
+
+        # ── Rename (name + description) ──
         db.execute("UPDATE categories SET name=%s, description=%s WHERE id=%s", (new_name, new_desc, cid))
-        if row['parent_id']:
-            # It's a subcategory — rename it in all products too
+        if old_parent:
             db.execute("UPDATE products SET subcategory=%s WHERE subcategory=%s", (new_name, old_name))
         else:
-            # It's a top-level category — rename it in all products and update catalog order
             db.execute("UPDATE products SET category=%s WHERE category=%s", (new_name, old_name))
             db.execute("UPDATE catalog_category_order SET category=%s WHERE category=%s", (new_name, old_name))
+
+        # ── Re-parent (move under another category / promote to top level) ──
+        if new_parent != old_parent:
+            err = None
+            if new_parent == cid:
+                err = "A category can't be its own parent."
+            elif new_parent is not None:
+                p = db.execute("SELECT * FROM categories WHERE id=%s", (new_parent,)).fetchone()
+                if not p:
+                    err = "Parent category not found."
+                elif p['parent_id']:
+                    err = "Categories can only be nested one level deep — pick a top-level parent."
+                elif db.execute("SELECT 1 FROM categories WHERE parent_id=%s LIMIT 1", (cid,)).fetchone():
+                    err = f'"{new_name}" has its own subcategories, so it can\'t become a subcategory. Move or remove those first.'
+            if err:
+                db.commit()  # keep the rename, skip the move
+                flash(err, 'error')
+                return redirect(url_for('categories'))
+
+            db.execute("UPDATE categories SET parent_id=%s WHERE id=%s", (new_parent, cid))
+            if old_parent is None and new_parent is not None:
+                # Top-level → subcategory of parent P: products of X move under P as subcategory X
+                pname = db.execute("SELECT name FROM categories WHERE id=%s", (new_parent,)).fetchone()['name']
+                db.execute("UPDATE products SET category=%s, subcategory=%s WHERE category=%s AND (subcategory IS NULL OR subcategory='')",
+                           (pname, new_name, new_name))
+                db.execute("DELETE FROM catalog_category_order WHERE category=%s", (new_name,))
+            elif old_parent is not None and new_parent is None:
+                # Subcategory → top-level: its products become their own category
+                db.execute("UPDATE products SET category=%s, subcategory='' WHERE subcategory=%s",
+                           (new_name, new_name))
+            elif old_parent is not None and new_parent is not None:
+                # Subcategory → different parent: repoint the category label on its products
+                pname = db.execute("SELECT name FROM categories WHERE id=%s", (new_parent,)).fetchone()['name']
+                db.execute("UPDATE products SET category=%s WHERE subcategory=%s", (pname, new_name))
         db.commit()
-    flash('Renamed successfully', 'success')
+    flash('Category updated', 'success')
     return redirect(url_for('categories'))
 
 
