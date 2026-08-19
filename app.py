@@ -2113,7 +2113,6 @@ def add_purchase():
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products   = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
         if request.method == 'POST':
-          try:
             pids    = request.form.getlist('product_id[]')
             qtys    = request.form.getlist('qty[]')
             prices  = request.form.getlist('price[]')
@@ -2137,7 +2136,7 @@ def add_purchase():
                 if pid and float(qty or 0) > 0:
                     db.execute("INSERT INTO purchase_items(purchase_id,product_id,qty,price) VALUES(%s,%s,%s,%s)",
                                (purchase_id, int(pid), float(qty), float(price)))
-                    db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+excluded.qty",
+                    db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=stock.qty+excluded.qty",
                                (int(pid), wid, float(qty)))
             if supplier_id:
                 db.execute('INSERT INTO contact_history(contact_id,event_date,event_type,"desc") VALUES(%s,%s,\'purchase\',%s)',
@@ -2145,10 +2144,6 @@ def add_purchase():
             db.commit()
             flash(f'Purchase {num} created', 'success')
             return redirect(url_for('purchases'))
-          except Exception as e:
-            import traceback; tb = traceback.format_exc()
-            app.logger.error("add_purchase failed:\n%s", tb)
-            return f"<pre>add_purchase failed: {type(e).__name__}: {e}\n\n{tb}</pre>", 500
     return render_template('purchase_form.html', purchase=None, suppliers=suppliers,
                            warehouses=warehouses, products=products, items=[],
                            today=date.today().isoformat())
@@ -2193,7 +2188,7 @@ def edit_purchase(pid):
                 if p_id and float(qty or 0) > 0:
                     db.execute("INSERT INTO purchase_items(purchase_id,product_id,qty,price) VALUES(%s,%s,%s,%s)",
                                (pid, int(p_id), float(qty), float(price)))
-                    db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+excluded.qty",
+                    db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=stock.qty+excluded.qty",
                                (int(p_id), wid, float(qty)))
             db.commit()
             flash(f'Purchase {purchase["num"]} updated', 'success')
@@ -3134,7 +3129,7 @@ def add_transfer():
                 flash('Not enough stock in source warehouse', 'error')
                 return render_template('transfer_form.html', warehouses=warehouses, products=products, today=date.today().isoformat())
             db.execute("UPDATE stock SET qty=qty-%s WHERE product_id=%s AND warehouse_id=%s", (qty, pid, from_id))
-            db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+excluded.qty", (pid, to_id, qty))
+            db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=stock.qty+excluded.qty", (pid, to_id, qty))
             db.execute("INSERT INTO transfers(doc_date,from_wh_id,to_wh_id,product_id,qty,notes) VALUES(%s,%s,%s,%s,%s,%s)",
                 (request.form['doc_date'], from_id, to_id, pid, qty, request.form.get('notes','')))
             db.commit()
@@ -3913,7 +3908,7 @@ def apply_credit_note(cnid):
         items = db.execute("SELECT * FROM credit_note_items WHERE credit_note_id=%s", (cnid,)).fetchall()
         if cn['warehouse_id']:
             for item in items:
-                db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=qty+excluded.qty",
+                db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,%s) ON CONFLICT(product_id,warehouse_id) DO UPDATE SET qty=stock.qty+excluded.qty",
                            (item['product_id'], cn['warehouse_id'], item['qty']))
         if cn['customer_id']:
             db.execute("UPDATE contacts SET balance=balance-%s WHERE id=%s", (cn['total'], cn['customer_id']))
