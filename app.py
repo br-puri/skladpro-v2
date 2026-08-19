@@ -1614,12 +1614,12 @@ def products_import_template():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Products'
-    headers = ['name*', 'sku', 'barcode', 'category', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description']
+    headers = ['name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description']
     ws.append(headers)
     for cell in ws[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill('solid', fgColor='D9E1F2')
-    ws.append(['Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description'])
+    ws.append(['Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description'])
     if categories:
         # Put category list on a hidden sheet and reference it for dropdown
         ref_ws = wb.create_sheet('_categories')
@@ -1651,46 +1651,77 @@ def products_import_template():
 def import_products():
     if request.method == 'POST':
         f = request.files.get('file')
-        if not f or not f.filename.endswith('.xlsx'):
-            flash('Please upload an .xlsx file', 'error')
+        fname = (f.filename or '').lower() if f else ''
+        if not f or not (fname.endswith('.xlsx') or fname.endswith('.csv')):
+            flash('Please upload an .xlsx or .csv file', 'error')
             return redirect(url_for('import_products'))
-        import openpyxl
-        wb = openpyxl.load_workbook(f, data_only=True)
-        ws = wb.active
-        rows = list(ws.iter_rows(values_only=True))
+
+        # Read rows as a list-of-lists from either xlsx or csv
+        try:
+            if fname.endswith('.csv'):
+                import csv, io as _io
+                raw = f.read()
+                text = raw.decode('utf-8-sig', errors='replace')  # handles Excel BOM
+                rows = [r for r in csv.reader(_io.StringIO(text))]
+            else:
+                import openpyxl
+                wb = openpyxl.load_workbook(f, data_only=True)
+                ws = wb.active
+                rows = [list(r) for r in ws.iter_rows(values_only=True)]
+        except Exception as e:
+            flash(f'Could not read the file: {e}', 'error')
+            return redirect(url_for('import_products'))
+
         if len(rows) < 2:
-            flash('File is empty', 'error')
+            flash('File has no data rows', 'error')
             return redirect(url_for('import_products'))
+
         # Normalise header names
-        raw_headers = [str(h).strip().lower().rstrip('*').replace(' ', '_') if h else '' for h in rows[0]]
+        raw_headers = [str(h).strip().lower().rstrip('*').replace(' ', '_') if h not in (None, '') else '' for h in rows[0]]
         col = {h: i for i, h in enumerate(raw_headers)}
+
         def get(row, key, default=''):
             i = col.get(key)
             v = row[i] if i is not None and i < len(row) else None
             return v if v is not None else default
+
+        def num(row, key):
+            v = str(get(row, key, '') or '').strip().replace(',', '')
+            try:
+                return float(v) if v else 0.0
+            except ValueError:
+                return 0.0
+
         added, skipped = 0, 0
         with get_db() as db:
+            warehouses = db.execute("SELECT id FROM warehouses").fetchall()
             for row in rows[1:]:
+                if not any(str(c).strip() for c in row if c is not None):
+                    continue  # blank line
                 name = str(get(row, 'name', '') or '').strip()
                 if not name:
                     skipped += 1
                     continue
-                l = float(get(row, 'length_cm', 0) or 0)
-                w = float(get(row, 'width_cm', 0) or 0)
-                h = float(get(row, 'height_cm', 0) or 0)
+                l, w, h = num(row, 'length_cm'), num(row, 'width_cm'), num(row, 'height_cm')
                 cbm = round(l * w * h / 1_000_000, 6)
-                db.execute(
-                    "INSERT INTO products(name,sku,barcode,category,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                cur = db.execute(
+                    "INSERT INTO products(name,sku,barcode,category,subcategory,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description) "
+                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                     (name, str(get(row, 'sku', '') or ''), str(get(row, 'barcode', '') or ''),
-                     str(get(row, 'category', '') or ''), str(get(row, 'unit', 'pcs') or 'pcs'),
-                     float(get(row, 'cost', 0) or 0), float(get(row, 'price', 0) or 0),
-                     float(get(row, 'min_stock', 0) or 0),
-                     l, w, h, float(get(row, 'weight_kg', 0) or 0), cbm,
-                     float(get(row, 'carton_qty', 0) or 0),
+                     str(get(row, 'category', '') or ''), str(get(row, 'subcategory', '') or ''),
+                     str(get(row, 'unit', 'pcs') or 'pcs'),
+                     num(row, 'cost'), num(row, 'price'), num(row, 'min_stock'),
+                     l, w, h, num(row, 'weight_kg'), cbm,
+                     num(row, 'carton_qty'),
                      str(get(row, 'description', '') or '')))
+                pid = cur.fetchone()['id']
+                # Create zero-stock rows so the product appears everywhere consistently
+                for wh in warehouses:
+                    db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,0) ON CONFLICT DO NOTHING",
+                               (pid, wh['id']))
                 added += 1
             db.commit()
-        flash(f'Imported {added} product(s)' + (f', skipped {skipped} empty rows' if skipped else ''), 'success')
+        flash(f'Imported {added} product(s)' + (f', skipped {skipped} row(s) with no name' if skipped else ''), 'success')
         return redirect(url_for('products'))
     return render_template('product_import.html')
 
