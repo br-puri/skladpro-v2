@@ -9,16 +9,14 @@
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Customer *</label>
-        <select name="customer" id="customerSelect" class="form-control" required onchange="loadCustomer(this)">
-          <option value="">— Select customer —</option>
-          {% for c in customers %}
-          {% set label = c['company'] if c['company'] else c['name'] %}
-          <option value="{{ label }}" data-id="{{ c['id'] }}" data-disc="{{ c['discount_pct'] }}"
-            {{ 'selected' if sale and sale['customer'] == label }}>{{ label }}</option>
-          {% endfor %}
-          <option value="Walk-in" {{ 'selected' if sale and sale['customer'] == 'Walk-in' }}>Walk-in</option>
-        </select>
-        <input type="hidden" name="customer_id" id="customer_id" value="{{ sale['customer_id'] if sale and sale['customer_id'] else '' }}">
+        <div style="position:relative">
+          <input type="text" name="customer" id="customerSearch" class="form-control" autocomplete="off" required
+                 placeholder="Search customer by name, company or phone…"
+                 value="{{ sale['customer'] if sale else '' }}"
+                 oninput="onCustomerInput()" onfocus="filterCustomers()">
+          <input type="hidden" name="customer_id" id="customer_id" value="{{ sale['customer_id'] if sale and sale['customer_id'] else '' }}">
+          <div id="customerDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;margin-top:4px"></div>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Date</label>
@@ -59,14 +57,71 @@
   {% include '_line_items.html' %}
 
   <script>
-  function loadCustomer(sel) {
-    const opt = sel.options[sel.selectedIndex];
-    document.getElementById('customer_id').value = opt.dataset.id || '';
-    if (opt.dataset.disc && opt.dataset.disc > 0) {
-      document.getElementById('globalDiscount').value = opt.dataset.disc;
-      calcTotal();
+  const CUSTOMERS = [
+    {% for c in customers %}
+    { id: {{ c['id'] }},
+      label: {{ (c['company'] if c['company'] else c['name'])|tojson }},
+      name: {{ (c['name'] or '')|tojson }},
+      company: {{ (c['company'] or '')|tojson }},
+      phone: {{ (c['phone'] or '')|tojson }},
+      city: {{ (c['city'] or '')|tojson }},
+      disc: {{ c['discount_pct'] or 0 }} },
+    {% endfor %}
+    { id: '', label: 'Walk-in', name: 'Walk-in', company: '', phone: '', city: '', disc: 0 }
+  ];
+
+  const custSearch   = document.getElementById('customerSearch');
+  const custId       = document.getElementById('customer_id');
+  const custDropdown = document.getElementById('customerDropdown');
+
+  function onCustomerInput() {
+    // Typing a fresh query clears the previously linked customer id until they pick again
+    custId.value = '';
+    filterCustomers();
+  }
+
+  function filterCustomers() {
+    const q = custSearch.value.toLowerCase().trim();
+    const matches = CUSTOMERS.filter(c =>
+      !q || c.label.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+         || c.company.toLowerCase().includes(q) || (c.phone || '').toLowerCase().includes(q)
+    ).slice(0, 40);
+    if (!matches.length) { custDropdown.style.display = 'none'; return; }
+    custDropdown.innerHTML = matches.map(c => {
+      const sub = [c.phone, c.city].filter(Boolean).join(' · ');
+      return `<div class="cust-opt" data-id="${c.id}" data-label="${c.label.replace(/"/g,'&quot;')}" data-disc="${c.disc}"
+                   style="padding:9px 13px;cursor:pointer;border-bottom:1px solid #f1f5f9">
+                <div style="font-size:13.5px;font-weight:600;color:#1e293b">${c.label}</div>
+                ${sub ? `<div style="font-size:11.5px;color:#94a3b8;margin-top:1px">${sub}</div>` : ''}
+              </div>`;
+    }).join('');
+    custDropdown.style.display = 'block';
+    custDropdown.querySelectorAll('.cust-opt').forEach(el => {
+      el.addEventListener('mouseover', () => el.style.background = '#f8fafc');
+      el.addEventListener('mouseout', () => el.style.background = '');
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        pickCustomer(el.dataset.label, el.dataset.id, el.dataset.disc);
+      });
+    });
+  }
+
+  function pickCustomer(label, id, disc) {
+    custSearch.value = label;
+    custId.value = id || '';
+    custDropdown.style.display = 'none';
+    if (disc && parseFloat(disc) > 0) {
+      const gd = document.getElementById('globalDiscount');
+      if (gd) { gd.value = disc; if (typeof calcTotal === 'function') calcTotal(); }
     }
   }
+
+  // Close dropdown when clicking elsewhere
+  document.addEventListener('click', (e) => {
+    if (e.target !== custSearch && !custDropdown.contains(e.target)) {
+      custDropdown.style.display = 'none';
+    }
+  });
   </script>
 
   <div class="btn-group">
