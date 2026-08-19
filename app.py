@@ -1577,9 +1577,10 @@ def bulk_products():
             if fields:
                 for pid in ids:
                     db.execute(f"UPDATE products SET {','.join(fields)} WHERE id=%s", params + [pid])
-            # Name prefix / suffix / find-replace — applied per-product
-            name_prefix = request.form.get('name_prefix', '')
-            name_suffix = request.form.get('name_suffix', '')
+            # Name prefix / suffix / find-replace — applied per-product.
+            # Prefix gets an automatic trailing space, suffix an automatic leading space.
+            name_prefix = request.form.get('name_prefix', '').strip()
+            name_suffix = request.form.get('name_suffix', '').strip()
             name_find   = request.form.get('name_find', '')
             name_replace = request.form.get('name_replace', '')
             if name_prefix or name_suffix or name_find:
@@ -1592,11 +1593,11 @@ def bulk_products():
                     # Find & replace first (case-insensitive), so it can undo a wrong prefix/suffix
                     if name_find:
                         new = re.sub(re.escape(name_find), name_replace, new, flags=re.IGNORECASE)
-                    if name_prefix and not new.lower().startswith(name_prefix.strip().lower()):
-                        new = name_prefix + new
-                    if name_suffix and not new.lower().endswith(name_suffix.strip().lower()):
-                        new = new + name_suffix
-                    new = new.strip()
+                    if name_prefix and not new.lower().startswith(name_prefix.lower()):
+                        new = f"{name_prefix} {new.lstrip()}"
+                    if name_suffix and not new.lower().rstrip().endswith(name_suffix.lower()):
+                        new = f"{new.rstrip()} {name_suffix}"
+                    new = re.sub(r'\s{2,}', ' ', new).strip()  # collapse any accidental double spaces
                     if new and new != nm:
                         db.execute("UPDATE products SET name=%s WHERE id=%s", (new, r['id']))
             db.commit()
