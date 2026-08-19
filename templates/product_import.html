@@ -21,7 +21,10 @@
   </form>
   <div style="margin-top:24px;font-size:12px;color:#999">
     <strong>Columns</strong> (only <strong>name</strong> is required; the rest are optional and can be left out):<br>
-    name* · sku · barcode · category · subcategory · unit · cost · price · min_stock · length_cm · width_cm · height_cm · weight_kg · carton_qty · description
+    name* · sku · barcode · category · subcategory · unit · cost · price · min_stock · length_cm · width_cm · height_cm · weight_kg · carton_qty · description · image_url
+  </div>
+  <div style="margin-top:12px;font-size:12px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;line-height:1.6">
+    <strong style="color:#475569">Product images:</strong> spreadsheets can't hold real image files, so put a public link to each photo in the <strong>image_url</strong> column (e.g. <code>https://…/photo.jpg</code>). To set images without links, add the products first, then open each one and upload a photo on its edit page.
   </div>
 </div>
 {% endblock %}

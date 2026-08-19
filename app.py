@@ -1614,12 +1614,12 @@ def products_import_template():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Products'
-    headers = ['name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description']
+    headers = ['name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
     ws.append(headers)
     for cell in ws[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill('solid', fgColor='D9E1F2')
-    ws.append(['Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description'])
+    ws.append(['Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description', 'https://example.com/photo.jpg'])
     if categories:
         # Put category list on a hidden sheet and reference it for dropdown
         ref_ws = wb.create_sheet('_categories')
@@ -1704,16 +1704,20 @@ def import_products():
                     continue
                 l, w, h = num(row, 'length_cm'), num(row, 'width_cm'), num(row, 'height_cm')
                 cbm = round(l * w * h / 1_000_000, 6)
+                # image_url column → stored directly in the photo field (must be a public http/https link)
+                img = str(get(row, 'image_url', '') or get(row, 'image', '') or get(row, 'photo', '') or '').strip()
+                if img and not img.lower().startswith(('http://', 'https://')):
+                    img = ''  # ignore non-URL values (spreadsheets can't hold real image files)
                 cur = db.execute(
-                    "INSERT INTO products(name,sku,barcode,category,subcategory,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description) "
-                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                    "INSERT INTO products(name,sku,barcode,category,subcategory,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description,photo) "
+                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                     (name, str(get(row, 'sku', '') or ''), str(get(row, 'barcode', '') or ''),
                      str(get(row, 'category', '') or ''), str(get(row, 'subcategory', '') or ''),
                      str(get(row, 'unit', 'pcs') or 'pcs'),
                      num(row, 'cost'), num(row, 'price'), num(row, 'min_stock'),
                      l, w, h, num(row, 'weight_kg'), cbm,
                      num(row, 'carton_qty'),
-                     str(get(row, 'description', '') or '')))
+                     str(get(row, 'description', '') or ''), img))
                 pid = cur.fetchone()['id']
                 # Create zero-stock rows so the product appears everywhere consistently
                 for wh in warehouses:
