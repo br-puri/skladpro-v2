@@ -24,8 +24,8 @@
 </style>
 
 {% set total_rev = sales | sum(attribute='total') %}
-{% set unpaid_sales = sales | selectattr('paid', 'equalto', 0) | selectattr('status', 'equalto', 'completed') | list %}
-{% set outstanding = unpaid_sales | sum(attribute='total') %}
+{% set completed_sales = sales | selectattr('status', 'equalto', 'completed') | list %}
+{% set outstanding = completed_sales | sum(attribute='outstanding') %}
 
 <!-- Summary strip -->
 <div class="sl-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">

@@ -1881,7 +1881,14 @@ def customers():
         rows = []
         for c in contacts:
             outstanding = db.execute(
-                "SELECT COALESCE(SUM(total),0) AS s FROM sales WHERE (customer_id=%s OR (customer_id IS NULL AND customer=%s)) AND paid=0 AND archived=0 AND status='completed'",
+                """SELECT COALESCE(SUM(
+                        GREATEST(s.total - COALESCE(ip.paid_sum, 0), 0)
+                   ),0) AS s
+                   FROM sales s
+                   LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
+                          ON ip.sale_id = s.id
+                   WHERE (s.customer_id=%s OR (s.customer_id IS NULL AND s.customer=%s))
+                     AND s.paid=0 AND s.archived=0 AND s.status='completed'""",
                 (c['id'], c['name'])
             ).fetchone()['s']
             rows.append({'contact': dict(c), 'outstanding': outstanding})
@@ -1901,7 +1908,12 @@ def view_customer(cid):
             (cid, cname)).fetchall()
         purchases = db.execute("SELECT * FROM purchases WHERE supplier_id=%s ORDER BY doc_date DESC LIMIT 10", (cid,)).fetchall()
         outstanding = db.execute(
-            "SELECT COALESCE(SUM(total),0) AS s FROM sales WHERE (customer_id=%s OR (customer_id IS NULL AND customer=%s)) AND paid=0 AND archived=0 AND status='completed'",
+            """SELECT COALESCE(SUM(GREATEST(s.total - COALESCE(ip.paid_sum, 0), 0)),0) AS s
+               FROM sales s
+               LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
+                      ON ip.sale_id = s.id
+               WHERE (s.customer_id=%s OR (s.customer_id IS NULL AND s.customer=%s))
+                 AND s.paid=0 AND s.archived=0 AND s.status='completed'""",
             (cid, cname)
         ).fetchone()['s']
 
@@ -2448,10 +2460,17 @@ def sales():
             where += " AND s.status = %s"
             params.append(status_filter)
         rows = [dict(r) for r in db.execute(f"""
-            SELECT s.*, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name) as customer
-            FROM sales s LEFT JOIN contacts c ON c.id=s.customer_id
+            SELECT s.*, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name) as customer,
+                   COALESCE(ip.paid_sum, 0) AS paid_amount
+            FROM sales s
+            LEFT JOIN contacts c ON c.id=s.customer_id
+            LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
+                   ON ip.sale_id = s.id
             {where} ORDER BY s.doc_date DESC
         """, params).fetchall()]
+        # Real outstanding per invoice = total - payments received (never below 0)
+        for r in rows:
+            r['outstanding'] = max(0, (r['total'] or 0) - (r['paid_amount'] or 0))
         customers = db.execute(
             "SELECT id, COALESCE(NULLIF(company,''), name) as label FROM contacts WHERE type='customer' ORDER BY label"
         ).fetchall()
