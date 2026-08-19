@@ -1564,8 +1564,8 @@ def bulk_products():
             fields, params = [], []
             if request.form.get('category') not in (None, ''):
                 fields.append('category=%s'); params.append(request.form['category'])
-            if request.form.get('subcategory') is not None:
-                fields.append('subcategory=%s'); params.append(request.form.get('subcategory', ''))
+            if request.form.get('subcategory') not in (None, ''):
+                fields.append('subcategory=%s'); params.append(request.form['subcategory'])
             price_adj = request.form.get('price_adj', '').strip()
             if price_adj:
                 adj = float(price_adj)
