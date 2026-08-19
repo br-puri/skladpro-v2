@@ -114,13 +114,20 @@
         </span>
         <strong id="discountDisplay" style="color:#c0392b">−£0.000</strong>
       </div>
+      {% if li_show_delivery %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;color:#888">
+        <span style="display:flex;align-items:center;gap:6px">
+          Delivery
+          <input name="delivery_charge" id="deliveryCharge" type="number" min="0" step="0.01"
+            value="{{ '%.2f'|format(li_delivery) if li_delivery else '0.00' }}" oninput="calcTotal()"
+            style="width:74px;padding:2px 6px;font-size:12px;border:1px solid #d0cdc8;border-radius:4px;text-align:right">
+        </span>
+        <strong id="deliveryDisplay" style="color:#0f172a">£0.000</strong>
+      </div>
+      {% endif %}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;color:#888">
         <span>VAT (<span id="taxPctDisplay">{{ li_tax }}</span>%)</span>
         <strong id="taxDisplay" style="color:#0f172a">£0.000</strong>
-      </div>
-      <div id="deliveryRow" style="display:none;justify-content:space-between;align-items:center;padding:5px 0;color:#888">
-        <span>Delivery</span>
-        <strong id="deliveryDisplay" style="color:#0f172a">£0.000</strong>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:2px solid #eaecf0;margin-top:4px">
         <span style="font-size:15px;font-weight:700;color:#1a1a1a">Total</span>
@@ -258,12 +265,8 @@ function calcTotal() {
   const taxDisp = document.getElementById('taxPctDisplay');
   if (taxDisp) taxDisp.textContent = taxPct;
   document.getElementById('taxDisplay').textContent = sym + taxAmt.toFixed(3);
-  const delRow = document.getElementById('deliveryRow');
-  if (delRow) {
-    delRow.style.display = delivery > 0 ? 'flex' : 'none';
-    const dd = document.getElementById('deliveryDisplay');
-    if (dd) dd.textContent = sym + delivery.toFixed(2);
-  }
+  const dd = document.getElementById('deliveryDisplay');
+  if (dd) dd.textContent = sym + delivery.toFixed(2);
   document.getElementById('totalDisplay').textContent = sym + total.toFixed(3);
 }
 
