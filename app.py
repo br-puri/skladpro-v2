@@ -1545,7 +1545,6 @@ def delete_product(pid):
 @app.route('/products/bulk', methods=['POST'])
 @admin_required
 def bulk_products():
-  try:
     ids = request.form.getlist('ids[]')
     action = request.form.get('action')
     if not ids:
@@ -1596,8 +1595,6 @@ def bulk_products():
             db.commit()
             flash(f'{len(ids)} product(s) updated', 'success')
     return redirect(url_for('products'))
-  except Exception as e:
-    import traceback; tb=traceback.format_exc(); return f'<pre>{tb}</pre>',500
 
 
 @app.route('/products/labels')
