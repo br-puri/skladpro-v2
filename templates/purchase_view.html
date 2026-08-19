@@ -4,6 +4,11 @@
 {% block topbar_actions %}
   <a href="{{ url_for('export_purchase_pdf', pid=purchase['id']) }}" class="btn btn-primary">↓ PDF</a>
   <a href="{{ url_for('export_purchase_excel', pid=purchase['id']) }}" class="btn">↓ Excel</a>
+  <form method="post" action="{{ url_for('toggle_purchase_paid', pid=purchase['id']) }}" style="display:inline;margin:0">
+    <button type="submit" class="btn" style="{% if purchase['paid'] %}background:#dcfce7;border-color:#bbf7d0;color:#16a34a{% else %}background:#fee2e2;border-color:#fecaca;color:#dc2626{% endif %}">
+      {{ '✓ Paid' if purchase['paid'] else 'Mark as Paid' }}
+    </button>
+  </form>
   <a href="{{ url_for('edit_purchase', pid=purchase['id']) }}" class="btn">Edit</a>
   {% if session.get('role')=='admin' %}
   <a href="{{ url_for('add_debit_note') }}?purchase_id={{ purchase['id'] }}" class="btn">Raise Debit Note</a>

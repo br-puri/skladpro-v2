@@ -406,7 +406,7 @@ def init_db():
                 db.execute(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {col}")
             except Exception:
                 db.rollback()
-        for col in ['discount REAL DEFAULT 0']:
+        for col in ['discount REAL DEFAULT 0', 'paid INTEGER DEFAULT 0']:
             try:
                 db.execute(f"ALTER TABLE purchases ADD COLUMN IF NOT EXISTS {col}")
             except Exception:
@@ -2858,6 +2858,17 @@ def toggle_paid(sid):
             db.execute("UPDATE contacts SET balance=balance+%s WHERE id=%s", (delta, s['customer_id']))
         db.commit()
     return redirect(request.referrer or url_for('sales'))
+
+
+@app.route('/purchases/<int:pid>/toggle_paid', methods=['POST'])
+@admin_required
+def toggle_purchase_paid(pid):
+    with get_db() as db:
+        p = db.execute("SELECT * FROM purchases WHERE id=%s", (pid,)).fetchone()
+        now_paid = 0 if p['paid'] else 1
+        db.execute("UPDATE purchases SET paid=%s WHERE id=%s", (now_paid, pid))
+        db.commit()
+    return redirect(request.referrer or url_for('purchases'))
 
 
 @app.route('/sales/<int:sid>/archive', methods=['POST'])

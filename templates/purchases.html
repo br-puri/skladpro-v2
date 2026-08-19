@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Purchases{% endblock %}
 {% block page_title %}Purchases{% endblock %}
-{% block topbar_actions %}<a href="{{ url_for('add_purchase') }}" class="btn btn-primary">+ New Purchase</a>{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('import_purchase_invoice') }}" class="btn">📄 Import from Invoice</a>
+  <a href="{{ url_for('add_purchase') }}" class="btn btn-primary">+ New Purchase</a>
+{% endblock %}
 {% block content %}
 <style>
 @media(max-width:768px){
@@ -17,7 +20,8 @@
 </style>
 
 {% set total_cost = purchases | sum(attribute='total') %}
-{% set pending = purchases | selectattr('status', 'equalto', 'pending') | list %}
+{% set unpaid = purchases | selectattr('paid', 'equalto', 0) | rejectattr('status', 'equalto', 'cancelled') | list %}
+{% set owed = unpaid | sum(attribute='total') %}
 
 <div class="pu-kpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
   <div class="metric">
@@ -29,8 +33,8 @@
     <div class="metric-value">£{{ "{:,.0f}".format(total_cost) }}</div>
   </div>
   <div class="metric">
-    <div class="metric-label">Pending</div>
-    <div class="metric-value {% if pending %}blue{% else %}green{% endif %}">{{ pending | length }}</div>
+    <div class="metric-label">Unpaid</div>
+    <div class="metric-value {% if owed > 0 %}red{% else %}green{% endif %}">£{{ "{:,.0f}".format(owed) }}</div>
   </div>
 </div>
 
@@ -49,10 +53,14 @@
     </div>
     <div class="pu-row">
       <span style="font-size:12px;color:#94a3b8">{{ p['wh_name'] or '—' }}</span>
-      <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
-        {% if p['status']=='received' %}background:#dcfce7;color:#16a34a
-        {% elif p['status']=='cancelled' %}background:#fee2e2;color:#dc2626
-        {% else %}background:#fef9c3;color:#ca8a04{% endif %}">{{ p['status']|capitalize }}</span>
+      <span style="display:flex;gap:6px">
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if p['paid'] %}background:#dcfce7;color:#16a34a{% else %}background:#fee2e2;color:#dc2626{% endif %}">{{ 'Paid' if p['paid'] else 'Unpaid' }}</span>
+        <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;
+          {% if p['status']=='received' %}background:#dcfce7;color:#16a34a
+          {% elif p['status']=='cancelled' %}background:#fee2e2;color:#dc2626
+          {% else %}background:#fef9c3;color:#ca8a04{% endif %}">{{ p['status']|capitalize }}</span>
+      </span>
     </div>
   </a>
   {% endfor %}
@@ -79,6 +87,7 @@
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Warehouse</th>
         <th style="padding:11px 16px;text-align:right;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Total</th>
         <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
+        <th style="padding:11px 16px;text-align:center;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Payment</th>
         <th style="padding:11px 16px"></th>
       </tr>
     </thead>
@@ -111,6 +120,15 @@
           {% else %}background:#fef9c3;color:#ca8a04{% endif %}">
           {{ p['status'] | capitalize }}
         </span>
+      </td>
+      <td style="padding:13px 16px;text-align:center" onclick="event.stopPropagation()">
+        <form method="post" action="{{ url_for('toggle_purchase_paid', pid=p['id']) }}" style="margin:0">
+          <button type="submit" title="Click to toggle"
+            style="cursor:pointer;border:none;font-size:11px;font-weight:600;padding:4px 11px;border-radius:20px;
+            {% if p['paid'] %}background:#dcfce7;color:#16a34a{% else %}background:#fee2e2;color:#dc2626{% endif %}">
+            {{ 'Paid' if p['paid'] else 'Unpaid' }}
+          </button>
+        </form>
       </td>
       <td style="padding:13px 16px;text-align:right" onclick="event.stopPropagation()">
         <a href="{{ url_for('view_purchase', pid=p['id']) }}"
