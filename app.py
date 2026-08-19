@@ -2113,6 +2113,7 @@ def add_purchase():
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products   = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
         if request.method == 'POST':
+          try:
             pids    = request.form.getlist('product_id[]')
             qtys    = request.form.getlist('qty[]')
             prices  = request.form.getlist('price[]')
@@ -2144,6 +2145,10 @@ def add_purchase():
             db.commit()
             flash(f'Purchase {num} created', 'success')
             return redirect(url_for('purchases'))
+          except Exception as e:
+            import traceback; tb = traceback.format_exc()
+            app.logger.error("add_purchase failed:\n%s", tb)
+            return f"<pre>add_purchase failed: {type(e).__name__}: {e}\n\n{tb}</pre>", 500
     return render_template('purchase_form.html', purchase=None, suppliers=suppliers,
                            warehouses=warehouses, products=products, items=[],
                            today=date.today().isoformat())
