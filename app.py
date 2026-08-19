@@ -2468,9 +2468,12 @@ def sales():
                    ON ip.sale_id = s.id
             {where} ORDER BY s.doc_date DESC
         """, params).fetchall()]
-        # Real outstanding per invoice = total - payments received (never below 0)
+        # Real outstanding per invoice: 0 if flagged paid, else total - payments received (floored at 0)
         for r in rows:
-            r['outstanding'] = max(0, (r['total'] or 0) - (r['paid_amount'] or 0))
+            if r.get('paid'):
+                r['outstanding'] = 0
+            else:
+                r['outstanding'] = max(0, (r['total'] or 0) - (r['paid_amount'] or 0))
         customers = db.execute(
             "SELECT id, COALESCE(NULLIF(company,''), name) as label FROM contacts WHERE type='customer' ORDER BY label"
         ).fetchall()
@@ -2542,7 +2545,10 @@ def view_sale(sid):
             if row:
                 customer = dict(row)
         payments = db.execute("SELECT * FROM invoice_payments WHERE sale_id=%s ORDER BY payment_date", (sid,)).fetchall()
-        paid_total = sum(p['amount'] for p in payments)
+        payments_total = sum(p['amount'] for p in payments)
+        # If the invoice is flagged fully paid, treat it as paid in full even
+        # when it was marked via the Paid toggle (which records no payment row).
+        paid_total = s['total'] if s.get('paid') else payments_total
         outstanding = max(0, s['total'] - paid_total)
         credit_notes_list = db.execute("SELECT * FROM credit_notes WHERE sale_id=%s ORDER BY doc_date DESC", (sid,)).fetchall()
         invoice_token = None
