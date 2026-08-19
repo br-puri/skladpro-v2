@@ -437,6 +437,17 @@
         </div>
       </div>
       <div style="font-size:11px;color:#94a3b8;margin:-8px 0 12px">Skips products that already start/end with the text, so it won't double-up.</div>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="form-label">Find in name</label>
+          <input name="name_find" class="form-control" placeholder="text to remove/replace">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Replace with</label>
+          <input name="name_replace" class="form-control" placeholder="leave blank to delete">
+        </div>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;margin:-8px 0 12px">Case-insensitive. To undo a wrong prefix/suffix, put it in "Find" and leave "Replace with" empty.</div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button type="submit" class="btn btn-primary">Apply to Selected</button>
         <button type="button" onclick="closeBulkEdit()" class="btn">Cancel</button>

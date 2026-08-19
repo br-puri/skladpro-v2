@@ -1,4 +1,5 @@
 import random
+import re
 import psycopg2
 import psycopg2.extras
 import json
@@ -1576,21 +1577,27 @@ def bulk_products():
             if fields:
                 for pid in ids:
                     db.execute(f"UPDATE products SET {','.join(fields)} WHERE id=%s", params + [pid])
-            # Name prefix / suffix — applied per-product with a guard against re-applying
+            # Name prefix / suffix / find-replace — applied per-product
             name_prefix = request.form.get('name_prefix', '')
             name_suffix = request.form.get('name_suffix', '')
-            if name_prefix or name_suffix:
+            name_find   = request.form.get('name_find', '')
+            name_replace = request.form.get('name_replace', '')
+            if name_prefix or name_suffix or name_find:
                 rows = db.execute(
                     f"SELECT id, name FROM products WHERE id IN ({','.join(['%s']*len(ids))})", ids
                 ).fetchall()
                 for r in rows:
                     nm = r['name'] or ''
                     new = nm
+                    # Find & replace first (case-insensitive), so it can undo a wrong prefix/suffix
+                    if name_find:
+                        new = re.sub(re.escape(name_find), name_replace, new, flags=re.IGNORECASE)
                     if name_prefix and not new.lower().startswith(name_prefix.strip().lower()):
                         new = name_prefix + new
                     if name_suffix and not new.lower().endswith(name_suffix.strip().lower()):
                         new = new + name_suffix
-                    if new != nm:
+                    new = new.strip()
+                    if new and new != nm:
                         db.execute("UPDATE products SET name=%s WHERE id=%s", (new, r['id']))
             db.commit()
             flash(f'{len(ids)} product(s) updated', 'success')
@@ -2119,6 +2126,117 @@ def bulk_purchases():
         db.commit()
     flash(f'{count} purchase(s) deleted', 'success')
     return redirect(url_for('purchases'))
+
+
+@app.route('/purchases/from-invoice', methods=['GET', 'POST'])
+@admin_required
+def import_purchase_invoice():
+    import base64
+    from difflib import SequenceMatcher
+
+    with get_db() as db:
+        suppliers  = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY name").fetchall()]
+        warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
+        products   = [dict(r) for r in db.execute("SELECT id, name, sku, barcode, cost, unit FROM products ORDER BY name").fetchall()]
+
+    if request.method == 'GET':
+        return render_template('invoice_import.html', suppliers=suppliers, warehouses=warehouses,
+                               products=products, extracted=None, today=date.today().isoformat())
+
+    # POST — extract from uploaded invoice
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        flash('ANTHROPIC_API_KEY is not set on the server. Add it as an environment variable to enable invoice import.', 'error')
+        return redirect(url_for('import_purchase_invoice'))
+
+    f = request.files.get('invoice_file')
+    if not f or not f.filename:
+        flash('Please select an invoice file to upload', 'error')
+        return redirect(url_for('import_purchase_invoice'))
+
+    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+    raw = f.read()
+    b64 = base64.b64encode(raw).decode('ascii')
+    if ext == 'pdf':
+        media_type = 'application/pdf'
+        content_block = {'type': 'document', 'source': {'type': 'base64', 'media_type': media_type, 'data': b64}}
+    elif ext in ('png', 'jpg', 'jpeg', 'webp', 'gif'):
+        media_type = f'image/{"jpeg" if ext=="jpg" else ext}'
+        content_block = {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': b64}}
+    else:
+        flash('Unsupported file type. Upload a PDF or image.', 'error')
+        return redirect(url_for('import_purchase_invoice'))
+
+    prompt = (
+        "Extract line items from this supplier invoice. Return ONLY valid JSON, no prose, no code fences.\n"
+        "Shape:\n"
+        "{\n"
+        '  "supplier": "supplier name if visible, else empty string",\n'
+        '  "invoice_date": "YYYY-MM-DD if visible, else empty string",\n'
+        '  "currency": "GBP|USD|EUR|CNY|... if visible, else GBP",\n'
+        '  "items": [\n'
+        '    {"description": "...", "sku": "product code if visible else empty", "qty": number, "unit_price": number}\n'
+        "  ]\n"
+        "}\n"
+        "Only include real product line items — skip totals, tax, shipping lines."
+    )
+
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model='claude-opus-4-5',
+            max_tokens=4096,
+            messages=[{'role': 'user', 'content': [content_block, {'type': 'text', 'text': prompt}]}],
+        )
+        text = msg.content[0].text.strip()
+        # Strip code fences if the model added any
+        if text.startswith('```'):
+            text = text.split('```', 2)[1]
+            if text.startswith('json'):
+                text = text[4:]
+            text = text.strip('` \n')
+        data = json.loads(text)
+    except Exception as e:
+        flash(f'Could not extract invoice: {e}', 'error')
+        return redirect(url_for('import_purchase_invoice'))
+
+    def best_match(desc, sku):
+        desc_l = (desc or '').lower().strip()
+        sku_l  = (sku or '').lower().strip()
+        if sku_l:
+            for p in products:
+                if (p['sku'] or '').lower().strip() == sku_l:
+                    return p['id'], 1.0
+                if (p['barcode'] or '').lower().strip() == sku_l:
+                    return p['id'], 1.0
+        best = (None, 0.0)
+        for p in products:
+            score = SequenceMatcher(None, desc_l, (p['name'] or '').lower()).ratio()
+            if score > best[1]:
+                best = (p['id'], score)
+        return best if best[1] >= 0.55 else (None, best[1])
+
+    extracted_items = []
+    for it in data.get('items', []):
+        pid, score = best_match(it.get('description', ''), it.get('sku', ''))
+        extracted_items.append({
+            'description': it.get('description', ''),
+            'sku_from_invoice': it.get('sku', ''),
+            'qty': float(it.get('qty') or 0),
+            'unit_price': float(it.get('unit_price') or 0),
+            'matched_product_id': pid,
+            'match_score': round(score, 2),
+        })
+
+    extracted = {
+        'supplier': data.get('supplier', ''),
+        'invoice_date': data.get('invoice_date', '') or date.today().isoformat(),
+        'currency': data.get('currency', 'GBP') or 'GBP',
+        'items': extracted_items,
+    }
+    return render_template('invoice_import.html', suppliers=suppliers, warehouses=warehouses,
+                           products=products, extracted=extracted, today=date.today().isoformat())
 
 
 @app.route('/purchases/add', methods=['GET', 'POST'])
