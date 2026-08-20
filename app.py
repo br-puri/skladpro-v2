@@ -4512,7 +4512,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
 
     # ── LINE ITEMS TABLE ──────────────────────────────────────────────────────
     has_disc = any(i.get('discount_pct', 0) for i in items)
-    has_ctns = any((i.get('carton_qty') or 0) > 0 for i in items)
+    has_ctns = False  # carton columns / CTNs total removed from the invoice
 
     hdr = ['Description', 'Qty', 'Unit']
     col_w_map = [80*mm, 14*mm, 12*mm]
