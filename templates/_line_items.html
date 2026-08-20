@@ -29,6 +29,12 @@
     <div class="scan-dropdown" id="scanDropdown"></div>
   </div>
   <span style="font-size:12px;color:#6b87b0">Scan or type to search — press Enter or click to add</span>
+  {% if li_filter_stock %}
+  <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;margin-left:auto;white-space:nowrap">
+    <input type="checkbox" id="showOutOfStock" onchange="if(barcodeInput.value.trim())barcodeInput.dispatchEvent(new Event('input'))" style="width:14px;height:14px;accent-color:#1a6ef5">
+    Show out-of-stock
+  </label>
+  {% endif %}
   <span id="scanFeedback" style="font-size:13px;font-weight:500"></span>
 </div>
 
@@ -352,10 +358,15 @@ barcodeInput.addEventListener('input', function() {
   if (!q) { closeScanDropdown(); return; }
   scannerTimer = setTimeout(() => {
     const lower = q.toLowerCase();
-    const matches = products.filter(p =>
-      p.name.toLowerCase().includes(lower) ||
-      (p.sku || '').toLowerCase().includes(lower) ||
-      (p.barcode || '').includes(q));
+    const toggle = document.getElementById('showOutOfStock');   // present only on the sale form
+    const hideOOS = toggle && !toggle.checked;                  // default: hide zero/negative stock
+    const matches = products.filter(p => {
+      const textMatch = p.name.toLowerCase().includes(lower) ||
+        (p.sku || '').toLowerCase().includes(lower) ||
+        (p.barcode || '').includes(q);
+      const inStock = (parseFloat(p.stock_total) || 0) > 0;
+      return textMatch && (!hideOOS || inStock);
+    });
     const exact = products.find(p => p.barcode === q || p.sku === q);
     if (exact && q.length >= 6) { addProductById(exact.id, 1); }
     else { renderScanDropdown(matches); }

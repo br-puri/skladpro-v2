@@ -63,6 +63,7 @@
   {% set li_discount    = sale['discount']|int if sale and sale['discount'] else 0 %}
   {% set li_show_delivery = True %}
   {% set li_delivery    = sale['delivery_charge'] if sale and sale['delivery_charge'] else 0 %}
+  {% set li_filter_stock = True %}
   {% include '_line_items.html' %}
 
   <script>
