@@ -255,10 +255,11 @@ function calcTotal() {
   const subtotal = lineTotal - discAmt;
   const taxEl   = document.getElementById('taxPct');
   const taxPct  = (taxEl && !taxEl.disabled) ? (parseFloat(taxEl.value) || 0) : 0;
-  const taxAmt  = subtotal * taxPct / 100;
   const delEl   = document.getElementById('deliveryCharge');
   const delivery = delEl ? (parseFloat(delEl.value) || 0) : 0;
-  const total   = subtotal + taxAmt + delivery;
+  // VAT applies to goods + delivery
+  const taxAmt  = (subtotal + delivery) * taxPct / 100;
+  const total   = subtotal + delivery + taxAmt;
   document.getElementById('subtotalDisplay').textContent = sym + lineTotal.toFixed(3);
   const discEl = document.getElementById('discountDisplay');
   if (discEl) discEl.textContent = gDisc > 0 ? `−${sym}${discAmt.toFixed(3)}` : `−${sym}0.000`;

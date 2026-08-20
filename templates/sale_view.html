@@ -175,14 +175,14 @@
           <span>Discount ({{ sale['discount']|int }}%)</span><span>−{{ sym }}{{ "{:,.3f}".format(line_sum.v * sale['discount'] / 100) }}</span>
         </div>
         {% endif %}
-        {% if sale['tax_pct'] and sale['tax_pct'] > 0 %}
-        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#64748b">
-          <span>VAT ({{ sale['tax_pct']|int }}%)</span><span>{{ sym }}{{ "{:,.3f}".format(sale['tax_amount'] if sale['tax_amount'] else 0) }}</span>
-        </div>
-        {% endif %}
         {% if sale['delivery_charge'] and sale['delivery_charge'] > 0 %}
         <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#64748b">
           <span>Delivery{% if sale['delivery_method'] %} ({{ sale['delivery_method'] }}){% endif %}</span><span>{{ sym }}{{ "{:,.2f}".format(sale['delivery_charge']) }}</span>
+        </div>
+        {% endif %}
+        {% if sale['tax_pct'] and sale['tax_pct'] > 0 %}
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#64748b">
+          <span>VAT ({{ sale['tax_pct']|int }}%)</span><span>{{ sym }}{{ "{:,.3f}".format(sale['tax_amount'] if sale['tax_amount'] else 0) }}</span>
         </div>
         {% endif %}
         <div style="display:flex;justify-content:space-between;padding:10px 0 0;margin-top:6px;border-top:2px solid #0f172a;font-size:18px;font-weight:800;color:#1a1a1a">
