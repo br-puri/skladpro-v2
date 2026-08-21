@@ -1665,6 +1665,42 @@ def product_labels():
         mimetype='application/pdf', download_name='product-labels.pdf', as_attachment=True)
 
 
+@app.route('/products/export.xlsx')
+@admin_required
+def export_products_xlsx():
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock',
+               'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
+    with get_db() as db:
+        rows = db.execute("""SELECT id, name, sku, barcode, category, subcategory, unit,
+                                    cost, price, min_stock, length, width, height, weight,
+                                    carton_qty, description, photo
+                             FROM products ORDER BY name""").fetchall()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Products'
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill('solid', fgColor='D9E1F2')
+    for r in rows:
+        img = r['photo'] or ''
+        if img and not img.lower().startswith(('http://', 'https://')):
+            img = ''  # local files can't round-trip through Excel
+        ws.append([r['id'], r['name'], r['sku'], r['barcode'], r['category'], r['subcategory'],
+                   r['unit'], r['cost'], r['price'], r['min_stock'],
+                   r['length'], r['width'], r['height'], r['weight'],
+                   r['carton_qty'], r['description'], img])
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = max(len(str(col[0].value or '')), 12) + 2
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     download_name='products_export.xlsx', as_attachment=True)
+
+
 @app.route('/products/import-template')
 @admin_required
 def products_import_template():
@@ -1676,12 +1712,12 @@ def products_import_template():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Products'
-    headers = ['name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
+    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
     ws.append(headers)
     for cell in ws[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill('solid', fgColor='D9E1F2')
-    ws.append(['Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description', 'https://example.com/photo.jpg'])
+    ws.append(['', 'Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description', 'https://example.com/photo.jpg'])
     if categories:
         # Put category list on a hidden sheet and reference it for dropdown
         ref_ws = wb.create_sheet('_categories')
@@ -1754,7 +1790,7 @@ def import_products():
             except ValueError:
                 return 0.0
 
-        added, skipped = 0, 0
+        added, updated, skipped = 0, 0, 0
         with get_db() as db:
             warehouses = db.execute("SELECT id FROM warehouses").fetchall()
             for row in rows[1:]:
@@ -1764,30 +1800,62 @@ def import_products():
                 if not name:
                     skipped += 1
                     continue
+
+                # Match existing product by id → sku → barcode; else insert new
+                existing = None
+                id_val  = str(get(row, 'id', '') or '').strip()
+                sku_val = str(get(row, 'sku', '') or '').strip()
+                bc_val  = str(get(row, 'barcode', '') or '').strip()
+                if id_val:
+                    try:
+                        existing = db.execute("SELECT id FROM products WHERE id=%s", (int(float(id_val)),)).fetchone()
+                    except (TypeError, ValueError):
+                        existing = None
+                if not existing and sku_val:
+                    existing = db.execute("SELECT id FROM products WHERE sku=%s AND sku!=''", (sku_val,)).fetchone()
+                if not existing and bc_val:
+                    existing = db.execute("SELECT id FROM products WHERE barcode=%s AND barcode!=''", (bc_val,)).fetchone()
+
                 l, w, h = num(row, 'length_cm'), num(row, 'width_cm'), num(row, 'height_cm')
                 cbm = round(l * w * h / 1_000_000, 6)
-                # image_url column → stored directly in the photo field (must be a public http/https link)
                 img = str(get(row, 'image_url', '') or get(row, 'image', '') or get(row, 'photo', '') or '').strip()
                 if img and not img.lower().startswith(('http://', 'https://')):
-                    img = ''  # ignore non-URL values (spreadsheets can't hold real image files)
-                cur = db.execute(
-                    "INSERT INTO products(name,sku,barcode,category,subcategory,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description,photo) "
-                    "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-                    (name, str(get(row, 'sku', '') or ''), str(get(row, 'barcode', '') or ''),
-                     str(get(row, 'category', '') or ''), str(get(row, 'subcategory', '') or ''),
-                     str(get(row, 'unit', 'pcs') or 'pcs'),
-                     num(row, 'cost'), num(row, 'price'), num(row, 'min_stock'),
-                     l, w, h, num(row, 'weight_kg'), cbm,
-                     num(row, 'carton_qty'),
-                     str(get(row, 'description', '') or ''), img))
-                pid = cur.fetchone()['id']
-                # Create zero-stock rows so the product appears everywhere consistently
-                for wh in warehouses:
-                    db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,0) ON CONFLICT DO NOTHING",
-                               (pid, wh['id']))
-                added += 1
+                    img = ''
+
+                base_fields = (
+                    name, sku_val, bc_val,
+                    str(get(row, 'category', '') or ''), str(get(row, 'subcategory', '') or ''),
+                    str(get(row, 'unit', 'pcs') or 'pcs'),
+                    num(row, 'cost'), num(row, 'price'), num(row, 'min_stock'),
+                    l, w, h, num(row, 'weight_kg'), cbm,
+                    num(row, 'carton_qty'),
+                    str(get(row, 'description', '') or ''),
+                )
+
+                if existing:
+                    # Update; keep existing photo if the row leaves image_url blank
+                    db.execute(
+                        "UPDATE products SET name=%s, sku=%s, barcode=%s, category=%s, subcategory=%s, unit=%s, "
+                        "cost=%s, price=%s, min_stock=%s, length=%s, width=%s, height=%s, weight=%s, cbm=%s, "
+                        "carton_qty=%s, description=%s, photo=CASE WHEN %s='' THEN photo ELSE %s END WHERE id=%s",
+                        base_fields + (img, img, existing['id']))
+                    updated += 1
+                else:
+                    cur = db.execute(
+                        "INSERT INTO products(name,sku,barcode,category,subcategory,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description,photo) "
+                        "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                        base_fields + (img,))
+                    pid = cur.fetchone()['id']
+                    for wh in warehouses:
+                        db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,0) ON CONFLICT DO NOTHING",
+                                   (pid, wh['id']))
+                    added += 1
             db.commit()
-        flash(f'Imported {added} product(s)' + (f', skipped {skipped} row(s) with no name' if skipped else ''), 'success')
+        parts = []
+        if added:   parts.append(f'{added} added')
+        if updated: parts.append(f'{updated} updated')
+        if skipped: parts.append(f'{skipped} skipped (no name)')
+        flash('Import done: ' + (', '.join(parts) if parts else 'no rows processed'), 'success')
         return redirect(url_for('products'))
     return render_template('product_import.html')
 
@@ -2060,14 +2128,30 @@ def customer_statement(cid):
         cname = c['name']
         invoices = [dict(r) for r in db.execute("""
             SELECT s.id, s.num, s.doc_date, s.total,
-                   COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0) as paid_amount
+                   COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0) AS paid_amount
             FROM sales s
             WHERE (s.customer_id=%s OR (s.customer_id IS NULL AND s.customer=%s))
               AND s.archived=0 AND s.status='completed'
-            ORDER BY s.doc_date
+            ORDER BY s.doc_date, s.id
+        """, (cid, cname)).fetchall()]
+        payments = [dict(r) for r in db.execute("""
+            SELECT ip.payment_date, ip.amount, ip.method, ip.notes, s.num as sale_num
+            FROM invoice_payments ip
+            JOIN sales s ON s.id = ip.sale_id
+            WHERE (s.customer_id=%s OR (s.customer_id IS NULL AND s.customer=%s))
+              AND s.archived=0
+            ORDER BY ip.payment_date, ip.id
+        """, (cid, cname)).fetchall()]
+        credits = [dict(r) for r in db.execute("""
+            SELECT cn.num, cn.doc_date, cn.total, s.num as sale_num
+            FROM credit_notes cn
+            LEFT JOIN sales s ON s.id = cn.sale_id
+            WHERE (cn.customer_id=%s OR (cn.customer_id IS NULL AND cn.customer=%s))
+              AND cn.status != 'draft'
+            ORDER BY cn.doc_date, cn.id
         """, (cid, cname)).fetchall()]
     company = get_settings()
-    return send_file(io.BytesIO(generate_statement_pdf(dict(c), invoices, company)),
+    return send_file(io.BytesIO(generate_statement_pdf(dict(c), invoices, company, payments=payments, credits=credits)),
         mimetype='application/pdf', download_name=f"Statement-{c['company'] or c['name']}.pdf", as_attachment=True)
 
 
@@ -2224,7 +2308,7 @@ def import_purchase_invoice():
         from anthropic import Anthropic
         client = Anthropic(api_key=api_key)
         msg = client.messages.create(
-            model='claude-opus-4-5',
+            model=os.environ.get('ANTHROPIC_MODEL', 'claude-sonnet-4-5'),
             max_tokens=4096,
             messages=[{'role': 'user', 'content': [content_block, {'type': 'text', 'text': prompt}]}],
         )
@@ -2855,9 +2939,18 @@ def toggle_paid(sid):
         now_paid = 0 if s['paid'] else 1
         db.execute("UPDATE sales SET paid=%s WHERE id=%s", (now_paid, sid))
         if s['customer_id']:
-            # paid → balance increases (debt cleared); unpaid → balance decreases (owes)
             delta = s['total'] if now_paid else -s['total']
             db.execute("UPDATE contacts SET balance=balance+%s WHERE id=%s", (delta, s['customer_id']))
+        if now_paid:
+            paid_already = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s']
+            outstanding = max(0.0, float(s['total']) - float(paid_already))
+            if outstanding > 0.005:
+                db.execute(
+                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                    (date.today().isoformat(), 'income', 'bank', f"Paid (toggle) {s['num']}",
+                     outstanding, s.get('currency') or 'GBP', s.get('customer_id'), s.get('customer') or '', s['num']))
+        else:
+            db.execute("DELETE FROM transactions WHERE ref_doc=%s AND type='income' AND \"desc\" LIKE 'Paid (toggle)%%'", (s['num'],))
         db.commit()
     return redirect(request.referrer or url_for('sales'))
 
@@ -2869,6 +2962,13 @@ def toggle_purchase_paid(pid):
         p = db.execute("SELECT * FROM purchases WHERE id=%s", (pid,)).fetchone()
         now_paid = 0 if p['paid'] else 1
         db.execute("UPDATE purchases SET paid=%s WHERE id=%s", (now_paid, pid))
+        if now_paid:
+            db.execute(
+                'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                (date.today().isoformat(), 'expense', 'bank', f"Paid (toggle) {p['num']}",
+                 float(p['total']), p.get('currency') or 'GBP', p.get('supplier_id'), p.get('supplier') or '', p['num']))
+        else:
+            db.execute("DELETE FROM transactions WHERE ref_doc=%s AND type='expense' AND \"desc\" LIKE 'Paid (toggle)%%'", (p['num'],))
         db.commit()
     return redirect(request.referrer or url_for('purchases'))
 
@@ -4353,17 +4453,21 @@ def add_payment(sid):
         flash('Amount must be positive', 'error')
         return redirect(url_for('view_sale', sid=sid))
     with get_db() as db:
+        method = request.form.get('method', 'bank')
+        payment_date = request.form['payment_date']
+        notes = request.form.get('notes', '')
         db.execute(
             "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
-            (sid, request.form['payment_date'], amount,
-             request.form.get('method', 'bank'),
-             request.form.get('notes', ''),
-             datetime.utcnow().isoformat()))
+            (sid, payment_date, amount, method, notes, datetime.utcnow().isoformat()))
+        sale = db.execute("SELECT num, total, currency, customer, customer_id FROM sales WHERE id=%s", (sid,)).fetchone()
         paid_total = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s'] + amount
-        sale_total = db.execute("SELECT total AS t FROM sales WHERE id=%s", (sid,)).fetchone()['t']
-        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= sale_total else 0, sid))
+        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= sale['total'] else 0, sid))
+        db.execute(
+            'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+            (payment_date, 'income', method, f"Payment {sale['num']}" + (f" — {notes}" if notes else ''),
+             amount, sale.get('currency') or 'GBP', sale.get('customer_id'), sale.get('customer') or '', sale['num']))
         db.commit()
-    flash('Payment recorded', 'success')
+    flash(f'Payment recorded and posted to {method}', 'success')
     return redirect(url_for('view_sale', sid=sid))
 
 
@@ -4371,10 +4475,15 @@ def add_payment(sid):
 @superadmin_required
 def delete_payment(sid, pid):
     with get_db() as db:
+        pmt = db.execute("SELECT amount, payment_date FROM invoice_payments WHERE id=%s AND sale_id=%s", (pid, sid)).fetchone()
+        sale = db.execute("SELECT num, total FROM sales WHERE id=%s", (sid,)).fetchone()
         db.execute("DELETE FROM invoice_payments WHERE id=%s AND sale_id=%s", (pid, sid))
+        if pmt and sale:
+            db.execute(
+                'DELETE FROM transactions WHERE ref_doc=%s AND type=\'income\' AND doc_date=%s AND ABS(amount - %s) < 0.005',
+                (sale['num'], pmt['payment_date'], float(pmt['amount'])))
         paid_total = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s']
-        sale_total = db.execute("SELECT total AS t FROM sales WHERE id=%s", (sid,)).fetchone()['t']
-        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= sale_total else 0, sid))
+        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= sale['total'] else 0, sid))
         db.commit()
     flash('Payment removed', 'success')
     return redirect(url_for('view_sale', sid=sid))
@@ -4795,7 +4904,7 @@ def generate_delivery_note_pdf(sale, items, customer=None, company=None):
     return buf.getvalue()
 
 
-def generate_statement_pdf(customer, invoices, company=None):
+def generate_statement_pdf(customer, invoices, company=None, payments=None, credits=None):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
@@ -4878,30 +4987,76 @@ def generate_statement_pdf(customer, invoices, company=None):
     elements.append(Table([[bill_block]], colWidths=[170*mm]))
     elements.append(Spacer(1, 6*mm))
 
-    hdr = ['Invoice No', 'Date', 'Total', 'Paid', 'Outstanding']
-    col_w = [40*mm, 28*mm, 34*mm, 34*mm, 34*mm]
-    data = [hdr]
-    total_invoiced = total_paid_sum = total_out = 0.0
-    for inv in invoices:
+    # Build chronological events: invoice (charge), payment (credit), credit note (credit)
+    events = []
+    for inv in invoices or []:
+        num = inv.get('num', '')
         inv_total = float(inv.get('total', 0))
-        paid_amt  = float(inv.get('paid_amount', 0))
-        out_amt   = max(0.0, inv_total - paid_amt)
-        total_invoiced += inv_total; total_paid_sum += paid_amt; total_out += out_amt
-        out_color = '#c0392b' if out_amt > 0 else '#1a8a4a'
+        paid = float(inv.get('paid_amount', 0) or 0)
+        outstanding = inv_total - paid
+        if paid > 0.005:
+            if outstanding <= 0.005:
+                desc = f"Invoice — <font color='#1a8a4a'>paid in full</font>"
+            else:
+                desc = f"Invoice — paid £{paid:,.2f} · <font color='#c0392b'>owed £{outstanding:,.2f}</font>"
+        else:
+            desc = 'Invoice'
+        events.append({
+            'date': inv.get('doc_date', ''),
+            'ref': num,
+            'desc': desc,
+            'charge': inv_total,
+            'credit': 0.0,
+        })
+    for pmt in payments or []:
+        method = (pmt.get('method') or 'bank').title()
+        events.append({
+            'date': pmt.get('payment_date', ''),
+            'ref': pmt.get('sale_num', ''),
+            'desc': f"Payment ({method})",
+            'charge': 0.0,
+            'credit': float(pmt.get('amount', 0)),
+        })
+    for cn in credits or []:
+        ref = cn.get('num', '')
+        against = f" against {cn['sale_num']}" if cn.get('sale_num') else ''
+        events.append({
+            'date': cn.get('doc_date', ''),
+            'ref': ref,
+            'desc': f"Credit Note{against}",
+            'charge': 0.0,
+            'credit': float(cn.get('total', 0)),
+        })
+    events.sort(key=lambda e: (e['date'] or '', 0 if e['charge'] > 0 else 1))
+
+    hdr = ['Date', 'Reference', 'Description', 'Charges', 'Payments / Credits', 'Balance']
+    col_w = [22*mm, 28*mm, 50*mm, 24*mm, 24*mm, 22*mm]
+    data = [hdr]
+    total_charged = total_credited = 0.0
+    balance = 0.0
+    for ev in events:
+        balance += ev['charge'] - ev['credit']
+        total_charged += ev['charge']
+        total_credited += ev['credit']
+        charge_txt = f"£{ev['charge']:,.2f}" if ev['charge'] > 0 else ''
+        credit_txt = f"£{ev['credit']:,.2f}" if ev['credit'] > 0 else ''
+        bal_color = '#c0392b' if balance > 0.005 else ('#1a8a4a' if balance < -0.005 else '#666666')
         data.append([
-            inv.get('num', ''),
-            inv.get('doc_date', ''),
-            Paragraph(f"£{inv_total:,.2f}", normal_r),
-            Paragraph(f"£{paid_amt:,.2f}", normal_r),
-            Paragraph(f"<font color='{out_color}'>£{out_amt:,.2f}</font>", normal_r),
+            ev['date'],
+            ev['ref'],
+            Paragraph(ev['desc'], normal),
+            Paragraph(charge_txt, normal_r),
+            Paragraph(credit_txt, normal_r),
+            Paragraph(f"<font color='{bal_color}'>£{balance:,.2f}</font>", normal_r),
         ])
 
-    n = len(invoices)
-    out_color = '#c0392b' if total_out > 0 else '#1a8a4a'
+    total_out = balance
+    n = len(events)
+    out_color = '#c0392b' if total_out > 0.005 else '#1a8a4a'
     data.append([
-        Paragraph('<b>TOTAL</b>', normal), '',
-        Paragraph(f"<b>£{total_invoiced:,.2f}</b>", normal_r),
-        Paragraph(f"<b>£{total_paid_sum:,.2f}</b>", normal_r),
+        Paragraph('<b>TOTAL</b>', normal), '', '',
+        Paragraph(f"<b>£{total_charged:,.2f}</b>", normal_r),
+        Paragraph(f"<b>£{total_credited:,.2f}</b>", normal_r),
         Paragraph(f"<font color='{out_color}'><b>£{total_out:,.2f}</b></font>", normal_r),
     ])
 
@@ -4914,7 +5069,7 @@ def generate_statement_pdf(customer, invoices, company=None):
         ('LINEBELOW', (0,1), (-1,n), 0.3, ACCENT2), ('TOPPADDING', (0,1), (-1,n), 6), ('BOTTOMPADDING', (0,1), (-1,n), 6),
         ('BACKGROUND', (0,n+1), (-1,n+1), LIGHT_BG), ('LINEABOVE', (0,n+1), (-1,n+1), 1, ACCENT),
         ('TOPPADDING', (0,n+1), (-1,n+1), 8), ('BOTTOMPADDING', (0,n+1), (-1,n+1), 8),
-        ('ALIGN', (2,0), (-1,-1), 'RIGHT'), ('LEFTPADDING', (0,0), (-1,-1), 6), ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ('ALIGN', (3,0), (-1,-1), 'RIGHT'), ('LEFTPADDING', (0,0), (-1,-1), 6), ('RIGHTPADDING', (0,0), (-1,-1), 6),
     ]))
     elements.append(t)
 

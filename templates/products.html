@@ -2,6 +2,7 @@
 {% block title %}Products{% endblock %}
 {% block page_title %}Items{% endblock %}
 {% block topbar_actions %}
+  <a href="{{ url_for('export_products_xlsx') }}" class="btn mob-hide">Export</a>
   <a href="{{ url_for('import_products') }}" class="btn mob-hide">Import</a>
   <a href="{{ url_for('add_product') }}" class="btn btn-primary" style="gap:5px" id="new-item-btn">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>

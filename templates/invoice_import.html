@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Import Invoice{% endblock %}
+{% block page_title %}Import Purchase from Invoice{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('purchases') }}" class="back-link">← Back</a>{% endblock %}
+{% block content %}
+<style>
+  .ii-drop {
+    border: 2px dashed #cbd5e1; border-radius: 12px; padding: 40px 24px;
+    text-align: center; background: #f8fafc; transition: border-color .15s, background .15s;
+  }
+  .ii-drop.drag { border-color: #3b82f6; background: #eff6ff; }
+  .ii-drop h3 { margin: 8px 0 4px; font-size: 15px; font-weight: 600; color: #0f172a; }
+  .ii-drop p { margin: 0; font-size: 12px; color: #94a3b8; }
+  .ii-drop input[type=file] { margin-top: 14px; }
+  .ii-hint { font-size: 12px; color: #64748b; margin-top: 10px; }
+
+  .ii-row { display:grid; grid-template-columns: 56px 2.5fr 90px 100px 1.7fr 90px 32px; gap:10px; align-items:center; padding: 10px 12px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; margin-bottom: 8px; }
+  .ii-row.unmatched { border-color:#fbbf24; background:#fffbeb; }
+  .ii-row input, .ii-row select { width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:13px; background:#fff; }
+  .ii-row input[type=number] { text-align:right; }
+  .ii-desc { font-size:13px; color:#0f172a; font-weight:500; overflow:hidden; text-overflow:ellipsis; }
+  .ii-desc small { display:block; color:#94a3b8; font-size:11px; margin-top:2px; }
+  .ii-badge { font-size:10px; padding:2px 7px; border-radius:99px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; text-align:center; }
+  .ii-badge.ok { background:#dcfce7; color:#166534; }
+  .ii-badge.warn { background:#fef3c7; color:#a16207; }
+  .ii-badge.miss { background:#fee2e2; color:#b91c1c; }
+  .ii-del { width:28px; height:28px; border-radius:6px; background:#fee2e2; color:#dc2626; border:none; cursor:pointer; font-size:16px; }
+  .ii-head { display:grid; grid-template-columns: 56px 2.5fr 90px 100px 1.7fr 90px 32px; gap:10px; padding: 4px 12px; font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+</style>
+
+<div class="card" style="padding:20px">
+{% if not extracted %}
+  <form method="post" enctype="multipart/form-data">
+    <div class="ii-drop" id="drop">
+      <div style="font-size:32px">📄</div>
+      <h3>Upload a supplier invoice</h3>
+      <p>PDF, PNG, JPG, or WebP — any layout, any supplier.</p>
+      <input type="file" name="invoice_file" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif" required>
+    </div>
+    <p class="ii-hint">Claude will read the invoice, extract line items, and try to match each one to a product in your catalogue. You'll get a review page before anything is saved.</p>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary">Extract Items</button>
+      <a href="{{ url_for('purchases') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+
+{% else %}
+  <form method="post" action="{{ url_for('add_purchase') }}">
+    <div style="display:grid;grid-template-columns:150px 1fr 1fr 140px 120px;gap:12px;margin-bottom:16px">
+      <div class="form-group"><label>Date</label>
+        <input name="doc_date" type="date" class="form-control" value="{{ extracted['invoice_date'] }}" required></div>
+      <div class="form-group"><label>Supplier</label>
+        <input name="supplier" class="form-control" value="{{ extracted['supplier'] }}" list="sup-list" required>
+        <datalist id="sup-list">{% for s in suppliers %}<option value="{{ s['name'] }}">{% endfor %}</datalist></div>
+      <div class="form-group"><label>Warehouse</label>
+        <select name="warehouse_id" class="form-control" required>
+          {% for w in warehouses %}<option value="{{ w['id'] }}" {{ 'selected' if w['id']==default_wh_id }}>{{ w['name'] }}</option>{% endfor %}
+        </select></div>
+      <div class="form-group"><label>Currency</label>
+        <select name="currency" class="form-control">
+          {% for c in ['GBP','USD','EUR','CNY','PLN'] %}<option {{ 'selected' if extracted['currency']==c }}>{{ c }}</option>{% endfor %}
+        </select></div>
+      <div class="form-group"><label>Tax %</label>
+        <input name="tax_pct" type="number" step="0.1" value="0" class="form-control"></div>
+    </div>
+
+    <input type="hidden" name="global_discount" value="0">
+
+    <div class="ii-head">
+      <div></div><div>Extracted from invoice</div><div style="text-align:right">Qty</div>
+      <div style="text-align:right">Unit price</div><div>Matched product</div><div style="text-align:right">Subtotal</div><div></div>
+    </div>
+    <div id="ii-rows">
+    {% for it in extracted['items'] %}
+      {% set is_match = it['matched_product_id'] and it['match_score'] >= 0.75 %}
+      {% set is_maybe = it['matched_product_id'] and it['match_score'] < 0.75 %}
+      <div class="ii-row {{ 'unmatched' if not it['matched_product_id'] else '' }}">
+        <div>
+          {% if is_match %}<span class="ii-badge ok">✓ {{ (it['match_score']*100)|int }}%</span>
+          {% elif is_maybe %}<span class="ii-badge warn">? {{ (it['match_score']*100)|int }}%</span>
+          {% else %}<span class="ii-badge miss">no match</span>{% endif %}
+        </div>
+        <div class="ii-desc">{{ it['description'] }}{% if it['sku_from_invoice'] %}<small>SKU on invoice: {{ it['sku_from_invoice'] }}</small>{% endif %}</div>
+        <div><input type="number" name="qty[]" step="0.001" value="{{ it['qty'] }}" oninput="recalc()"></div>
+        <div><input type="number" name="price[]" step="0.0001" value="{{ it['unit_price'] }}" oninput="recalc()"></div>
+        <div>
+          <select name="product_id[]" required>
+            <option value="">— pick a product —</option>
+            {% for p in products %}<option value="{{ p['id'] }}" {{ 'selected' if p['id']==it['matched_product_id'] }}>{{ p['name'] }}{% if p['sku'] %} · {{ p['sku'] }}{% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="text-align:right;font-size:12px;font-variant-numeric:tabular-nums" class="ii-sub">{{ "%.2f"|format(it['qty']*it['unit_price']) }}</div>
+        <button type="button" class="ii-del" onclick="this.closest('.ii-row').remove();recalc()">×</button>
+      </div>
+    {% endfor %}
+    </div>
+
+    <div style="margin-top:12px;padding:14px 16px;background:#0f172a;color:#fff;border-radius:10px;display:flex;justify-content:flex-end;gap:24px;align-items:center;font-size:13px">
+      <div>Items: <strong id="ii-count">{{ extracted['items']|length }}</strong></div>
+      <div>Total: <strong id="ii-total" style="font-size:18px">0.00</strong> <span style="opacity:.7">{{ extracted['currency'] }}</span></div>
+    </div>
+
+    <div class="form-actions" style="margin-top:16px">
+      <button type="submit" class="btn btn-primary">Create Purchase</button>
+      <a href="{{ url_for('import_purchase_invoice') }}" class="btn">Upload another</a>
+      <a href="{{ url_for('purchases') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+
+  <script>
+    function recalc() {
+      let total = 0, count = 0;
+      document.querySelectorAll('#ii-rows .ii-row').forEach(r => {
+        const q = parseFloat(r.querySelector('input[name="qty[]"]').value) || 0;
+        const p = parseFloat(r.querySelector('input[name="price[]"]').value) || 0;
+        const sub = q * p;
+        r.querySelector('.ii-sub').textContent = sub.toFixed(2);
+        total += sub;
+        count++;
+      });
+      document.getElementById('ii-count').textContent = count;
+      document.getElementById('ii-total').textContent = total.toFixed(2);
+    }
+    recalc();
+  </script>
+{% endif %}
+</div>
+{% endblock %}
