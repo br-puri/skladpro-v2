@@ -1821,6 +1821,12 @@ def import_products():
                 img = str(get(row, 'image_url', '') or get(row, 'image', '') or get(row, 'photo', '') or '').strip()
                 if img and not img.lower().startswith(('http://', 'https://')):
                     img = ''
+                # Auto-convert Google Drive share links to direct-view URLs
+                if img and 'drive.google.com' in img.lower():
+                    import re as _re
+                    m = _re.search(r'/d/([a-zA-Z0-9_-]{20,})', img) or _re.search(r'[?&]id=([a-zA-Z0-9_-]{20,})', img)
+                    if m:
+                        img = f'https://drive.google.com/uc?export=view&id={m.group(1)}'
 
                 base_fields = (
                     name, sku_val, bc_val,
@@ -2945,11 +2951,16 @@ def toggle_paid(sid):
             paid_already = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s']
             outstanding = max(0.0, float(s['total']) - float(paid_already))
             if outstanding > 0.005:
+                today = date.today().isoformat()
+                db.execute(
+                    "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
+                    (sid, today, outstanding, 'bank', '[toggle]', datetime.utcnow().isoformat()))
                 db.execute(
                     'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                    (date.today().isoformat(), 'income', 'bank', f"Paid (toggle) {s['num']}",
+                    (today, 'income', 'bank', f"Paid (toggle) {s['num']}",
                      outstanding, s.get('currency') or 'GBP', s.get('customer_id'), s.get('customer') or '', s['num']))
         else:
+            db.execute("DELETE FROM invoice_payments WHERE sale_id=%s AND notes='[toggle]'", (sid,))
             db.execute("DELETE FROM transactions WHERE ref_doc=%s AND type='income' AND \"desc\" LIKE 'Paid (toggle)%%'", (s['num'],))
         db.commit()
     return redirect(request.referrer or url_for('sales'))
