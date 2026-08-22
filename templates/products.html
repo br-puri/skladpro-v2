@@ -11,102 +11,55 @@
 {% endblock %}
 {% block content %}
 <style>
+/* ── Stat strip ── */
+.pstat-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
+.pstat { background: #fff; border-radius: 13px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(16,24,40,.06), 0 0 0 1px rgba(16,24,40,.04); }
+.pstat-l { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #97a2b2; }
+.pstat-v { font-size: 23px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.pstat-hero { background: linear-gradient(150deg,#20324a,#172438); color: #fff; box-shadow: 0 8px 20px rgba(23,36,56,.24); }
+.pstat-hero .pstat-l { color: rgba(255,255,255,.6); }
+
+/* ── Segmented tabs ── */
+.prod-tab-strip { display: flex; gap: 3px; background: #e6eaf1; border-radius: 10px; padding: 3px; flex-shrink: 0; }
+.ptab { padding: 6px 14px; font-size: 12.5px; font-weight: 600; border-radius: 7px; text-decoration: none; white-space: nowrap; color: #5b6879; display: inline-flex; align-items: center; gap: 6px; transition: all .15s; }
+.ptab.active { background: #fff; color: #16233a; box-shadow: 0 1px 2px rgba(16,24,40,.1); }
+.ptab .cnt { font-size: 10.5px; font-weight: 700; color: #98a4b4; font-variant-numeric: tabular-nums; }
+.ptab .cnt.alert { min-width: 16px; height: 16px; padding: 0 5px; border-radius: 20px; background: #fef3c7; color: #ca8a04; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ── Table skin ── */
+#products-table thead th { background: #fafbfc; border-bottom: 1px solid #eef1f5; }
+.pchip { font-size: 12px; font-weight: 600; color: #475569; background: #f1f5f9; padding: 3px 10px; border-radius: 20px; display: inline-block; }
+.pbar { height: 4px; border-radius: 3px; background: #f0f2f5; margin-top: 5px; overflow: hidden; max-width: 130px; }
+.pbar > div { height: 100%; border-radius: 3px; }
+.pstatus { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+.pdot { width: 6px; height: 6px; border-radius: 50%; }
+.num { font-variant-numeric: tabular-nums; }
+
 /* Mobile product cards */
 .mob-prod-list { display: none; }
-.mob-prod-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 16px;
-  border-bottom: 1px solid #f0f2f5;
-  text-decoration: none;
-  color: inherit;
-  -webkit-tap-highlight-color: transparent;
-  transition: background .1s;
-}
+.mob-prod-card { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #f0f2f5; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent; transition: background .1s; }
 .mob-prod-card:last-child { border-bottom: none; }
 .mob-prod-card:active { background: #f8fafc; }
-.mob-prod-thumb {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: #f0f2f5;
-  border: 1px solid #e2e8f0;
-  flex-shrink: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.mob-prod-thumb { width: 44px; height: 44px; border-radius: 10px; background: #f0f2f5; border: 1px solid #e2e8f0; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .mob-prod-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .mob-prod-body { flex: 1; min-width: 0; }
-.mob-prod-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mob-prod-meta {
-  font-size: 11.5px;
-  color: #94a3b8;
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mob-prod-right {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-.mob-prod-stock {
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1;
-}
-.mob-prod-price {
-  font-size: 11px;
-  color: #94a3b8;
-  font-weight: 500;
-}
-.mob-stock-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 10px;
-}
+.mob-prod-name { font-size: 14px; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mob-prod-meta { font-size: 11.5px; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mob-prod-right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.mob-prod-stock { font-size: 17px; font-weight: 700; line-height: 1; }
+.mob-prod-price { font-size: 11px; color: #94a3b8; font-weight: 500; }
+.mob-stock-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
 
-/* Scrollable filter tabs */
-.prod-tab-strip {
-  display: flex;
-  gap: 2px;
-  background: #f0f2f5;
-  border-radius: 9px;
-  padding: 3px;
-  flex-shrink: 0;
-}
-
+@media (max-width: 900px) { .pstat-grid { grid-template-columns: repeat(3, 1fr); } .pstat-hero { grid-column: span 3; } }
 @media (max-width: 768px) {
-  /* Filter row stacks */
+  .pstat-grid { grid-template-columns: 1fr 1fr; } .pstat-hero { grid-column: span 2; }
   .prod-filter-row { flex-direction: column !important; align-items: stretch !important; }
-  .prod-tab-strip {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    flex-wrap: nowrap;
-    border-radius: 9px;
-  }
+  .prod-tab-strip { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap; }
   .prod-tab-strip::-webkit-scrollbar { display: none; }
   .prod-extra-btns { display: none !important; }
   .prod-search-form { flex-direction: column !important; gap: 8px !important; }
   .prod-search-form .form-control { width: 100% !important; }
   .prod-keyboard-hint { display: none !important; }
-
-  /* Hide desktop table, show cards */
   .prod-desk-table { display: none !important; }
   .mob-prod-list { display: block; }
 }
@@ -117,6 +70,17 @@
 {% set out_count    = products | selectattr('total', '<=', 0) | list | length %}
 {% set active_count = products | selectattr('total', '>', 0) | list | length %}
 {% set view = request.args.get('view','all') %}
+{% set nsv = namespace(v=0) %}
+{% for r in products %}{% set nsv.v = nsv.v + ((r['total'] or 0) * (r['product']['cost'] or 0)) %}{% endfor %}
+
+<!-- Stat strip -->
+<div class="pstat-grid">
+  <div class="pstat"><div class="pstat-l">Total items</div><div class="pstat-v">{{ "{:,}".format(total_count) }}</div></div>
+  <div class="pstat"><div class="pstat-l">In stock</div><div class="pstat-v" style="color:#16a34a">{{ "{:,}".format(active_count) }}</div></div>
+  <div class="pstat"><div class="pstat-l">Low stock</div><div class="pstat-v" style="color:#ca8a04">{{ "{:,}".format(low_count) }}</div></div>
+  <div class="pstat"><div class="pstat-l">Out of stock</div><div class="pstat-v" style="color:#dc2626">{{ "{:,}".format(out_count) }}</div></div>
+  <div class="pstat pstat-hero"><div class="pstat-l">Inventory value</div><div class="pstat-v">£{{ "{:,.0f}".format(nsv.v) }}</div></div>
+</div>
 
 <!-- Status filter tabs -->
 <div class="prod-filter-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap">
@@ -127,14 +91,9 @@
       ('low',    'Low Stock',    low_count,    low_count > 0),
       ('out',    'Out of Stock', out_count,    out_count > 0)
     ] %}
-    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view=v) }}"
-       style="padding:6px 13px;font-size:12.5px;font-weight:600;border-radius:7px;text-decoration:none;white-space:nowrap;transition:all .15s;
-              {% if view==v %}background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1){% else %}color:#64748b{% endif %}">
+    <a href="{{ url_for('products', q=q, cat=cat, subcat=subcat, view=v) }}" class="ptab {{ 'active' if view==v }}">
       {{ label }}
-      <span style="margin-left:5px;font-size:10.5px;padding:1px 6px;border-radius:10px;
-        {% if alert and view!=v %}background:#fee2e2;color:#dc2626{% elif view==v %}background:#e2e8f0;color:#64748b{% else %}color:#94a3b8{% endif %}">
-        {{ count }}
-      </span>
+      <span class="cnt {{ 'alert' if alert and view!=v }}">{{ count }}</span>
     </a>
     {% endfor %}
   </div>
@@ -145,7 +104,7 @@
 </div>
 
 <!-- Search + filters -->
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:12px 16px;margin-bottom:14px">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:12px;padding:12px 16px;margin-bottom:14px">
   <form method="get" id="products-search-form" class="prod-search-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input type="hidden" name="view" value="{{ view }}">
     <div class="search-input-wrap">
@@ -179,114 +138,99 @@
 {% endif %}
 
 <!-- Table / Card list -->
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
+<div style="background:#fff;border:1px solid #eaecf0;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.05)">
 {% if filtered %}
 
 <!-- Desktop table -->
 <div class="prod-desk-table" style="overflow-x:auto">
 <table id="products-table" style="width:100%;border-collapse:collapse;font-size:13px">
   <thead>
-    <tr style="background:#f8f9fb;border-bottom:2px solid #eaecf0">
-      <th style="padding:11px 16px;width:36px" onclick="event.stopPropagation()"><input type="checkbox" id="select-all"></th>
-      <th class="sortable" data-col="0" style="padding:11px 14px;text-align:left;cursor:pointer;user-select:none;min-width:240px">
-        <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
-          Item <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
-        </div>
+    <tr>
+      <th style="padding:12px 18px;width:36px" onclick="event.stopPropagation()"><input type="checkbox" id="select-all"></th>
+      <th class="sortable" data-col="0" style="padding:12px 14px;text-align:left;cursor:pointer;user-select:none;min-width:240px">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a3adba">Item <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#a3adba" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg></div>
       </th>
-      <th class="sortable" data-col="1" style="padding:11px 14px;text-align:left;cursor:pointer;user-select:none">
-        <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
-          Category <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
-        </div>
+      <th class="sortable" data-col="1" style="padding:12px 14px;text-align:left;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a3adba">Category <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#a3adba" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg></div>
       </th>
-      <th class="sortable" data-col="2" style="padding:11px 14px;text-align:right;cursor:pointer;user-select:none">
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
-          Cost <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
-        </div>
+      <th class="sortable" data-col="2" style="padding:12px 14px;text-align:right;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a3adba">Cost <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#a3adba" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg></div>
       </th>
-      <th class="sortable" data-col="3" style="padding:11px 14px;text-align:right;cursor:pointer;user-select:none">
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
-          Price <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
-        </div>
+      <th class="sortable" data-col="3" style="padding:12px 14px;text-align:right;cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a3adba">Price <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#a3adba" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg></div>
       </th>
-      {% for w in warehouses %}
-      <th style="padding:11px 14px;text-align:right;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">{{ w['name'] }}</th>
-      {% endfor %}
-      <th class="sortable" data-col="{{ 4 + warehouses|length }}" style="padding:11px 14px;text-align:right;cursor:pointer;user-select:none">
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">
-          Stock <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg>
-        </div>
+      <th class="sortable" data-col="4" style="padding:12px 14px;text-align:left;cursor:pointer;user-select:none;min-width:150px">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a3adba">Stock <svg class="sort-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#a3adba" stroke-width="1.5"><path d="M2 4l3-3 3 3M2 6l3 3 3-3"/></svg></div>
       </th>
-      <th style="padding:11px 14px;text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#64748b">Status</th>
-      <th style="padding:11px 12px;width:44px"></th>
+      <th style="padding:12px 14px;text-align:center;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a3adba">Status</th>
+      <th style="padding:12px 12px;width:44px"></th>
     </tr>
   </thead>
   <tbody>
   {% for row in filtered %}{% set p = row['product'] %}
   {% set edit_url = url_for('edit_product', pid=p['id']) %}
+  {% set scolor = '#dc2626' if row['total'] <= 0 else ('#ca8a04' if row['low'] else '#16a34a') %}
+  {% set sbg    = '#fef2f2' if row['total'] <= 0 else ('#fef9e7' if row['low'] else '#eafaf1') %}
+  {% set slabel = 'Out of stock' if row['total'] <= 0 else ('Low stock' if row['low'] else 'In stock') %}
+  {% set ms = p['min_stock'] or 0 %}
+  {% set raw = (row['total'] / ms * 100) if ms > 0 else 100 %}
+  {% set bpct = 4 if row['total'] <= 0 else ([raw, 100] | min) | round | int %}
+  {% set wparts = [] %}
+  {% for w in warehouses %}{% set qv = row['stock'].get(w['id'], 0)|int %}{% if qv %}{% set _ = wparts.append(w['name'] ~ ' ' ~ qv) %}{% endif %}{% endfor %}
   <tr class="product-row" data-href="{{ edit_url }}"
-      style="border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
-      onmouseover="this.style.background='#f8f9fb'" onmouseout="this.style.background=''"
+      style="border-bottom:1px solid #f3f5f8;cursor:pointer;transition:background .1s"
+      onmouseover="this.style.background='#fafbfc'" onmouseout="this.style.background=''"
       onclick="rowClick(event, '{{ edit_url }}')">
 
-    <td style="padding:13px 16px" onclick="event.stopPropagation()">
+    <td style="padding:13px 18px" onclick="event.stopPropagation()">
       <input type="checkbox" class="bulk-cb" value="{{ p['id'] }}">
     </td>
 
-    <td style="padding:12px 14px">
-      <div style="display:flex;align-items:center;gap:11px">
-        <div style="width:36px;height:36px;border-radius:8px;background:#f0f2f5;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.3"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
+    <td style="padding:12px 14px" data-val="{{ p['name']|lower }}">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:40px;height:40px;border-radius:9px;background:#f0f2f5;border:1px solid #e7ebf1;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+          {% if p['photo'] %}<img src="{{ photo_url(p['photo']) }}" alt="" style="width:100%;height:100%;object-fit:cover">
+          {% else %}<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.3"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>{% endif %}
         </div>
         <div style="min-width:0">
-          <div style="font-size:13.5px;font-weight:600;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">{{ p['name'] }}</div>
-          <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">
-            {% if p['sku'] %}<span style="font-size:11px;color:#94a3b8;font-family:monospace;background:#f8fafc;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0">{{ p['sku'] }}</span>{% endif %}
-            {% if p['barcode'] %}<span style="font-size:11px;color:#94a3b8;font-family:monospace">{{ p['barcode'] }}</span>{% endif %}
-          </div>
+          <div style="font-size:13.5px;font-weight:600;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px">{{ p['name'] }}</div>
+          {% if p['sku'] or p['barcode'] %}
+          <div style="font-size:11px;color:#94a3b8;font-family:'SF Mono',ui-monospace,monospace;margin-top:2px">{{ p['sku'] }}{% if p['sku'] and p['barcode'] %} · {% endif %}{{ p['barcode'] }}</div>
+          {% endif %}
         </div>
       </div>
     </td>
 
-    <td style="padding:12px 14px;font-size:12.5px;color:#374151">
-      {{ p['category'] or '—' }}
-      {% if p['subcategory'] %}<div style="font-size:11px;color:#94a3b8;margin-top:2px">{{ p['subcategory'] }}</div>{% endif %}
+    <td style="padding:12px 14px" data-val="{{ (p['category'] or '')|lower }}">
+      {% if p['category'] %}<span class="pchip">{{ p['category'] }}</span>{% else %}<span style="color:#cbd5e1">—</span>{% endif %}
+      {% if p['subcategory'] %}<div style="font-size:11px;color:#a3adba;margin-top:4px">{{ p['subcategory'] }}</div>{% endif %}
     </td>
 
-    <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12.5px;white-space:nowrap" data-val="{{ p['cost'] }}">£{{ "{:,.2f}".format(p['cost']) }}</td>
+    <td class="num" style="padding:12px 14px;text-align:right;color:#7c8798;font-size:12.5px;white-space:nowrap" data-val="{{ p['cost'] }}">£{{ "{:,.2f}".format(p['cost']) }}</td>
 
-    <td style="padding:12px 14px;text-align:right;white-space:nowrap" data-val="{{ p['price'] }}">
-      <span style="font-size:13px;font-weight:600;color:#1a1a1a">£{{ "{:,.2f}".format(p['price']) }}</span>
+    <td class="num" style="padding:12px 14px;text-align:right;white-space:nowrap" data-val="{{ p['price'] }}">
+      <span style="font-size:14px;font-weight:700;color:#16233a">£{{ "{:,.2f}".format(p['price']) }}</span>
     </td>
 
-    {% for w in warehouses %}
-    <td style="padding:12px 14px;text-align:right;color:#64748b;font-size:12px" data-val="{{ row['stock'].get(w['id'], 0)|int }}">{{ row['stock'].get(w['id'], 0)|int }}</td>
-    {% endfor %}
-
-    <td style="padding:12px 14px;text-align:right" data-val="{{ row['total']|int }}">
-      <span style="font-size:14px;font-weight:700;color:{% if row['total'] <= 0 %}#dc2626{% elif row['low'] %}#d97706{% else %}#16a34a{% endif %}">
-        {{ row['total']|int }}
-      </span>
-      <span style="font-size:11px;color:#94a3b8;margin-left:2px">{{ p['unit'] }}</span>
-      {% if p['carton_qty'] and p['carton_qty'] > 0 %}
-      <div style="font-size:11px;color:#cbd5e1">{{ (row['total'] / p['carton_qty'])|round(1) }} ctn</div>
-      {% endif %}
+    <td style="padding:12px 14px" data-val="{{ row['total']|int }}">
+      <div style="display:flex;align-items:baseline;gap:6px">
+        <span class="num" style="font-size:14px;font-weight:700;color:{{ scolor }}">{{ row['total']|int }}</span>
+        <span style="font-size:11px;color:#a3adba">{% if wparts %}{{ wparts|join(' · ') }}{% else %}{{ p['unit'] }}{% endif %}</span>
+      </div>
+      <div class="pbar"><div style="width:{{ bpct }}%;background:{{ scolor }}"></div></div>
     </td>
 
     <td style="padding:12px 14px;text-align:center">
-      {% if row['total'] <= 0 %}
-      <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fee2e2;color:#dc2626;white-space:nowrap">Out of stock</span>
-      {% elif row['low'] %}
-      <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#fef3c7;color:#92400e;white-space:nowrap">Low stock</span>
-      {% else %}
-      <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:#dcfce7;color:#15803d;white-space:nowrap">Active</span>
-      {% endif %}
+      <span class="pstatus" style="color:{{ scolor }};background:{{ sbg }}"><span class="pdot" style="background:{{ scolor }}"></span>{{ slabel }}</span>
     </td>
 
     <td style="padding:12px 10px" onclick="event.stopPropagation()">
       <div style="position:relative;display:inline-block" class="row-menu">
         <button onclick="toggleMenu(this)"
-                style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;color:#64748b;font-size:16px;transition:all .15s"
-                onmouseover="this.style.background='#f0f2f5'" onmouseout="this.style.background='#fff'">···</button>
+                style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid #e7ebf1;background:#fff;cursor:pointer;color:#94a3b8;transition:all .15s"
+                onmouseover="this.style.background='#f2f5f9'" onmouseout="this.style.background='#fff'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </button>
         <div class="row-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:168px;z-index:200;overflow:hidden;padding:4px">
           <button onclick="showDetails({{ p['id'] }}, '{{ p['name']|e }}', {{ p['length'] or 0 }}, {{ p['width'] or 0 }}, {{ p['height'] or 0 }}, {{ p['weight'] or 0 }}, {{ p['cbm'] or 0 }}, {{ p['carton_qty']|int if p['carton_qty'] else 0 }}, {{ p['china_price'] or 0 }}, '{{ p['china_currency'] or 'RMB' }}')"
                   style="display:block;width:100%;padding:8px 12px;font-size:12.5px;color:#374151;text-align:left;border:none;background:none;cursor:pointer;border-radius:6px"
@@ -356,10 +300,10 @@
   {% endfor %}
 </div><!-- /mob-prod-list -->
 
-<div style="padding:10px 18px;border-top:1px solid #f0f2f5;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
+<div style="padding:11px 18px;border-top:1px solid #f3f5f8;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;align-items:center">
   <span id="visible-count">{{ filtered|length }} item{% if filtered|length != 1 %}s{% endif %}</span>
   {% if filtered|length < total_count %}
-  <a href="{{ url_for('products') }}" style="font-size:12px;color:#2563eb;text-decoration:none">Show all {{ total_count }}</a>
+  <a href="{{ url_for('products') }}" style="font-size:12px;color:#1a6ef5;text-decoration:none">Show all {{ total_count }}</a>
   {% endif %}
 </div>
 
@@ -549,7 +493,7 @@ function sortTable(col, dir) {
     const getCellVal = row => {
       const td = row.querySelectorAll('td')[col + 1]; // +1 for checkbox col
       const v = td?.dataset.val;
-      return v !== undefined ? parseFloat(v) || v.toLowerCase() : (td?.textContent.trim().toLowerCase() || '');
+      return v !== undefined ? (parseFloat(v) || v.toLowerCase()) : (td?.textContent.trim().toLowerCase() || '');
     };
     const av = getCellVal(a), bv = getCellVal(b);
     if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;

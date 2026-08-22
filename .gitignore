@@ -7,3 +7,5 @@ __pycache__/
 *.db
 .claude/
 migrate_sqlite_to_pg.py
+design_canvas/
+design_products/
