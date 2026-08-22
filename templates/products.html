@@ -453,26 +453,33 @@ document.addEventListener('keydown', function(e) {
   if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
 })();
 
-// ── Subcategory filter sync ───────────────────────────────────────
+// ── Subcategory filter sync (rebuild options — option.hidden is unreliable) ──
 const allSubcats = {{ subcategories | tojson }};
+function rebuildSubcats(sel, cat, keepValue) {
+  if (!sel) return;
+  while (sel.options.length > 1) sel.remove(1);   // keep the "All subcategories" placeholder
+  const seen = new Set();
+  allSubcats.forEach(s => {
+    if (cat && s.category !== cat) return;
+    if (seen.has(s.subcategory)) return;           // avoid duplicate names across categories
+    seen.add(s.subcategory);
+    const o = document.createElement('option');
+    o.value = s.subcategory;
+    o.dataset.cat = s.category;
+    o.textContent = s.subcategory;
+    if (keepValue && s.subcategory === keepValue) o.selected = true;
+    sel.appendChild(o);
+  });
+}
 function filterSubcatOptions() {
   const cat = document.getElementById('filter-cat').value;
   const sel = document.getElementById('filter-subcat');
-  Array.from(sel.options).forEach(opt => {
-    if (!opt.value) return;
-    opt.hidden = cat ? opt.dataset.cat !== cat : false;
-  });
-  if (sel.options[sel.selectedIndex]?.hidden) sel.value = '';
+  rebuildSubcats(sel, cat, sel ? sel.value : '');
 }
 filterSubcatOptions();
 function filterBeSubcats() {
   const cat = document.getElementById('be-category').value;
-  const sel = document.getElementById('be-subcategory');
-  Array.from(sel.options).forEach(opt => {
-    if (!opt.value) return;
-    opt.hidden = cat ? !allSubcats.some(s => s.subcategory === opt.value) : false;
-  });
-  sel.value = '';
+  rebuildSubcats(document.getElementById('be-subcategory'), cat, '');
 }
 
 // ── Column sort ───────────────────────────────────────────────────
