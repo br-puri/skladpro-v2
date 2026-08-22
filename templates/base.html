@@ -36,8 +36,9 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
 .nav-item.active svg { opacity: 1; }
 .nav-item .nav-text { transition: opacity 0.15s; font-size: 13px; }
-.sidebar.collapsed .nav-item .nav-text { opacity: 0; }
-.sidebar.collapsed .nav-item { margin: 1px 4px; justify-content: center; padding: 8px; }
+.sidebar.collapsed .nav-item .nav-text { opacity: 0; width: 0; overflow: hidden; }
+.sidebar.collapsed .nav-item { margin: 1px 8px; justify-content: center; padding: 8px 0; gap: 0; }
+.sidebar.collapsed .nav-label { height: 0; padding: 0; margin: 0; }
 .sidebar.collapsed .nav-item.active::before { display: none; }
 /* Tooltip on collapsed hover */
 .sidebar.collapsed .nav-item:hover::after {
@@ -165,10 +166,17 @@ th.cb-col, td.cb-col { width: 36px; padding-left: 16px; padding-right: 4px; }
 input[type=checkbox].bulk-cb, input[type=checkbox]#select-all { width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb; }
 
 /* ── Bulk bar ── */
-.bulk-bar { position: fixed; bottom: 0; left: 220px; right: 0; background: #1f3045; color: #fff; padding: 12px 28px; display: none; align-items: center; gap: 14px; z-index: 200; box-shadow: 0 -4px 20px rgba(0,0,0,.2); border-top: 1px solid rgba(255,255,255,.08); transition: left 0.22s ease; }
-.bulk-bar.sidebar-collapsed { left: 52px; }
-.bulk-bar select { padding: 6px 10px; border-radius: 7px; border: 1px solid rgba(255,255,255,.15); font-size: 13px; background: rgba(255,255,255,.1); color: #fff; font-family: inherit; }
-.bulk-bar .btn { font-size: 13px; }
+.bulk-bar { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg,#243a56 0%,#1b2b41 100%); color: #fff; padding: 9px 11px 9px 18px; display: none; align-items: center; gap: 12px; z-index: 200; border-radius: 15px; border: 1px solid rgba(255,255,255,.09); box-shadow: 0 18px 44px rgba(8,15,26,.46), 0 0 0 1px rgba(0,0,0,.15); max-width: calc(100vw - 32px); animation: bulkUp .18s cubic-bezier(.2,.7,.3,1); }
+@keyframes bulkUp { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.bulk-bar #bulk-count { font-size: 13.5px; font-weight: 600; color: #fff; display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; padding-right: 12px; margin-right: 2px; border-right: 1px solid rgba(255,255,255,.12); }
+.bulk-bar #bulk-count::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.28); flex-shrink: 0; }
+.bulk-bar select { appearance: none; -webkit-appearance: none; padding: 8px 32px 8px 13px; border-radius: 9px; border: 1px solid rgba(255,255,255,.16); font-size: 13px; font-weight: 500; background: rgba(255,255,255,.09) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-opacity='0.7'><path d='m6 9 6 6 6-6'/></svg>") no-repeat right 11px center; color: #fff; font-family: inherit; cursor: pointer; transition: background-color .14s, border-color .14s; }
+.bulk-bar select:hover { background-color: rgba(255,255,255,.15); border-color: rgba(255,255,255,.28); }
+.bulk-bar select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.3); }
+.bulk-bar select option { color: #1a2332; }
+.bulk-bar .btn { font-size: 13px; box-shadow: none; }
+.bulk-bar #bulk-cancel { background: rgba(255,255,255,.08) !important; border-color: rgba(255,255,255,.16) !important; color: #cfd8e6 !important; }
+.bulk-bar #bulk-cancel:hover { background: rgba(255,255,255,.16) !important; color: #fff !important; }
 
 /* ── Mobile-only elements — hidden on desktop, controlled by JS on mobile ── */
 .mob-overlay {
@@ -196,7 +204,7 @@ input[type=checkbox].bulk-cb, input[type=checkbox]#select-all { width: 15px; hei
   .sidebar .toggle-label { opacity: 1 !important; width: auto !important; }
 
   .main { margin-left: 0 !important; }
-  .bulk-bar { left: 0 !important; }
+  .bulk-bar { left: 50% !important; }
 
   .topbar { padding: 0 12px; gap: 8px; height: 52px; }
   .topbar h1 { font-size: 14px; }
