@@ -1,494 +1,337 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('add_sale') }}" class="btn btn-primary">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="vertical-align:-2px"><path d="M12 5v14M5 12h14"/></svg>
+    New Invoice
+  </a>
+{% endblock %}
 {% block content %}
 
 <style>
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
-  margin-bottom: 18px;
-}
-.kpi-card {
-  background: #fff;
-  border: 1px solid #e4e7ec;
-  border-radius: 10px;
-  padding: 14px 16px;
-  text-decoration: none;
-  color: inherit;
-  display: block;
-  position: relative;
-  overflow: hidden;
-  transition: box-shadow .15s, transform .15s;
-}
-.kpi-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.07); transform: translateY(-1px); }
-.kpi-card::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  border-radius: 10px 10px 0 0;
-}
-.kpi-card.t-blue::after   { background: #2563eb; }
-.kpi-card.t-slate::after  { background: #94a3b8; }
-.kpi-card.t-violet::after { background: #7c3aed; }
-.kpi-card.t-green::after  { background: #059669; }
-.kpi-card.t-red::after    { background: #dc2626; }
-.kpi-card.t-amber::after  { background: #d97706; }
-.kpi-icon {
-  width: 30px; height: 30px;
-  border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  margin-bottom: 10px;
-}
-.kpi-icon.i-blue   { background: #eff6ff; }
-.kpi-icon.i-slate  { background: #f8fafc; }
-.kpi-icon.i-violet { background: #f5f3ff; }
-.kpi-icon.i-green  { background: #ecfdf5; }
-.kpi-icon.i-red    { background: #fef2f2; }
-.kpi-icon.i-amber  { background: #fffbeb; }
-.kpi-label {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #9ba8b9;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 4px;
-  white-space: nowrap;
-}
-.kpi-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: #0d1b2a;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
-}
-.kpi-value.v-green  { color: #059669; }
-.kpi-value.v-red    { color: #dc2626; }
-.kpi-value.v-amber  { color: #d97706; }
+  .dash { --accent: #1a6ef5; }
+  .dash-hi { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #16233a; }
+  .dash-sub { font-size: 13px; color: #7c8798; margin-top: 3px; }
 
-/* Charts */
-.chart-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.dash-card {
-  background: #fff;
-  border: 1px solid #e4e7ec;
-  border-radius: 10px;
-  padding: 16px 18px 12px;
-}
-.dash-card-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #6b7a90;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 14px;
-}
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; margin: 20px 0 18px; }
+  .kc { border-radius: 16px; padding: 18px 20px; background: #fff; box-shadow: 0 1px 3px rgba(16,24,40,.06), 0 0 0 1px rgba(16,24,40,.04); }
+  .kc-top { display: flex; align-items: center; justify-content: space-between; }
+  .kc-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #97a2b2; }
+  .kc-val { font-size: 30px; font-weight: 800; color: #16233a; margin: 12px 0 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .kc-ic { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+  .kc-sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #7c8798; }
+  .chip { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; }
+  .chip.up { color: #16a34a; } .chip.down { color: #dc2626; }
 
-/* Bottom grid */
-.dash-bottom {
-  display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 12px;
-}
-.dash-section {
-  background: #fff;
-  border: 1px solid #e4e7ec;
-  border-radius: 10px;
-  overflow: hidden;
-}
-.dash-section-head {
-  padding: 11px 16px;
-  border-bottom: 1px solid #f1f4f8;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #fafbfc;
-}
-.dash-section-title {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #6b7a90;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-.dash-section table td,
-.dash-section table th { padding: 8px 12px; }
+  .kc-hero { background: linear-gradient(150deg,#20324a 0%,#172438 100%); color: #fff; position: relative; overflow: hidden; box-shadow: 0 12px 30px rgba(23,36,56,.28); }
+  .kc-hero::after { content:''; position:absolute; top:-30px; right:-30px; width:130px; height:130px; border-radius:50%; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); opacity:.35; }
+  .kc-hero .kc-label { color: rgba(255,255,255,.6); }
+  .kc-hero .kc-val { color: #fff; }
 
-/* Quick actions — mobile only */
-.mob-actions {
-  display: none;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.mob-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 12px 6px;
-  background: #fff;
-  border: 1px solid #e4e7ec;
-  border-radius: 12px;
-  text-decoration: none;
-  color: #374151;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-  transition: background .1s;
-}
-.mob-action-btn:active { background: #f0f7ff; }
-.mob-action-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+  .dash-mid { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 16px; margin-bottom: 18px; }
+  .dash-bot { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(0,1fr); gap: 16px; }
+  .panel { border-radius: 16px; background: #fff; box-shadow: 0 1px 3px rgba(16,24,40,.06), 0 0 0 1px rgba(16,24,40,.04); overflow: hidden; }
+  .panel-pad { padding: 20px 22px; }
+  .panel-h { font-size: 14px; font-weight: 700; color: #16233a; }
+  .panel-hs { font-size: 12px; color: #8a96a8; margin-top: 2px; }
 
-/* Mobile sales cards */
-.mob-sale-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid #f0f2f5;
-  text-decoration: none;
-  color: inherit;
-  gap: 10px;
-  -webkit-tap-highlight-color: transparent;
-}
-.mob-sale-card:last-child { border-bottom: none; }
-.mob-sale-card:active { background: #f8fafc; }
+  .tbl-head { display: grid; grid-template-columns: 1.15fr 1.5fr 1fr 0.95fr; padding: 9px 20px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #a3adba; background: #fafbfc; border-top: 1px solid #f0f2f5; border-bottom: 1px solid #f0f2f5; }
+  .tbl-row { display: grid; grid-template-columns: 1.15fr 1.5fr 1fr 0.95fr; align-items: center; padding: 13px 20px; border-bottom: 1px solid #f3f5f8; font-size: 13px; text-decoration: none; }
+  .tbl-row:hover { background: #fafbfc; }
+  .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+  .pill.paid { color: #16a34a; background: #eafaf1; }
+  .pill.unpaid { color: #dc2626; background: #fef2f2; }
+  .pill.cancel { color: #64748b; background: #f1f5f9; }
+  .pd { width: 6px; height: 6px; border-radius: 50%; }
 
-@media (max-width: 1100px) {
-  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 768px) {
-  .kpi-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
-  .kpi-card { padding: 10px 12px; }
-  .kpi-icon { width: 26px; height: 26px; margin-bottom: 8px; border-radius: 6px; }
-  .kpi-label { font-size: 9.5px; }
-  .kpi-value { font-size: 16px; }
+  .mono { font-variant-numeric: tabular-nums; }
 
-  /* Hide charts on mobile — not readable */
-  .chart-grid, .dash-charts-hide { display: none !important; }
-
-  /* Show quick actions */
-  .mob-actions { display: grid; }
-
-  /* Bottom section stacked */
-  .dash-bottom { grid-template-columns: 1fr; gap: 10px; }
-
-  /* Hide desktop table, show card list */
-  .dash-desk-sales { display: none !important; }
-  .mob-sales-wrap { display: block !important; }
-}
+  @media (max-width: 1100px) { .dash-mid, .dash-bot { grid-template-columns: 1fr; } }
+  @media (max-width: 860px)  { .kpis { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px)  { .kpis { grid-template-columns: 1fr; } .tbl-head, .tbl-row { grid-template-columns: 1fr auto; } .tbl-head span:nth-child(2), .tbl-row > *:nth-child(2), .tbl-head span:nth-child(3), .tbl-row > *:nth-child(3) { display:none; } }
 </style>
 
-<!-- Quick actions (mobile only) -->
-<div class="mob-actions">
-  <a href="{{ url_for('add_sale') }}" class="mob-action-btn">
-    <div class="mob-action-icon" style="background:#eff6ff">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </div>
-    New Sale
-  </a>
-  <a href="{{ url_for('add_purchase') }}" class="mob-action-btn">
-    <div class="mob-action-icon" style="background:#fff7ed">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </div>
-    Purchase
-  </a>
-  <a href="{{ url_for('products') }}" class="mob-action-btn">
-    <div class="mob-action-icon" style="background:#f5f3ff">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-    </div>
-    Products
-  </a>
-  <a href="{{ url_for('report_stock') }}" class="mob-action-btn">
-    <div class="mob-action-icon" style="background:#ecfdf5">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    </div>
-    Stock
-  </a>
-</div>
+<div class="dash" data-user="{{ session.get('username','') }}">
 
-<!-- KPI Row -->
-<div class="kpi-grid">
-
-  <a href="{{ url_for('products') }}" class="kpi-card t-blue">
-    <div class="kpi-icon i-blue">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+  <!-- Greeting -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div>
+      <div class="dash-hi" id="dashGreeting">Welcome back</div>
+      <div class="dash-sub" id="dashDate">Here's what's happening across your warehouses today</div>
     </div>
-    <div class="kpi-label">Products</div>
-    <div class="kpi-value">{{ product_count }}</div>
-  </a>
-
-  <a href="{{ url_for('warehouses') }}" class="kpi-card t-slate">
-    <div class="kpi-icon i-slate">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-    </div>
-    <div class="kpi-label">Warehouses</div>
-    <div class="kpi-value">{{ warehouse_count }}</div>
-  </a>
-
-  <a href="{{ url_for('report_stock') }}" class="kpi-card t-violet">
-    <div class="kpi-icon i-violet" style="font-size:15px;font-weight:700;color:#7c3aed;line-height:1">£</div>
-    <div class="kpi-label">Stock Value</div>
-    <div class="kpi-value">£{{ "{:,.0f}".format(stock_value) }}</div>
-  </a>
-
-  <a href="{{ url_for('sales') }}" class="kpi-card t-green">
-    <div class="kpi-icon i-green">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-    </div>
-    <div class="kpi-label">Sales Revenue</div>
-    <div class="kpi-value v-green">£{{ "{:,.0f}".format(completed_revenue) }}</div>
-  </a>
-
-  <a href="{{ url_for('finance') }}" class="kpi-card {% if net_cash >= 0 %}t-green{% else %}t-red{% endif %}">
-    <div class="kpi-icon {% if net_cash >= 0 %}i-green{% else %}i-red{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{% if net_cash >= 0 %}#059669{% else %}#dc2626{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-    </div>
-    <div class="kpi-label">Net Cash</div>
-    <div class="kpi-value {% if net_cash >= 0 %}v-green{% else %}v-red{% endif %}">£{{ "{:,.0f}".format(net_cash) }}</div>
-  </a>
-
-  <a href="{{ url_for('sales') }}?status=pending" class="kpi-card {% if pending_sales > 0 %}t-amber{% else %}t-slate{% endif %}">
-    <div class="kpi-icon {% if pending_sales > 0 %}i-amber{% else %}i-slate{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{% if pending_sales > 0 %}#d97706{% else %}#94a3b8{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    </div>
-    <div class="kpi-label">Pending Sales</div>
-    <div class="kpi-value {% if pending_sales > 0 %}v-amber{% endif %}">{{ pending_sales }}</div>
-  </a>
-
-</div>
-
-<!-- Charts (hidden on mobile) -->
-<div class="chart-grid dash-charts-hide">
-  <div class="dash-card">
-    <div class="dash-card-label">Monthly Revenue</div>
-    <canvas id="revenueChart" height="115"></canvas>
   </div>
-  <div class="dash-card">
-    <div class="dash-card-label">Sales by Status</div>
-    <canvas id="statusChart" height="170"></canvas>
-  </div>
-</div>
 
-<div class="dash-card dash-charts-hide" style="margin-bottom:12px">
-  <div class="dash-card-label">Top Products by Revenue</div>
-  <canvas id="topProductsChart" height="58"></canvas>
-</div>
-
-<!-- Recent Sales + Low Stock -->
-<div class="dash-bottom">
-
-  <div class="dash-section">
-    <div class="dash-section-head">
-      <span class="dash-section-title">Recent Sales</span>
-      <a href="{{ url_for('sales') }}" class="btn btn-sm">View all</a>
+  <!-- KPIs -->
+  <div class="kpis">
+    <!-- Revenue hero -->
+    <div class="kc kc-hero">
+      <div class="kc-top">
+        <span class="kc-label">Revenue (completed)</span>
+      </div>
+      <div class="kc-val">£{{ "{:,.0f}".format(completed_revenue or 0) }}</div>
+      <svg width="100%" height="34" viewBox="0 0 200 34" preserveAspectRatio="none" id="heroSpark" style="position:relative">
+        <polyline points="0,26 200,10" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </div>
-    {% if recent_sales %}
-    <!-- Desktop table -->
-    <div class="table-wrap dash-desk-sales">
-      <table>
-        <thead><tr><th>Doc</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
-        <tbody>
-        {% for s in recent_sales %}
-        <tr>
-          <td><a href="{{ url_for('view_sale', sid=s['id']) }}" class="mono" style="color:#2563eb;text-decoration:none;font-weight:500">{{ s['num'] }}</a></td>
-          <td style="color:#8a96a8;font-size:12px">{{ s['doc_date'] }}</td>
-          <td style="font-size:13px">{{ s['customer'] }}</td>
-          <td style="font-weight:600;font-size:13px">£{{ "{:,.0f}".format(s['total']) }}</td>
-          <td><span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}">{{ s['status'] }}</span></td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <!-- Mobile card list (hidden on desktop) -->
-    <div class="mob-sales-wrap" style="display:none">
-      {% for s in recent_sales %}
-      <a href="{{ url_for('view_sale', sid=s['id']) }}" class="mob-sale-card">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-            <span style="font-size:12px;font-weight:700;color:#2563eb;font-family:monospace">{{ s['num'] }}</span>
-            <span class="badge badge-{{ 'success' if s['status']=='completed' else 'danger' if s['status']=='cancelled' else 'warning' }}" style="font-size:10px">{{ s['status'] }}</span>
-          </div>
-          <div style="font-size:13px;font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s['customer'] or '—' }}</div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:1px">{{ s['doc_date'] }}</div>
+
+    <!-- Inventory value -->
+    <div class="kc">
+      <div class="kc-top">
+        <span class="kc-label">Inventory value</span>
+        <div class="kc-ic" style="background:#eef4ff">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6ef5" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
         </div>
-        <div style="font-size:15px;font-weight:700;color:#0d1b2a;white-space:nowrap;flex-shrink:0">£{{ "{:,.0f}".format(s['total']) }}</div>
+      </div>
+      <div class="kc-val">£{{ "{:,.0f}".format(stock_value or 0) }}</div>
+      <div class="kc-sub">across {{ warehouse_count }} warehouse{{ 's' if warehouse_count != 1 }} · {{ product_count }} products</div>
+    </div>
+
+    <!-- Net cash -->
+    <div class="kc">
+      <div class="kc-top">
+        <span class="kc-label">Net cash</span>
+        <div class="kc-ic" style="background:#eafaf1">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+      </div>
+      <div class="kc-val" style="color:{{ '#16a34a' if (net_cash or 0) >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(net_cash or 0) }}</div>
+      <div class="kc-sub">income − expenses</div>
+    </div>
+
+    <!-- Outstanding -->
+    <div class="kc">
+      <div class="kc-top">
+        <span class="kc-label">Outstanding</span>
+        <div class="kc-ic" style="background:#fef2f2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </div>
+      </div>
+      <div class="kc-val">£{{ "{:,.0f}".format(outstanding or 0) }}</div>
+      <div class="kc-sub">{{ unpaid_count }} unpaid invoice{{ 's' if unpaid_count != 1 }}{% if pending_sales %} · {{ pending_sales }} pending{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Middle: trend + donut -->
+  <div class="dash-mid">
+    <div class="panel panel-pad">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div>
+          <div class="panel-h">Sales trend</div>
+          <div class="panel-hs">Completed sales · last 6 months</div>
+        </div>
+      </div>
+      {% if monthly_sales %}
+      <svg width="100%" height="230" viewBox="0 0 660 230" preserveAspectRatio="none" style="display:block;margin-top:6px" id="trendChart">
+        <defs><linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1a6ef5" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="#1a6ef5" stop-opacity="0"/>
+        </linearGradient></defs>
+        <line x1="40" y1="40"  x2="640" y2="40"  stroke="#eef1f6" stroke-width="1"/>
+        <line x1="40" y1="90"  x2="640" y2="90"  stroke="#eef1f6" stroke-width="1"/>
+        <line x1="40" y1="140" x2="640" y2="140" stroke="#eef1f6" stroke-width="1"/>
+        <line x1="40" y1="190" x2="640" y2="190" stroke="#eef1f6" stroke-width="1"/>
+        <path id="trendArea" d="" fill="url(#areaFill)"/>
+        <polyline id="trendLine" points="" fill="none" stroke="#1a6ef5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle id="trendDot" cx="0" cy="0" r="5" fill="#fff" stroke="#1a6ef5" stroke-width="3" style="display:none"/>
+        <g id="trendLabels" fill="#98a4b4" font-size="11" text-anchor="middle"></g>
+      </svg>
+      {% else %}
+      <div style="padding:60px 0;text-align:center;color:#98a4b4;font-size:13px">No completed sales yet</div>
+      {% endif %}
+    </div>
+
+    <div class="panel panel-pad">
+      <div class="panel-h">Order status</div>
+      <div class="panel-hs" style="margin-bottom:8px" id="donutTotal">orders</div>
+      <div style="display:flex;align-items:center;justify-content:center;height:168px">
+        <svg width="168" height="168" viewBox="0 0 168 168" id="statusDonut">
+          <g transform="rotate(-90 84 84)" id="donutRings">
+            <circle cx="84" cy="84" r="60" fill="none" stroke="#f0f2f5" stroke-width="18"/>
+          </g>
+          <text x="84" y="80" text-anchor="middle" font-size="26" font-weight="800" fill="#16233a" letter-spacing="-1" id="donutPct">—</text>
+          <text x="84" y="98" text-anchor="middle" font-size="11" fill="#98a4b4">completed</text>
+        </svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px" id="donutLegend"></div>
+    </div>
+  </div>
+
+  <!-- Bottom: recent + right column -->
+  <div class="dash-bot">
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px">
+        <div class="panel-h">Recent invoices</div>
+        <a href="{{ url_for('sales') }}" style="font-size:12.5px;font-weight:600;color:var(--accent)">View all</a>
+      </div>
+      {% if recent_sales %}
+      <div class="tbl-head"><span>Invoice</span><span>Customer</span><span style="text-align:right">Amount</span><span style="text-align:right">Status</span></div>
+      {% for s in recent_sales %}
+      <a class="tbl-row" href="{{ url_for('view_sale', sid=s['id']) }}">
+        <span class="mono" style="font-weight:700;color:var(--accent)">{{ s['num'] }}</span>
+        <span style="color:#46536a;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s['customer'] or '—' }}</span>
+        <span class="mono" style="text-align:right;font-weight:700;color:#16233a">£{{ "{:,.0f}".format(s['total'] or 0) }}</span>
+        <span style="text-align:right">
+          {% if s['status'] == 'cancelled' %}
+            <span class="pill cancel">Cancelled</span>
+          {% elif s['paid'] %}
+            <span class="pill paid"><span class="pd" style="background:#16a34a"></span>Paid</span>
+          {% else %}
+            <span class="pill unpaid"><span class="pd" style="background:#dc2626"></span>Unpaid</span>
+          {% endif %}
+        </span>
       </a>
       {% endfor %}
+      {% else %}
+      <div style="padding:36px 24px;text-align:center;color:#98a4b4;font-size:13px">No sales yet — <a href="{{ url_for('add_sale') }}">create one</a></div>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="empty">No sales yet — <a href="{{ url_for('add_sale') }}">create one</a></div>
-    {% endif %}
-  </div>
 
-  <div class="dash-section">
-    <div class="dash-section-head">
-      <span class="dash-section-title">Low Stock Alerts</span>
-      <a href="{{ url_for('report_low_stock') }}" class="btn btn-sm">Full report</a>
-    </div>
-    {% if low_stock %}
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Product</th><th>Qty</th><th>Min</th></tr></thead>
-        <tbody>
-        {% for item in low_stock %}
-        <tr>
-          <td style="font-size:13px">{{ item['name'] }}</td>
-          <td><span class="badge {% if item['qty'] == 0 %}badge-danger{% else %}badge-warning{% endif %}">{{ item['qty'] }}</span></td>
-          <td style="color:#9ba8b9;font-size:12px">{{ item['min_stock'] }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div style="padding:36px 24px;text-align:center">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 8px;display:block"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      <div style="font-size:13px;color:#6b7a90;font-weight:500">All products well stocked</div>
-    </div>
-    {% endif %}
-  </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <!-- Low stock -->
+      <div class="panel">
+        <div style="display:flex;align-items:center;gap:8px;padding:15px 18px 11px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M10.3 3.1 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.1a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>
+          <div class="panel-h">Low stock</div>
+          {% if low_stock %}<span style="margin-left:auto;font-size:11px;font-weight:700;color:#dc2626;background:#fef2f2;padding:3px 9px;border-radius:20px">{{ low_stock|length }} item{{ 's' if low_stock|length != 1 }}</span>{% endif %}
+        </div>
+        {% if low_stock %}
+          {% for item in low_stock[:6] %}
+          {% set pct = ((item['qty']/item['min_stock']*100) if item['min_stock'] else 0)|round|int %}
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 18px;border-top:1px solid #f3f5f8">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:#2d3a4e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ item['name'] }}</div>
+              <div style="height:5px;border-radius:3px;background:#f0f2f5;margin-top:6px;overflow:hidden">
+                <div style="height:100%;width:{{ [pct,100]|min if pct > 0 else 4 }}%;border-radius:3px;background:linear-gradient(90deg,#f87171,#ef4444)"></div>
+              </div>
+            </div>
+            <span class="mono" style="font-size:12.5px;font-weight:700;color:{{ '#dc2626' if item['qty'] == 0 else '#ca8a04' }};white-space:nowrap">{{ item['qty']|round|int }} {{ item['unit'] }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="padding:24px 18px;text-align:center;border-top:1px solid #f3f5f8">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.7" style="margin:0 auto 6px;display:block"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <div style="font-size:12.5px;color:#6b7a90;font-weight:500">All products well stocked</div>
+          </div>
+        {% endif %}
+      </div>
 
+      <!-- Top products -->
+      <div class="panel">
+        <div style="padding:15px 18px 11px" class="panel-h">Top products</div>
+        {% if top_products %}
+          {% for p in top_products[:5] %}
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-top:1px solid #f3f5f8">
+            <div style="width:26px;height:26px;border-radius:8px;background:#eef4ff;color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">{{ loop.index }}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:#2d3a4e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p['name'] }}</div>
+              <div style="font-size:11px;color:#98a4b4">{{ p['units']|round|int }} units sold</div>
+            </div>
+            <span class="mono" style="font-size:13px;font-weight:700;color:#16233a">£{{ "{:,.0f}".format(p['revenue'] or 0) }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="padding:24px 18px;text-align:center;border-top:1px solid #f3f5f8;color:#98a4b4;font-size:12.5px">No sales data yet</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif";
-Chart.defaults.font.size = 11;
-Chart.defaults.color = '#8a96a8';
+(function () {
+  // ── Greeting ──
+  const h = new Date().getHours();
+  const part = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening';
+  const user = (document.querySelector('.dash')?.dataset.user || '').trim();
+  const gEl = document.getElementById('dashGreeting');
+  if (gEl) gEl.textContent = 'Good ' + part + (user ? ', ' + user : '');
+  const dEl = document.getElementById('dashDate');
+  if (dEl) dEl.textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+                             + ' · here’s your overview';
 
-const _tip = {
-  backgroundColor: '#0d1b2a',
-  titleColor: '#8a96a8',
-  bodyColor: '#f0f2f5',
-  borderColor: 'rgba(255,255,255,0.06)',
-  borderWidth: 1,
-  padding: 10,
-  cornerRadius: 6,
-  displayColors: false
-};
-
-// Monthly Revenue
-const monthlyData = {{ monthly_sales | tojson }};
-const monthLabels = monthlyData.map(m => {
-  const [y, mo] = m.month.split('-');
-  return new Date(y, mo - 1).toLocaleString('default', { month: 'short', year: '2-digit' });
-});
-const monthTotals = monthlyData.map(m => parseFloat(m.total || 0));
-
-new Chart(document.getElementById('revenueChart'), {
-  type: 'bar',
-  data: {
-    labels: monthLabels.length ? monthLabels : ['No data'],
-    datasets: [{
-      data: monthTotals.length ? monthTotals : [0],
-      backgroundColor: 'rgba(37,99,235,0.10)',
-      borderColor: '#2563eb',
-      borderWidth: 1.5,
-      borderRadius: 4,
-      borderSkipped: false,
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      tooltip: { ..._tip, callbacks: { label: ctx => ' £' + ctx.parsed.y.toLocaleString('en-GB') } }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: { color: '#f1f4f8' },
-        border: { display: false },
-        ticks: { callback: v => '£' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
-      },
-      x: { grid: { display: false }, border: { display: false } }
+  // ── Sales trend (pure SVG) ──
+  const monthly = {{ monthly_sales | tojson }};
+  if (monthly && monthly.length) {
+    const pts = monthly.slice(-6);
+    const vals = pts.map(m => parseFloat(m.total || 0));
+    const max = Math.max(...vals, 1);
+    const x0 = 60, x1 = 600, yTop = 40, yBot = 190;
+    const n = pts.length;
+    const X = i => n === 1 ? (x0 + x1) / 2 : x0 + (x1 - x0) * i / (n - 1);
+    const Y = v => yBot - (v / max) * (yBot - yTop);
+    const coords = vals.map((v, i) => [X(i), Y(v)]);
+    const line = document.getElementById('trendLine');
+    const area = document.getElementById('trendArea');
+    const dot  = document.getElementById('trendDot');
+    if (line) line.setAttribute('points', coords.map(c => c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' '));
+    if (area) {
+      const first = coords[0], last = coords[coords.length - 1];
+      area.setAttribute('d', 'M' + coords.map(c => c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' L') +
+                             ' L' + last[0].toFixed(1) + ',' + yBot + ' L' + first[0].toFixed(1) + ',' + yBot + ' Z');
     }
+    if (dot) { const l = coords[coords.length - 1]; dot.setAttribute('cx', l[0]); dot.setAttribute('cy', l[1]); dot.style.display = ''; }
+    const labs = document.getElementById('trendLabels');
+    if (labs) labs.innerHTML = pts.map((m, i) => {
+      const d = new Date(m.month + '-01');
+      const lbl = isNaN(d) ? m.month : d.toLocaleString('default', { month: 'short' });
+      return '<text x="' + X(i).toFixed(1) + '" y="212">' + lbl + '</text>';
+    }).join('');
   }
-});
 
-// Sales Status Doughnut
-const statusData = {{ status_counts | tojson }};
-const statusColors = { completed: '#10b981', pending: '#f59e0b', cancelled: '#f87171', archived: '#cbd5e1' };
-const statusLabels = statusData.map(s => s.status.charAt(0).toUpperCase() + s.status.slice(1));
-const statusCounts = statusData.map(s => s.cnt);
-const statusBg = statusData.map(s => statusColors[s.status] || '#e2e8f0');
-
-new Chart(document.getElementById('statusChart'), {
-  type: 'doughnut',
-  data: {
-    labels: statusLabels.length ? statusLabels : ['No data'],
-    datasets: [{
-      data: statusCounts.length ? statusCounts : [1],
-      backgroundColor: statusBg.length ? statusBg : ['#e2e8f0'],
-      borderWidth: 0,
-      hoverOffset: 4
-    }]
-  },
-  options: {
-    responsive: true,
-    cutout: '72%',
-    plugins: {
-      legend: { position: 'bottom', labels: { padding: 14, boxWidth: 10, font: { size: 11 } } },
-      tooltip: { ..._tip, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
-    }
+  // ── Order-status donut (pure SVG) ──
+  const status = {{ status_counts | tojson }};
+  const COLORS = { completed:'#1a6ef5', pending:'#f5b301', cancelled:'#ef4444', archived:'#94a3b8' };
+  const LABELS = { completed:'Completed', pending:'Pending', cancelled:'Cancelled', archived:'Archived' };
+  if (status && status.length) {
+    const order = ['completed','pending','cancelled','archived'];
+    const rows = status.map(s => ({ key:(s.status||'').toLowerCase(), cnt: parseInt(s.cnt||0) }))
+                       .filter(r => r.cnt > 0)
+                       .sort((a,b) => order.indexOf(a.key) - order.indexOf(b.key));
+    const total = rows.reduce((a,r) => a + r.cnt, 0) || 1;
+    const C = 2 * Math.PI * 60;               // circumference
+    const rings = document.getElementById('donutRings');
+    let offset = 0;
+    rows.forEach(r => {
+      const len = C * r.cnt / total;
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', 84); c.setAttribute('cy', 84); c.setAttribute('r', 60);
+      c.setAttribute('fill', 'none');
+      c.setAttribute('stroke', COLORS[r.key] || '#cbd5e1');
+      c.setAttribute('stroke-width', 18);
+      c.setAttribute('stroke-linecap', 'round');
+      c.setAttribute('stroke-dasharray', (Math.max(len - 3, 0)).toFixed(1) + ' ' + C.toFixed(1));
+      c.setAttribute('stroke-dashoffset', (-offset).toFixed(1));
+      rings.appendChild(c);
+      offset += len;
+    });
+    const done = rows.find(r => r.key === 'completed');
+    const pctEl = document.getElementById('donutPct');
+    if (pctEl) pctEl.textContent = Math.round((done ? done.cnt : 0) / total * 100) + '%';
+    const tEl = document.getElementById('donutTotal');
+    if (tEl) tEl.textContent = total + ' order' + (total === 1 ? '' : 's');
+    const leg = document.getElementById('donutLegend');
+    if (leg) leg.innerHTML = rows.map(r =>
+      '<div style="display:flex;align-items:center;gap:9px;font-size:13px">' +
+        '<span style="width:9px;height:9px;border-radius:3px;background:' + (COLORS[r.key]||'#cbd5e1') + '"></span>' +
+        '<span style="color:#46536a;font-weight:500">' + (LABELS[r.key] || r.key.replace(/^./,c=>c.toUpperCase())) + '</span>' +
+        '<span class="mono" style="margin-left:auto;font-weight:700;color:#16233a">' + r.cnt + '</span>' +
+      '</div>').join('');
   }
-});
 
-// Top Products
-const topData = {{ top_products | tojson }};
-const topLabels = topData.map(p => p.name.length > 34 ? p.name.slice(0,34)+'…' : p.name);
-const topRevenue = topData.map(p => parseFloat(p.revenue || 0));
-
-new Chart(document.getElementById('topProductsChart'), {
-  type: 'bar',
-  data: {
-    labels: topLabels.length ? topLabels : ['No data'],
-    datasets: [{
-      data: topRevenue.length ? topRevenue : [0],
-      backgroundColor: '#2563eb',
-      hoverBackgroundColor: '#1d4ed8',
-      borderRadius: 3,
-      borderSkipped: false,
-    }]
-  },
-  options: {
-    indexAxis: 'y',
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      tooltip: { ..._tip, callbacks: { label: ctx => ' £' + ctx.parsed.x.toLocaleString('en-GB') } }
-    },
-    scales: {
-      x: {
-        beginAtZero: true,
-        grid: { color: '#f1f4f8' },
-        border: { display: false },
-        ticks: { callback: v => '£' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
-      },
-      y: { grid: { display: false }, border: { display: false } }
-    }
+  // ── Hero sparkline ──
+  if (monthly && monthly.length) {
+    const vals = monthly.slice(-8).map(m => parseFloat(m.total || 0));
+    const max = Math.max(...vals, 1), min = Math.min(...vals);
+    const n = vals.length;
+    const pts = vals.map((v, i) => {
+      const x = n === 1 ? 100 : (200 * i / (n - 1));
+      const y = 30 - ((v - min) / (max - min || 1)) * 26;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    const sp = document.querySelector('#heroSpark polyline');
+    if (sp) sp.setAttribute('points', pts);
   }
-});
+})();
 </script>
 {% endblock %}

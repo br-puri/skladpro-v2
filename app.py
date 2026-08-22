@@ -804,10 +804,21 @@ def dashboard():
             SELECT status, COUNT(*) as cnt, COALESCE(SUM(total),0) as total
             FROM sales GROUP BY status
         """).fetchall()
+        outstanding_row = db.execute("""
+            SELECT COALESCE(SUM(GREATEST(s.total - COALESCE(ip.paid_sum,0), 0)),0) AS amt,
+                   COUNT(*) AS cnt
+            FROM sales s
+            LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
+                   ON ip.sale_id = s.id
+            WHERE s.paid=0 AND s.archived=0 AND s.status='completed'
+        """).fetchone()
+        outstanding = outstanding_row['amt']
+        unpaid_count = outstanding_row['cnt']
     return render_template('dashboard.html',
         product_count=len(products), warehouse_count=len(warehouses),
         stock_value=stock_value, completed_revenue=completed_revenue,
         pending_sales=pending_sales, net_cash=income - expenses,
+        outstanding=outstanding, unpaid_count=unpaid_count,
         recent_sales=sales, low_stock=low_stock,
         monthly_sales=list(reversed([dict(m) for m in monthly])),
         top_products=[dict(r) for r in top_products],
