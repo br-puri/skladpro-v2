@@ -1488,6 +1488,29 @@ def _save_photo(file):
     return None
 
 
+def _save_photo_bytes(data):
+    """Save raw image bytes (e.g. an image embedded in a spreadsheet) as a product
+    photo. Returns a Cloudinary URL / local filename, or None on failure."""
+    if not data:
+        return None
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(data)).convert('RGB')
+        img.thumbnail((1200, 1200), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, 'JPEG', quality=82, optimize=True)
+        buf.seek(0)
+        if _CLOUDINARY_URL:
+            result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
+            return result['secure_url']
+        filename = f"{int(time.time()*1000)}.jpg"
+        with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
+            f.write(buf.read())
+        return filename
+    except Exception:
+        return None
+
+
 def _product_fields(form):
     l = float(form.get('length') or 0)
     w = float(form.get('width') or 0)
@@ -1772,11 +1795,31 @@ def import_products():
                 raw = f.read()
                 text = raw.decode('utf-8-sig', errors='replace')  # handles Excel BOM
                 rows = [r for r in csv.reader(_io.StringIO(text))]
+                row_images = {}
             else:
                 import openpyxl
                 wb = openpyxl.load_workbook(f, data_only=True)
                 ws = wb.active
                 rows = [list(r) for r in ws.iter_rows(values_only=True)]
+                # Pictures embedded (placed over cells) in the sheet, keyed by their
+                # anchor row (0-based, matching the rows[] index). Best-effort.
+                row_images = {}
+                for _img in getattr(ws, '_images', []):
+                    try:
+                        r = _img.anchor._from.row
+                        data = None
+                        for _attr in ('_data', 'ref'):
+                            _v = getattr(_img, _attr, None)
+                            if callable(_v):
+                                data = _v(); break
+                            if hasattr(_v, 'getvalue'):
+                                data = _v.getvalue(); break
+                            if isinstance(_v, (bytes, bytearray)):
+                                data = bytes(_v); break
+                        if data and r not in row_images:
+                            row_images[r] = data
+                    except Exception:
+                        continue
         except Exception as e:
             flash(f'Could not read the file: {e}', 'error')
             return redirect(url_for('import_products'))
@@ -1804,7 +1847,9 @@ def import_products():
         added, updated, skipped = 0, 0, 0
         with get_db() as db:
             warehouses = db.execute("SELECT id FROM warehouses").fetchall()
-            for row in rows[1:]:
+            for ridx, row in enumerate(rows):
+                if ridx == 0:
+                    continue  # header row
                 if not any(str(c).strip() for c in row if c is not None):
                     continue  # blank line
                 name = str(get(row, 'name', '') or '').strip()
@@ -1838,6 +1883,11 @@ def import_products():
                     m = _re.search(r'/d/([a-zA-Z0-9_-]{20,})', img) or _re.search(r'[?&]id=([a-zA-Z0-9_-]{20,})', img)
                     if m:
                         img = f'https://drive.google.com/uc?export=view&id={m.group(1)}'
+                # No URL given but a picture is embedded on this row → upload it
+                if not img and ridx in row_images:
+                    saved = _save_photo_bytes(row_images[ridx])
+                    if saved:
+                        img = saved
 
                 base_fields = (
                     name, sku_val, bc_val,
