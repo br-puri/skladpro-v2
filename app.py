@@ -924,6 +924,7 @@ def _catalog_data():
         p['category'] or '',
         sub_order.get((p['category'] or 'Uncategorised', p['subcategory'] or ''), 9999),
         p['subcategory'] or '',
+        p['subsubcategory'] or '',
         prod_order.get(p['id'], 9999),
         p['name'] or '',
     ))
@@ -990,6 +991,7 @@ def catalog_pdf_download():
 
     s_cat_banner  = ps('ct_b',  fontSize=15, fontName='Helvetica-Bold', textColor=colors.white, leading=18, letterSpacing=1.2)
     s_sub_head    = ps('sb_h',  fontSize=10, fontName='Helvetica-Bold', textColor=GOLD, leading=13, letterSpacing=0.6)
+    s_subsub_head = ps('ss_h',  fontSize=8,  fontName='Helvetica-Bold', textColor=SLATE, leading=11, letterSpacing=0.8, leftIndent=6)
     s_prod_name   = ps('pd_n',  fontSize=10, fontName='Helvetica-Bold', textColor=DARK, leading=12, letterSpacing=0.4)
     s_tbl_head    = ps('tb_h',  fontSize=7,  fontName='Helvetica-Bold', textColor=MUTED, leading=9,  letterSpacing=1)
     s_tbl_code    = ps('tb_c',  fontSize=9,  fontName='Helvetica-Bold', textColor=DARK, leading=11)
@@ -1270,8 +1272,17 @@ def catalog_pdf_download():
             if sub:
                 story.append(Paragraph(sub.upper(), s_sub_head))
                 story.append(Spacer(1, 3*mm))
-            for idx, prod in enumerate(sub_prods):
-                story.append(_product_block(prod, is_last=(idx == len(sub_prods) - 1)))
+            subsubs = list(dict.fromkeys((p.get('subsubcategory') or '') for p in sub_prods))
+            has_real_ss = any(ss for ss in subsubs)
+            for ss in subsubs:
+                ss_prods = [p for p in sub_prods if (p.get('subsubcategory') or '') == ss]
+                if not ss_prods:
+                    continue
+                if ss and has_real_ss:
+                    story.append(Paragraph(ss.upper(), s_subsub_head))
+                    story.append(Spacer(1, 2*mm))
+                for idx, prod in enumerate(ss_prods):
+                    story.append(_product_block(prod, is_last=(idx == len(ss_prods) - 1)))
 
     # multiBuild does two passes so TOC page numbers resolve correctly
     doc.multiBuild(story)
