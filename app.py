@@ -996,6 +996,12 @@ def catalog_pdf_download():
     s_tbl_head    = ps('tb_h',  fontSize=7,  fontName='Helvetica-Bold', textColor=MUTED, leading=9,  letterSpacing=1)
     s_tbl_code    = ps('tb_c',  fontSize=9,  fontName='Helvetica-Bold', textColor=DARK, leading=11)
     s_tbl_carton  = ps('tb_ct', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#475569'), leading=11, alignment=TA_RIGHT)
+    # Grid-card styles (premium multi-column layout)
+    s_card_name   = ps('cd_n',  fontSize=7.6, fontName='Helvetica-Bold', textColor=DARK,  leading=9.4, alignment=TA_LEFT)
+    s_card_lbl    = ps('cd_l',  fontSize=5.6, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8)
+    s_card_lblR   = ps('cd_lr', fontSize=5.6, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8, alignment=TA_RIGHT)
+    s_card_code   = ps('cd_c',  fontSize=8,   fontName='Helvetica-Bold', textColor=DARK,  leading=10)
+    s_card_carton = ps('cd_ct', fontSize=7.5, fontName='Helvetica',      textColor=SLATE, leading=10,  alignment=TA_RIGHT)
 
     buf = io.BytesIO()
     W, H = A4
@@ -1140,9 +1146,15 @@ def catalog_pdf_download():
     # ── Category pages ───────────────────────────────────────────────────────
     story.append(NextPageTemplate('normal'))
 
-    IMG_W = 45*mm
-    IMG_H = 45*mm
-    TINT = colors.HexColor('#fbf3dc')  # very light gold tint for spec header
+    from reportlab.platypus import KeepTogether
+    NCOLS     = 3                                   # products per row
+    GUT       = 5*mm                                # gutter between cards
+    CARD_W    = (UW - (NCOLS - 1) * GUT) / NCOLS    # card width
+    IMG_BOX_H = 40*mm                               # image panel height
+    IMG_MAX_W = CARD_W - 8*mm
+    IMG_MAX_H = IMG_BOX_H - 5*mm
+    NAME_H    = 11*mm                               # fixed name row → aligned grid
+    TINT = colors.HexColor('#fbf3dc')  # very light gold tint
 
     def _img_source(photo):
         """Return a file path or BytesIO of the image, or None.
@@ -1162,32 +1174,29 @@ def catalog_pdf_download():
         local = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products', photo)
         return local if os.path.exists(local) else None
 
-    def _img_cell(photo):
+    def _img_flowable(photo):
+        """Return an Image scaled to fit the card's image panel, or None."""
         src = _img_source(photo)
-        if src is not None:
-            try:
-                pil = PILImage.open(src)
-                pil.load()
-                pw, ph = pil.size
-                ratio = min(IMG_W / pw, IMG_H / ph)
-                # Downscale to print size (~200dpi) and re-encode small, so the
-                # PDF embeds a thumbnail instead of the full-res source. Keeps
-                # memory low enough to build the whole catalogue on 512 MB.
-                target_px = int(max(IMG_W, IMG_H) / mm / 25.4 * 200)  # long edge px
-                pil.thumbnail((target_px, target_px), PILImage.LANCZOS)
-                if pil.mode not in ('RGB', 'L'):
-                    pil = pil.convert('RGB')
-                thumb = io.BytesIO()
-                pil.save(thumb, format='JPEG', quality=82, optimize=True)
-                thumb.seek(0)
-                return Image(thumb, width=pw*ratio, height=ph*ratio)
-            except Exception:
-                pass
-        # Placeholder
-        t = Table([['']], colWidths=[IMG_W], rowHeights=[IMG_H])
-        t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),LIGHT),
-                                ('BOX',(0,0),(-1,-1),0.5,LINE)]))
-        return t
+        if src is None:
+            return None
+        try:
+            pil = PILImage.open(src)
+            pil.load()
+            pw, ph = pil.size
+            ratio = min(IMG_MAX_W / pw, IMG_MAX_H / ph)
+            # Downscale to print size (~200dpi) and re-encode small, so the PDF
+            # embeds a thumbnail instead of the full-res source — keeps memory
+            # low enough to build the whole catalogue on the 512 MB tier.
+            target_px = int(max(IMG_MAX_W, IMG_MAX_H) / mm / 25.4 * 200)
+            pil.thumbnail((target_px, target_px), PILImage.LANCZOS)
+            if pil.mode not in ('RGB', 'L'):
+                pil = pil.convert('RGB')
+            thumb = io.BytesIO()
+            pil.save(thumb, format='JPEG', quality=82, optimize=True)
+            thumb.seek(0)
+            return Image(thumb, width=pw*ratio, height=ph*ratio)
+        except Exception:
+            return None
 
     def _category_banner(cat_name):
         """Gold rounded banner at the top-left of a category page."""
@@ -1203,61 +1212,87 @@ def catalog_pdf_download():
         banner._toc_entry = cat_name
         return banner
 
-    def _product_block(p, is_last):
-        """Horizontal product block: image left, name + spec table right.
-        Draws a thin horizontal rule at the bottom (unless it's the last of the group)."""
-        img = _img_cell(p.get('photo') or '')
-        # Spec table with CODE / CARTON columns (tinted header row)
+    def _product_card(p):
+        """Vertical product card: image panel on top, name, then CODE / CARTON
+        spec row. Fixed row heights keep every card the same size for a clean grid."""
         code = p.get('sku') or '—'
         if p.get('carton_qty'):
             carton = f'{int(p["carton_qty"])} {p.get("unit") or "pcs"}/ctn'
         else:
             carton = '—'
-        spec_tbl = Table(
-            [
-                [Paragraph('CODE', s_tbl_head), Paragraph('CARTON', s_tbl_head)],
-                [Paragraph(code, s_tbl_code),   Paragraph(carton, s_tbl_carton)],
-            ],
-            colWidths=[(UW - IMG_W - 8*mm) * 0.5, (UW - IMG_W - 8*mm) * 0.5]
+        name = (p.get('name') or '').strip()
+        if len(name) > 52:
+            name = name[:51].rstrip() + '…'
+
+        # Image panel (or a subtle placeholder)
+        img = _img_flowable(p.get('photo') or '')
+        img_box = Table([[img if img is not None else '']],
+                        colWidths=[CARD_W], rowHeights=[IMG_BOX_H])
+        img_box.setStyle(TableStyle([
+            ('BACKGROUND',   (0,0), (-1,-1), colors.HexColor('#f8fafc')),
+            ('ALIGN',        (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
+            ('LEFTPADDING',  (0,0), (-1,-1), 4),
+            ('RIGHTPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING',   (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING',(0,0), (-1,-1), 4),
+            ('LINEBELOW',    (0,0), (-1,-1), 1.1, GOLD),
+        ]))
+
+        spec = Table(
+            [[Paragraph('CODE', s_card_lbl),  Paragraph('CARTON', s_card_lblR)],
+             [Paragraph(code, s_card_code),   Paragraph(carton, s_card_carton)]],
+            colWidths=[CARD_W * 0.46, CARD_W * 0.54]
         )
-        spec_tbl.setStyle(TableStyle([
-            ('BACKGROUND',    (0,0), (-1,0), TINT),          # gold-tinted header row
-            ('LINEBELOW',     (0,0), (-1,0), 0.6, GOLD),
-            ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
+        spec.setStyle(TableStyle([
+            ('VALIGN',        (0,0), (-1,-1), 'BOTTOM'),
             ('LEFTPADDING',   (0,0), (-1,-1), 8),
             ('RIGHTPADDING',  (0,0), (-1,-1), 8),
             ('TOPPADDING',    (0,0), (-1,0),  5),
-            ('BOTTOMPADDING', (0,0), (-1,0),  5),
-            ('TOPPADDING',    (0,1), (-1,1),  6),
-            ('BOTTOMPADDING', (0,1), (-1,1),  6),
+            ('BOTTOMPADDING', (0,0), (-1,0),  0),
+            ('TOPPADDING',    (0,1), (-1,1),  1),
+            ('BOTTOMPADDING', (0,1), (-1,1),  7),
         ]))
-        info_cell = Table(
-            [[Paragraph(p.get('name') or '', s_prod_name)],
-             [Spacer(1, 3*mm)],
-             [spec_tbl]],
-            colWidths=[UW - IMG_W - 8*mm]
-        )
-        info_cell.setStyle(TableStyle([
+
+        card = Table([[img_box], [Paragraph(name, s_card_name)], [spec]],
+                     colWidths=[CARD_W], rowHeights=[IMG_BOX_H, NAME_H, None])
+        card.setStyle(TableStyle([
+            ('BACKGROUND',   (0,0), (-1,-1), colors.white),
+            ('BOX',          (0,0), (-1,-1), 0.6, LINE),
+            ('VALIGN',       (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING',  (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 0),
             ('TOPPADDING',   (0,0), (-1,-1), 0),
             ('BOTTOMPADDING',(0,0), (-1,-1), 0),
+            ('LEFTPADDING',  (0,1), (0,1),   8),   # name padding
+            ('RIGHTPADDING', (0,1), (0,1),   8),
+            ('TOPPADDING',   (0,1), (0,1),   6),
         ]))
-        block = Table([[img, info_cell]], colWidths=[IMG_W, UW - IMG_W])
-        block_style = [
-            ('VALIGN',       (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING',  (0,0), (0,0),    0),
-            ('RIGHTPADDING', (0,0), (0,0),    8*mm),
-            ('LEFTPADDING',  (1,0), (1,0),    0),
-            ('RIGHTPADDING', (1,0), (1,0),    0),
-            ('TOPPADDING',   (0,0), (-1,-1), 3*mm),
-            ('BOTTOMPADDING',(0,0), (-1,-1), 3*mm),
-        ]
-        if not is_last:
-            block_style.append(('LINEBELOW', (0,0), (-1,-1), 0.4, LINE))
-        block.setStyle(TableStyle(block_style))
-        from reportlab.platypus import KeepTogether
-        return KeepTogether([block])
+        return card
+
+    def _grid(prods):
+        """Lay products out in rows of NCOLS cards; each row stays together."""
+        flows = []
+        for i in range(0, len(prods), NCOLS):
+            chunk = prods[i:i+NCOLS]
+            cells, widths = [], []
+            for j in range(NCOLS):
+                cells.append(_product_card(chunk[j]) if j < len(chunk) else '')
+                widths.append(CARD_W)
+                if j < NCOLS - 1:
+                    cells.append('')
+                    widths.append(GUT)
+            row = Table([cells], colWidths=widths)
+            row.setStyle(TableStyle([
+                ('VALIGN',       (0,0), (-1,-1), 'TOP'),
+                ('LEFTPADDING',  (0,0), (-1,-1), 0),
+                ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                ('TOPPADDING',   (0,0), (-1,-1), 0),
+                ('BOTTOMPADDING',(0,0), (-1,-1), 0),
+            ]))
+            flows.append(KeepTogether([row]))
+            flows.append(Spacer(1, GUT))
+        return flows
 
     first_category = True
     for cat in categories:
@@ -1288,8 +1323,8 @@ def catalog_pdf_download():
                 if ss and has_real_ss:
                     story.append(Paragraph(ss.upper(), s_subsub_head))
                     story.append(Spacer(1, 2*mm))
-                for idx, prod in enumerate(ss_prods):
-                    story.append(_product_block(prod, is_last=(idx == len(ss_prods) - 1)))
+                for f in _grid(ss_prods):
+                    story.append(f)
 
     # multiBuild does two passes so TOC page numbers resolve correctly
     doc.multiBuild(story)
