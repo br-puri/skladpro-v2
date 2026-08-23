@@ -330,6 +330,7 @@
   <span id="bulk-count">0 selected</span>
   <select id="bulk-action">
     <option value="">— Action —</option>
+    <option value="category">Change category</option>
     <option value="edit">Edit fields</option>
     <option value="catalog">View in Catalog</option>
     <option value="labels">Print Labels</option>
@@ -339,6 +340,36 @@
   <button id="bulk-cancel" class="btn btn-sm" style="background:#334155;border-color:#334155;color:#fff">Clear</button>
 </div>
 <form id="bulk-form" method="post" style="display:none"><input type="hidden" id="bulk-action-input" name="action"></form>
+
+<!-- Bulk change-category modal (quick) -->
+<div id="bulk-cat-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 60px rgba(0,0,0,.22);position:relative">
+    <button onclick="closeBulkCat()" style="position:absolute;top:16px;right:18px;background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1">×</button>
+    <h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#0f172a">Change Category</h3>
+    <p id="bulk-cat-count" style="font-size:12px;color:#94a3b8;margin-bottom:18px"></p>
+    <form id="bulk-cat-form" method="post" action="{{ url_for('bulk_products') }}">
+      <input type="hidden" name="action" value="edit">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select name="category" id="bc-category" class="form-control" onchange="filterBcSubcats()">
+          <option value="">— Keep existing —</option>
+          {% for c in categories %}<option value="{{ c['category'] }}">{{ c['category'] }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subcategory <span style="font-weight:400;color:#94a3b8;font-size:11px">— optional</span></label>
+        <select name="subcategory" id="bc-subcategory" class="form-control">
+          <option value="">— Keep existing —</option>
+        </select>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;margin:-6px 0 14px">Applies to every selected item. Leave a field on "Keep existing" to not change it.</div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary">Apply to Selected</button>
+        <button type="button" onclick="closeBulkCat()" class="btn">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- Bulk edit modal -->
 <div id="bulk-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:9999;align-items:center;justify-content:center">
@@ -442,7 +473,7 @@ document.addEventListener('keydown', function(e) {
     window.location.href = document.getElementById('new-item-btn').href;
   }
   if (e.key === 'Escape') {
-    closeDetails(); closeBulkEdit();
+    closeDetails(); closeBulkEdit(); closeBulkCat();
     document.querySelectorAll('.row-dropdown').forEach(d => d.style.display='none');
   }
 });
@@ -533,6 +564,23 @@ document.getElementById('bulk-submit').addEventListener('click', function(e) {
     e.stopImmediatePropagation();
     window.open("{{ url_for('product_labels') }}" + (ids ? '?ids='+ids : ''), '_blank'); return;
   }
+  if (action === 'category') {
+    e.stopImmediatePropagation();
+    if (!checked.length) return;
+    const form = document.getElementById('bulk-cat-form');
+    form.querySelectorAll('[name="ids[]"]').forEach(el => el.remove());
+    checked.forEach(cb => {
+      const inp = document.createElement('input');
+      inp.type='hidden'; inp.name='ids[]'; inp.value=cb.value;
+      form.appendChild(inp);
+    });
+    // reset selects
+    document.getElementById('bc-category').value = '';
+    filterBcSubcats();
+    document.getElementById('bulk-cat-count').textContent = checked.length + ' item(s) selected';
+    document.getElementById('bulk-cat-modal').style.display='flex';
+    return;
+  }
   if (action === 'edit') {
     e.stopImmediatePropagation();
     if (!checked.length) return;
@@ -548,6 +596,14 @@ document.getElementById('bulk-submit').addEventListener('click', function(e) {
 }, true);
 function closeBulkEdit() { document.getElementById('bulk-edit-modal').style.display='none'; }
 document.getElementById('bulk-edit-modal').addEventListener('click', e => { if(e.target===document.getElementById('bulk-edit-modal')) closeBulkEdit(); });
+
+// ── Change-category modal ──
+function filterBcSubcats() {
+  const cat = document.getElementById('bc-category').value;
+  rebuildSubcats(document.getElementById('bc-subcategory'), cat, '');
+}
+function closeBulkCat() { document.getElementById('bulk-cat-modal').style.display='none'; }
+document.getElementById('bulk-cat-modal').addEventListener('click', e => { if(e.target===document.getElementById('bulk-cat-modal')) closeBulkCat(); });
 
 // ── Dimensions modal ──────────────────────────────────────────────
 function showDetails(id, name, l, w, h, weight, cbm, carton, chinaPrice, chinaCur) {
