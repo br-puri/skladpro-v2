@@ -1167,13 +1167,20 @@ def catalog_pdf_download():
         if src is not None:
             try:
                 pil = PILImage.open(src)
+                pil.load()
                 pw, ph = pil.size
                 ratio = min(IMG_W / pw, IMG_H / ph)
-                # Re-seek BytesIO so ReportLab can read from the start
-                if hasattr(src, 'seek'):
-                    src.seek(0)
-                img = Image(src, width=pw*ratio, height=ph*ratio)
-                return img
+                # Downscale to print size (~200dpi) and re-encode small, so the
+                # PDF embeds a thumbnail instead of the full-res source. Keeps
+                # memory low enough to build the whole catalogue on 512 MB.
+                target_px = int(max(IMG_W, IMG_H) / mm / 25.4 * 200)  # long edge px
+                pil.thumbnail((target_px, target_px), PILImage.LANCZOS)
+                if pil.mode not in ('RGB', 'L'):
+                    pil = pil.convert('RGB')
+                thumb = io.BytesIO()
+                pil.save(thumb, format='JPEG', quality=82, optimize=True)
+                thumb.seek(0)
+                return Image(thumb, width=pw*ratio, height=ph*ratio)
             except Exception:
                 pass
         # Placeholder
