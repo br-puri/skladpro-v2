@@ -40,102 +40,56 @@
       </tr>
     </thead>
     <tbody>
-    {% for c in parents %}
-      <!-- Parent row -->
-      <tr style="border-bottom:1px solid {% if children.get(c['id']) %}#f0f2f5{% else %}#f0f2f5{% endif %};background:#fafafa;transition:background .1s"
-          onmouseover="this.style.background='#f5f5f3'" onmouseout="this.style.background='#fafafa'">
-        <td style="padding:14px 20px">
+    {% macro cat_row(c, depth) %}
+      {% set kids = children.get(c['id'], []) %}
+      {% set cnt = cat_counts.get(c['name'], 0) if depth == 0 else sub_counts.get(c['name'], 0) %}
+      <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s;{% if depth == 0 %}background:#fafafa{% endif %}"
+          onmouseover="this.style.background='{% if depth == 0 %}#f5f5f3{% else %}#fafafa{% endif %}'" onmouseout="this.style.background='{% if depth == 0 %}#fafafa{% else %}{% endif %}'">
+        <td style="padding:{{ 13 if depth else 14 }}px 20px {{ 13 if depth else 14 }}px {{ 20 + depth*28 }}px">
           <div style="display:flex;align-items:center;gap:10px">
+            {% if depth == 0 %}
             <div style="width:30px;height:30px;background:#0f172a;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="#fff" opacity=".8"><path d="M1 3a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H2a1 1 0 01-1-1V3zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H10a1 1 0 01-1-1V3zM1 11a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1H2a1 1 0 01-1-1v-2zm8 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1H10a1 1 0 01-1-1v-2z"/></svg>
             </div>
+            {% else %}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="flex-shrink:0"><path d="M2 2v6h8"/></svg>
+            {% endif %}
             <div>
-              <div style="font-weight:700;color:#0f172a;font-size:14px">{{ c['name'] }}</div>
-              {% if children.get(c['id']) %}
-              <div style="font-size:11px;color:#94a3b8;margin-top:1px">{{ children[c['id']] | length }} subcategor{{ 'y' if children[c['id']] | length == 1 else 'ies' }}</div>
+              <div style="font-weight:{{ 700 if depth == 0 else 500 }};color:{{ '#0f172a' if depth == 0 else '#374151' }};font-size:{{ 14 if depth == 0 else 13 }}px">{{ c['name'] }}</div>
+              {% if kids %}
+              <div style="font-size:11px;color:#94a3b8;margin-top:1px">{{ kids | length }} subcategor{{ 'y' if kids | length == 1 else 'ies' }}</div>
               {% endif %}
             </div>
           </div>
         </td>
-        <td style="padding:14px 16px;color:#64748b;font-size:13px">{{ c['description'] or '—' }}</td>
-        <td style="padding:14px 16px;text-align:right">
-          {% set cnt = cat_counts.get(c['name'], 0) %}
-          {% if cnt > 0 %}
-          <span style="font-size:13px;font-weight:600;color:#1a1a1a">{{ cnt }}</span>
-          {% else %}
-          <span style="font-size:13px;color:#cbd5e1">0</span>
-          {% endif %}
+        <td style="padding:{{ 11 if depth else 14 }}px 16px;color:{{ '#94a3b8' if depth else '#64748b' }};font-size:{{ 12 if depth else 13 }}px">{{ c['description'] or '—' }}</td>
+        <td style="padding:{{ 11 if depth else 14 }}px 16px;text-align:right">
+          {% if cnt > 0 %}<span style="font-size:{{ 12 if depth else 13 }}px;font-weight:600;color:{{ '#64748b' if depth else '#1a1a1a' }}">{{ cnt }}</span>
+          {% else %}<span style="font-size:{{ 12 if depth else 13 }}px;color:#d7dde5">0</span>{% endif %}
         </td>
-        <td style="padding:14px 20px;text-align:right" {% if session.get('role') != 'admin' %}style="display:none"{% endif %}>
+        <td style="padding:{{ 11 if depth else 14 }}px 20px;text-align:right">
           {% if can_edit %}
           <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
             <button type="button"
               style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick='openAddModal({{ c['id'] }}, {{ c['name']|tojson }})'>
-              + Sub
-            </button>
+              onclick='openAddModal({{ c['id'] }}, {{ c['name']|tojson }})'>+ Sub</button>
             <button type="button"
               style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick='openEditModal({{ c['id'] }}, {{ c['name']|tojson }}, {{ (c['description'] or '')|tojson }}, {{ url_for('rename_category', cid=c['id'])|tojson }}, null)'>
-              Edit
-            </button>
+              onclick='openEditModal({{ c['id'] }}, {{ c['name']|tojson }}, {{ (c['description'] or '')|tojson }}, {{ url_for('rename_category', cid=c['id'])|tojson }}, {{ c['parent_id'] if c['parent_id'] else 'null' }})'>Edit</button>
             {% if is_admin %}
             <form method="post" action="{{ url_for('delete_category', cid=c['id']) }}" style="display:inline"
-              onsubmit="return confirm('Delete «{{ c['name'] }}» and all its subcategories?')">
+              onsubmit="return confirm('Delete «{{ c['name'] }}»{% if kids %} and all its subcategories{% endif %}?')">
               <button type="submit"
-                style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;background:#fff;border:1px solid #fecaca;color:#dc2626;cursor:pointer">
-                Delete
-              </button>
+                style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;background:#fff;border:1px solid #fecaca;color:#dc2626;cursor:pointer">Delete</button>
             </form>
             {% endif %}
           </div>
           {% endif %}
         </td>
       </tr>
-
-      <!-- Subcategory rows -->
-      {% for sub in children.get(c['id'], []) %}
-      <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s"
-          onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
-        <td style="padding:11px 20px 11px 58px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#cbd5e1" stroke-width="1.5"><path d="M2 2v6h8"/></svg>
-            <span style="font-weight:500;color:#374151;font-size:13px">{{ sub['name'] }}</span>
-          </div>
-        </td>
-        <td style="padding:11px 16px;color:#94a3b8;font-size:12px">{{ sub['description'] or '—' }}</td>
-        <td style="padding:11px 16px;text-align:right">
-          {% set scnt = sub_counts.get(sub['name'], 0) %}
-          {% if scnt > 0 %}
-          <span style="font-size:12px;font-weight:600;color:#64748b">{{ scnt }}</span>
-          {% else %}
-          <span style="font-size:12px;color:#e2e8f0">0</span>
-          {% endif %}
-        </td>
-        <td style="padding:11px 20px;text-align:right">
-          {% if can_edit %}
-          <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
-            <button type="button"
-              style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;cursor:pointer"
-              onclick='openEditModal({{ sub['id'] }}, {{ sub['name']|tojson }}, {{ (sub['description'] or '')|tojson }}, {{ url_for('rename_category', cid=sub['id'])|tojson }}, {{ sub['parent_id'] }})'>
-              Edit
-            </button>
-            {% if is_admin %}
-            <form method="post" action="{{ url_for('delete_category', cid=sub['id']) }}" style="display:inline"
-              onsubmit="return confirm('Delete subcategory «{{ sub['name'] }}»?')">
-              <button type="submit"
-                style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:6px;background:#fff;border:1px solid #fecaca;color:#dc2626;cursor:pointer">
-                Delete
-              </button>
-            </form>
-            {% endif %}
-          </div>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-
-    {% endfor %}
+      {% for kid in kids %}{{ cat_row(kid, depth + 1) }}{% endfor %}
+    {% endmacro %}
+    {% for c in parents %}{{ cat_row(c, 0) }}{% endfor %}
     </tbody>
   </table>
 
@@ -203,11 +157,11 @@
         <label class="form-label">Nest under (parent category)</label>
         <select id="editModalParent" name="parent_id" class="form-control">
           <option value="">— None (top-level category) —</option>
-          {% for c in parents %}
-          <option value="{{ c['id'] }}">{{ c['name'] }}</option>
+          {% for c in cat_flat %}
+          <option value="{{ c.id }}">{% if c.depth %}{{ '— ' * c.depth }}{% endif %}{{ c.name }}</option>
           {% endfor %}
         </select>
-        <div style="font-size:11px;color:#94a3b8;margin-top:4px">Choose a parent to make this a subcategory of it. Its products move under that parent.</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px">Pick any category — a subcategory can now sit under another subcategory. Choosing a top-level category also moves its products under it.</div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">
         <button type="button" class="btn" onclick="closeEditModal()">Cancel</button>
@@ -240,17 +194,33 @@ function closeAddModal() {
   document.getElementById('addModal').style.display = 'none';
 }
 
+const PARENT_MAP = {{ parent_map | tojson }};   // { childId: parentId|null }
+// Build a children index once for descendant lookups
+const CHILD_INDEX = {};
+Object.entries(PARENT_MAP).forEach(([k, v]) => {
+  if (v !== null && v !== undefined) { (CHILD_INDEX[v] = CHILD_INDEX[v] || []).push(parseInt(k)); }
+});
+function descendantsOf(id) {
+  const out = new Set([id]);
+  const stack = [id];
+  while (stack.length) {
+    const cur = stack.pop();
+    (CHILD_INDEX[cur] || []).forEach(k => { if (!out.has(k)) { out.add(k); stack.push(k); } });
+  }
+  return out;
+}
 function openEditModal(id, name, desc, url, parentId) {
   const m = document.getElementById('editModal');
   document.getElementById('editModalForm').action = url;
   document.getElementById('editModalName').value = name;
   document.getElementById('editModalDesc').value = desc || '';
-  // Parent dropdown: preselect current parent, and hide the option for this same
-  // category (a category can't be nested under itself).
+  // Parent dropdown: hide this category and all of its descendants (can't nest a
+  // category under itself or its own child), then preselect its current parent.
   const sel = document.getElementById('editModalParent');
   if (sel) {
+    const excl = descendantsOf(parseInt(id));
     [...sel.options].forEach(o => {
-      o.hidden = (o.value !== '' && parseInt(o.value) === parseInt(id));
+      o.hidden = (o.value !== '' && excl.has(parseInt(o.value)));
     });
     sel.value = parentId ? String(parentId) : '';
   }
