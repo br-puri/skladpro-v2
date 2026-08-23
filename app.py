@@ -400,6 +400,7 @@ def init_db():
         for col in ["photo TEXT DEFAULT ''", 'length REAL DEFAULT 0', 'width REAL DEFAULT 0',
                     'height REAL DEFAULT 0', 'weight REAL DEFAULT 0', 'cbm REAL DEFAULT 0',
                     'carton_qty REAL DEFAULT 0', "subcategory TEXT DEFAULT ''",
+                    "subsubcategory TEXT DEFAULT ''",
                     'ctn_price REAL DEFAULT 0',
                     "china_price REAL DEFAULT 0", "china_currency TEXT DEFAULT 'RMB'"]:
             try:
@@ -832,6 +833,7 @@ def products():
     q = request.args.get('q', '')
     cat = request.args.get('cat', '')
     subcat = request.args.get('subcat', '')
+    subsubcat = request.args.get('subsubcat', '')
     with get_db() as db:
         base = "SELECT * FROM products WHERE 1=1"
         params = []
@@ -844,10 +846,15 @@ def products():
         if subcat:
             base += " AND subcategory=%s"
             params.append(subcat)
+        if subsubcat:
+            base += " AND subsubcategory=%s"
+            params.append(subsubcat)
         rows = db.execute(base + " ORDER BY name", params).fetchall()
         warehouses = db.execute("SELECT * FROM warehouses").fetchall()
         categories = [dict(r) for r in db.execute("SELECT DISTINCT category FROM products WHERE category!='' ORDER BY category").fetchall()]
         subcategories = [dict(r) for r in db.execute("SELECT DISTINCT category, subcategory FROM products WHERE subcategory!='' ORDER BY subcategory").fetchall()]
+        # Full category tree (all depths) for cascading Category → Sub → Sub-sub pickers
+        cat_tree = [dict(r) for r in db.execute("SELECT id, name, parent_id FROM categories ORDER BY name").fetchall()]
         result = []
         for p in rows:
             stock_by_wh, total = {}, 0
@@ -858,7 +865,8 @@ def products():
                 total += q_val
             result.append({'product': p, 'stock': stock_by_wh, 'total': total, 'low': total <= p['min_stock']})
     return render_template('products.html', products=result, warehouses=warehouses,
-                           categories=categories, subcategories=subcategories, q=q, cat=cat, subcat=subcat)
+                           categories=categories, subcategories=subcategories, cat_tree=cat_tree,
+                           q=q, cat=cat, subcat=subcat, subsubcat=subsubcat)
 
 
 @app.route('/products/catalog')
@@ -1547,6 +1555,7 @@ def _product_fields(form):
         float(form.get('ctn_price') or 0),
         float(form.get('china_price') or 0),
         (form.get('china_currency') or 'RMB').upper(),
+        form.get('subsubcategory', ''),
     )
 
 
@@ -1562,7 +1571,7 @@ def add_product():
         fields = _product_fields(request.form)
         with get_db() as db:
             cur = db.execute(
-                "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,subsubcategory,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 fields + (photo or '',)
             )
             pid = cur.fetchone()['id']
@@ -1590,7 +1599,7 @@ def edit_product(pid):
             fields = _product_fields(request.form)
             photo_val = photo if photo else (dict(p).get('photo') or '')
             db.execute(
-                "UPDATE products SET sku=%s,barcode=%s,name=%s,category=%s,subcategory=%s,unit=%s,cost=%s,price=%s,min_stock=%s,description=%s,length=%s,width=%s,height=%s,weight=%s,cbm=%s,carton_qty=%s,ctn_price=%s,china_price=%s,china_currency=%s,photo=%s WHERE id=%s",
+                "UPDATE products SET sku=%s,barcode=%s,name=%s,category=%s,subcategory=%s,unit=%s,cost=%s,price=%s,min_stock=%s,description=%s,length=%s,width=%s,height=%s,weight=%s,cbm=%s,carton_qty=%s,ctn_price=%s,china_price=%s,china_currency=%s,subsubcategory=%s,photo=%s WHERE id=%s",
                 fields + (photo_val, pid)
             )
             for w in warehouses:
@@ -1609,13 +1618,14 @@ def duplicate_product(pid):
     with get_db() as db:
         p = db.execute("SELECT * FROM products WHERE id=%s", (pid,)).fetchone()
         cur = db.execute(
-            "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,subsubcategory,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             ('', p['barcode'], p['name'] + ' (Copy)', p['category'], p['subcategory'] or '', p['unit'], p['cost'], p['price'],
              p['min_stock'], p['description'], p['length'], p['width'], p['height'],
              p['weight'], p['cbm'], p['carton_qty'],
              (dict(p).get('ctn_price') or 0),
              (dict(p).get('china_price') or 0),
              (dict(p).get('china_currency') or 'RMB'),
+             (dict(p).get('subsubcategory') or ''),
              p['photo']))
         new_id = cur.fetchone()['id']
         db.commit()
@@ -1660,6 +1670,8 @@ def bulk_products():
                 fields.append('category=%s'); params.append(request.form['category'])
             if request.form.get('subcategory') not in (None, ''):
                 fields.append('subcategory=%s'); params.append(request.form['subcategory'])
+            if request.form.get('subsubcategory') not in (None, ''):
+                fields.append('subsubcategory=%s'); params.append(request.form['subsubcategory'])
             price_adj = request.form.get('price_adj', '').strip()
             if price_adj:
                 adj = float(price_adj)
@@ -1725,10 +1737,10 @@ def product_labels():
 def export_products_xlsx():
     import openpyxl
     from openpyxl.styles import Font, PatternFill
-    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock',
+    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'subsubcategory', 'unit', 'cost', 'price', 'min_stock',
                'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
     with get_db() as db:
-        rows = db.execute("""SELECT id, name, sku, barcode, category, subcategory, unit,
+        rows = db.execute("""SELECT id, name, sku, barcode, category, subcategory, subsubcategory, unit,
                                     cost, price, min_stock, length, width, height, weight,
                                     carton_qty, description, photo
                              FROM products ORDER BY name""").fetchall()
@@ -1743,7 +1755,7 @@ def export_products_xlsx():
         img = r['photo'] or ''
         if img and not img.lower().startswith(('http://', 'https://')):
             img = ''  # local files can't round-trip through Excel
-        ws.append([r['id'], r['name'], r['sku'], r['barcode'], r['category'], r['subcategory'],
+        ws.append([r['id'], r['name'], r['sku'], r['barcode'], r['category'], r['subcategory'], r['subsubcategory'],
                    r['unit'], r['cost'], r['price'], r['min_stock'],
                    r['length'], r['width'], r['height'], r['weight'],
                    r['carton_qty'], r['description'], img])
@@ -1767,12 +1779,12 @@ def products_import_template():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Products'
-    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
+    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'subsubcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
     ws.append(headers)
     for cell in ws[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill('solid', fgColor='D9E1F2')
-    ws.append(['', 'Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description', 'https://example.com/photo.jpg'])
+    ws.append(['', 'Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description', 'https://example.com/photo.jpg'])
     if categories:
         # Put category list on a hidden sheet and reference it for dropdown
         ref_ws = wb.create_sheet('_categories')
@@ -1913,6 +1925,7 @@ def import_products():
                 base_fields = (
                     name, sku_val, bc_val,
                     str(get(row, 'category', '') or ''), str(get(row, 'subcategory', '') or ''),
+                    str(get(row, 'subsubcategory', '') or ''),
                     str(get(row, 'unit', 'pcs') or 'pcs'),
                     num(row, 'cost'), num(row, 'price'), num(row, 'min_stock'),
                     l, w, h, num(row, 'weight_kg'), cbm,
@@ -1923,15 +1936,15 @@ def import_products():
                 if existing:
                     # Update; keep existing photo if the row leaves image_url blank
                     db.execute(
-                        "UPDATE products SET name=%s, sku=%s, barcode=%s, category=%s, subcategory=%s, unit=%s, "
+                        "UPDATE products SET name=%s, sku=%s, barcode=%s, category=%s, subcategory=%s, subsubcategory=%s, unit=%s, "
                         "cost=%s, price=%s, min_stock=%s, length=%s, width=%s, height=%s, weight=%s, cbm=%s, "
                         "carton_qty=%s, description=%s, photo=CASE WHEN %s='' THEN photo ELSE %s END WHERE id=%s",
                         base_fields + (img, img, existing['id']))
                     updated += 1
                 else:
                     cur = db.execute(
-                        "INSERT INTO products(name,sku,barcode,category,subcategory,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description,photo) "
-                        "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                        "INSERT INTO products(name,sku,barcode,category,subcategory,subsubcategory,unit,cost,price,min_stock,length,width,height,weight,cbm,carton_qty,description,photo) "
+                        "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                         base_fields + (img,))
                     pid = cur.fetchone()['id']
                     for wh in warehouses:

@@ -112,15 +112,10 @@
       <input name="q" value="{{ q }}" id="products-q" autocomplete="off"
              class="search-input" placeholder="Search name, SKU or barcode… (press / to focus)">
     </div>
-    <select name="cat" id="filter-cat" class="form-control" style="width:155px" onchange="filterSubcatOptions();this.form.submit()">
-      <option value="">All categories</option>
-      {% for c in categories %}<option value="{{ c['category'] }}" {{ 'selected' if cat==c['category'] }}>{{ c['category'] }}</option>{% endfor %}
-    </select>
-    <select name="subcat" id="filter-subcat" class="form-control" style="width:155px" onchange="this.form.submit()">
-      <option value="">All subcategories</option>
-      {% for s in subcategories %}<option value="{{ s['subcategory'] }}" data-cat="{{ s['category'] }}" {{ 'selected' if subcat==s['subcategory'] }}>{{ s['subcategory'] }}</option>{% endfor %}
-    </select>
-    {% if q or cat or subcat %}
+    <select name="cat" id="filter-cat" class="form-control" style="width:150px"><option value="">All categories</option></select>
+    <select name="subcat" id="filter-subcat" class="form-control" style="width:150px"><option value="">All subcategories</option></select>
+    <select name="subsubcat" id="filter-subsub" class="form-control" style="width:160px"><option value="">All sub-subcategories</option></select>
+    {% if q or cat or subcat or subsubcat %}
     <a href="{{ url_for('products', view=view) }}" class="btn" style="font-size:12.5px;flex-shrink:0">Clear</a>
     {% endif %}
   </form>
@@ -203,7 +198,7 @@
 
     <td style="padding:12px 14px" data-val="{{ (p['category'] or '')|lower }}">
       {% if p['category'] %}<span class="pchip">{{ p['category'] }}</span>{% else %}<span style="color:#cbd5e1">—</span>{% endif %}
-      {% if p['subcategory'] %}<div style="font-size:11px;color:#a3adba;margin-top:4px">{{ p['subcategory'] }}</div>{% endif %}
+      {% if p['subcategory'] %}<div style="font-size:11px;color:#a3adba;margin-top:4px">{{ p['subcategory'] }}{% if p['subsubcategory'] %} <span style="color:#cbd5e1">›</span> {{ p['subsubcategory'] }}{% endif %}</div>{% endif %}
     </td>
 
     <td class="num" style="padding:12px 14px;text-align:right;color:#7c8798;font-size:12.5px;white-space:nowrap" data-val="{{ p['cost'] }}">£{{ "{:,.2f}".format(p['cost']) }}</td>
@@ -277,6 +272,7 @@
         {% if p['sku'] and p['category'] %} · {% endif %}
         {% if p['category'] %}{{ p['category'] }}{% endif %}
         {% if p['subcategory'] %} / {{ p['subcategory'] }}{% endif %}
+        {% if p['subsubcategory'] %} / {{ p['subsubcategory'] }}{% endif %}
       </div>
       <div style="margin-top:4px">
         <span class="mob-stock-badge {% if row['total'] <= 0 %}
@@ -351,16 +347,15 @@
       <input type="hidden" name="action" value="edit">
       <div class="form-group">
         <label class="form-label">Category</label>
-        <select name="category" id="bc-category" class="form-control" onchange="filterBcSubcats()">
-          <option value="">— Keep existing —</option>
-          {% for c in categories %}<option value="{{ c['category'] }}">{{ c['category'] }}</option>{% endfor %}
-        </select>
+        <select name="category" id="bc-category" class="form-control"><option value="">— Keep existing —</option></select>
       </div>
       <div class="form-group">
         <label class="form-label">Subcategory <span style="font-weight:400;color:#94a3b8;font-size:11px">— optional</span></label>
-        <select name="subcategory" id="bc-subcategory" class="form-control">
-          <option value="">— Keep existing —</option>
-        </select>
+        <select name="subcategory" id="bc-subcategory" class="form-control"><option value="">— Keep existing —</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sub-subcategory <span style="font-weight:400;color:#94a3b8;font-size:11px">— optional</span></label>
+        <select name="subsubcategory" id="bc-subsubcategory" class="form-control"><option value="">— Keep existing —</option></select>
       </div>
       <div style="font-size:11px;color:#94a3b8;margin:-6px 0 14px">Applies to every selected item. Leave a field on "Keep existing" to not change it.</div>
       <div style="display:flex;gap:8px">
@@ -382,17 +377,15 @@
       <input type="hidden" name="action" value="edit">
       <div class="form-group">
         <label class="form-label">Category</label>
-        <select name="category" id="be-category" class="form-control" onchange="filterBeSubcats()">
-          <option value="">— Keep existing —</option>
-          {% for c in categories %}<option value="{{ c['category'] }}">{{ c['category'] }}</option>{% endfor %}
-        </select>
+        <select name="category" id="be-category" class="form-control"><option value="">— Keep existing —</option></select>
       </div>
       <div class="form-group">
         <label class="form-label">Subcategory</label>
-        <select name="subcategory" id="be-subcategory" class="form-control">
-          <option value="">— Keep existing —</option>
-          {% for s in subcategories %}<option value="{{ s['subcategory'] }}">{{ s['subcategory'] }}</option>{% endfor %}
-        </select>
+        <select name="subcategory" id="be-subcategory" class="form-control"><option value="">— Keep existing —</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sub-subcategory</label>
+        <select name="subsubcategory" id="be-subsubcategory" class="form-control"><option value="">— Keep existing —</option></select>
       </div>
       <div class="form-group">
         <label class="form-label">Price &amp; Cost Adjustment (%)</label>
@@ -484,34 +477,47 @@ document.addEventListener('keydown', function(e) {
   if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
 })();
 
-// ── Subcategory filter sync (rebuild options — option.hidden is unreliable) ──
-const allSubcats = {{ subcategories | tojson }};
-function rebuildSubcats(sel, cat, keepValue) {
+// ── Category tree cascade (Category → Subcategory → Sub-subcategory) ─────────
+const CAT_TREE = {{ cat_tree | tojson }};        // [{id, name, parent_id}]
+const KIDS = {};
+CAT_TREE.forEach(n => {
+  const k = (n.parent_id === null || n.parent_id === undefined) ? 'root' : String(n.parent_id);
+  (KIDS[k] = KIDS[k] || []).push(n);
+});
+function _fillSel(sel, parentKey, selName, placeholder) {
   if (!sel) return;
-  while (sel.options.length > 1) sel.remove(1);   // keep the "All subcategories" placeholder
-  const seen = new Set();
-  allSubcats.forEach(s => {
-    if (cat && s.category !== cat) return;
-    if (seen.has(s.subcategory)) return;           // avoid duplicate names across categories
-    seen.add(s.subcategory);
+  sel.options[0].textContent = placeholder;
+  while (sel.options.length > 1) sel.remove(1);
+  (KIDS[parentKey] || []).forEach(n => {
     const o = document.createElement('option');
-    o.value = s.subcategory;
-    o.dataset.cat = s.category;
-    o.textContent = s.subcategory;
-    if (keepValue && s.subcategory === keepValue) o.selected = true;
+    o.value = n.name; o.dataset.id = String(n.id); o.textContent = n.name;
+    if (selName && n.name === selName) o.selected = true;
     sel.appendChild(o);
   });
 }
-function filterSubcatOptions() {
-  const cat = document.getElementById('filter-cat').value;
-  const sel = document.getElementById('filter-subcat');
-  rebuildSubcats(sel, cat, sel ? sel.value : '');
+function _idOf(sel) { return (sel && sel.selectedIndex >= 0) ? (sel.options[sel.selectedIndex].dataset.id || '') : ''; }
+// Wire a Category→Sub→Sub-sub trio. ph = placeholders, init = starting names, submitForm = auto-submit on change
+function wireCascade(catId, subId, ssId, ph, init, submitForm) {
+  const c = document.getElementById(catId), s = document.getElementById(subId), ss = document.getElementById(ssId);
+  if (!c) return;
+  _fillSel(c, 'root', init.cat || '', ph.cat);
+  _fillSel(s, _idOf(c) || '__x', init.sub || '', ph.sub);
+  _fillSel(ss, _idOf(s) || '__x', init.ss || '', ph.ss);
+  const submit = () => { if (submitForm) document.getElementById(submitForm).submit(); };
+  c.addEventListener('change', () => { _fillSel(s, _idOf(c) || '__x', '', ph.sub); _fillSel(ss, '__x', '', ph.ss); submit(); });
+  s.addEventListener('change', () => { _fillSel(ss, _idOf(s) || '__x', '', ph.ss); submit(); });
+  if (ss && submitForm) ss.addEventListener('change', submit);
 }
-filterSubcatOptions();
-function filterBeSubcats() {
-  const cat = document.getElementById('be-category').value;
-  rebuildSubcats(document.getElementById('be-subcategory'), cat, '');
-}
+// Filter bar (auto-submits)
+wireCascade('filter-cat', 'filter-subcat', 'filter-subsub',
+  { cat: 'All categories', sub: 'All subcategories', ss: 'All sub-subcategories' },
+  { cat: {{ cat | tojson }}, sub: {{ subcat | tojson }}, ss: {{ subsubcat | tojson }} },
+  'products-search-form');
+// Bulk "Change category" + "Edit fields" modals (no auto-submit)
+wireCascade('bc-category', 'bc-subcategory', 'bc-subsubcategory',
+  { cat: '— Keep existing —', sub: '— Keep existing —', ss: '— Keep existing —' }, {}, null);
+wireCascade('be-category', 'be-subcategory', 'be-subsubcategory',
+  { cat: '— Keep existing —', sub: '— Keep existing —', ss: '— Keep existing —' }, {}, null);
 
 // ── Column sort ───────────────────────────────────────────────────
 let sortCol = null, sortDir = 1;
@@ -574,9 +580,10 @@ document.getElementById('bulk-submit').addEventListener('click', function(e) {
       inp.type='hidden'; inp.name='ids[]'; inp.value=cb.value;
       form.appendChild(inp);
     });
-    // reset selects
+    // reset the cascade to "Keep existing"
     document.getElementById('bc-category').value = '';
-    filterBcSubcats();
+    _fillSel(document.getElementById('bc-subcategory'), '__x', '', '— Keep existing —');
+    _fillSel(document.getElementById('bc-subsubcategory'), '__x', '', '— Keep existing —');
     document.getElementById('bulk-cat-count').textContent = checked.length + ' item(s) selected';
     document.getElementById('bulk-cat-modal').style.display='flex';
     return;
@@ -598,10 +605,6 @@ function closeBulkEdit() { document.getElementById('bulk-edit-modal').style.disp
 document.getElementById('bulk-edit-modal').addEventListener('click', e => { if(e.target===document.getElementById('bulk-edit-modal')) closeBulkEdit(); });
 
 // ── Change-category modal ──
-function filterBcSubcats() {
-  const cat = document.getElementById('bc-category').value;
-  rebuildSubcats(document.getElementById('bc-subcategory'), cat, '');
-}
 function closeBulkCat() { document.getElementById('bulk-cat-modal').style.display='none'; }
 document.getElementById('bulk-cat-modal').addEventListener('click', e => { if(e.target===document.getElementById('bulk-cat-modal')) closeBulkCat(); });
 

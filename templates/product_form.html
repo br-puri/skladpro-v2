@@ -28,10 +28,21 @@
         <span>Subcategory</span>
         <a href="#" onclick="openQuickSub(); return false" id="addSubLink" style="font-size:11px;color:#d9a024;text-decoration:none;font-weight:600;opacity:0.5;pointer-events:none">+ Add new</a>
       </label>
-      <select name="subcategory" id="subcatSelect" class="form-control">
+      <select name="subcategory" id="subcatSelect" class="form-control" onchange="filterSubsubs()">
         <option value="">— None —</option>
         {% for s in subcats %}
-        <option value="{{ s['name'] }}" data-parent="{{ s['parent_id'] }}" {{ 'selected' if product and product['subcategory']==s['name'] }}>{{ s['name'] }}</option>
+        <option value="{{ s['name'] }}" data-id="{{ s['id'] }}" data-parent="{{ s['parent_id'] }}" {{ 'selected' if product and product['subcategory']==s['name'] }}>{{ s['name'] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Sub-subcategory <span style="font-weight:400;color:#94a3b8;font-size:11px">— optional</span></label>
+      <select name="subsubcategory" id="subsubSelect" class="form-control">
+        <option value="">— None —</option>
+        {% for s in subcats %}
+        <option value="{{ s['name'] }}" data-id="{{ s['id'] }}" data-parent="{{ s['parent_id'] }}" {{ 'selected' if product and product['subsubcategory']==s['name'] }}>{{ s['name'] }}</option>
         {% endfor %}
       </select>
     </div>
@@ -197,43 +208,52 @@ function calcCBM() {
   const h = parseFloat(document.querySelector('[name=height]').value) || 0;
   document.getElementById('cbm_display').value = (l * w * h / 1000000).toFixed(6);
 }
-// Snapshot full subcategory list on load (so we can rebuild after filtering)
+// Snapshot the full category-node list on load (id, name, parent) so the
+// Subcategory and Sub-subcategory pickers can cascade.
 const _allSubOptions = (function() {
   const sub = document.getElementById('subcatSelect');
   return Array.from(sub.options).filter(o => o.value).map(o => ({
     value: o.value,
+    id: o.dataset.id,
     parent: o.dataset.parent,
     text: o.text,
   }));
 })();
 
-function filterSubcats() {
-  const sel = document.getElementById('categorySelect');
-  const parentId = sel.options[sel.selectedIndex]?.dataset.id || '';
-  const sub = document.getElementById('subcatSelect');
-  const previous = sub.value;
-  // Clear all options except the placeholder
-  while (sub.options.length > 1) sub.remove(1);
-  // Add only the ones that match the selected parent (or all if none selected)
+function _fillLevel(sel, parentId, previous) {
+  while (sel.options.length > 1) sel.remove(1);   // keep the "— None —" placeholder
   _allSubOptions.forEach(o => {
     if (!parentId || o.parent === parentId) {
       const opt = document.createElement('option');
       opt.value = o.value;
+      opt.dataset.id = o.id;
       opt.dataset.parent = o.parent;
       opt.textContent = o.text;
       if (o.value === previous) opt.selected = true;
-      sub.appendChild(opt);
+      sel.appendChild(opt);
     }
   });
+}
+
+function filterSubcats() {
+  const sel = document.getElementById('categorySelect');
+  const parentId = sel.options[sel.selectedIndex]?.dataset.id || '';
+  const sub = document.getElementById('subcatSelect');
+  _fillLevel(sub, parentId, sub.value);
   // Enable/disable the "+ Add subcategory" link
   const addSubLink = document.getElementById('addSubLink');
-  if (parentId) {
-    addSubLink.style.opacity = '1';
-    addSubLink.style.pointerEvents = 'auto';
-  } else {
-    addSubLink.style.opacity = '0.5';
-    addSubLink.style.pointerEvents = 'none';
+  if (addSubLink) {
+    addSubLink.style.opacity = parentId ? '1' : '0.5';
+    addSubLink.style.pointerEvents = parentId ? 'auto' : 'none';
   }
+  filterSubsubs();
+}
+
+function filterSubsubs() {
+  const sub = document.getElementById('subcatSelect');
+  const parentId = sub.options[sub.selectedIndex]?.dataset.id || '';
+  const ss = document.getElementById('subsubSelect');
+  if (ss) _fillLevel(ss, parentId, ss.value);
 }
 
 // ── Quick-add Category/Subcategory modal ───────────────────────────────────
@@ -280,7 +300,7 @@ async function submitQuickCat() {
     if (!j.ok) { errEl.textContent = j.error || 'Failed'; errEl.style.display = 'block'; return; }
     // Add to dropdown
     if (j.parent_id) {
-      _allSubOptions.push({ value: j.name, parent: String(j.parent_id), text: j.name });
+      _allSubOptions.push({ value: j.name, id: String(j.id), parent: String(j.parent_id), text: j.name });
       filterSubcats();
       document.getElementById('subcatSelect').value = j.name;
     } else {
