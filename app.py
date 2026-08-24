@@ -344,7 +344,7 @@ def init_db():
         )""")
         db.execute("""CREATE TABLE IF NOT EXISTS categories (
             id          SERIAL PRIMARY KEY,
-            name        TEXT NOT NULL UNIQUE,
+            name        TEXT NOT NULL,
             description TEXT DEFAULT ''
         )""")
         db.execute("""CREATE TABLE IF NOT EXISTS quotes (
@@ -414,6 +414,18 @@ def init_db():
                 db.rollback()
         try:
             db.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_id INTEGER DEFAULT NULL")
+        except Exception:
+            db.rollback()
+        # Category names are unique *per parent*, not globally — so the same
+        # sub-subcategory name (e.g. "Windproof") can exist under different
+        # parents. Drop the old global UNIQUE(name) and use partial indexes:
+        # top-level names stay unique; child names unique only within a parent.
+        try:
+            db.execute("ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_name_key")
+            db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS categories_name_toplevel
+                          ON categories(name) WHERE parent_id IS NULL""")
+            db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS categories_name_per_parent
+                          ON categories(name, parent_id) WHERE parent_id IS NOT NULL""")
         except Exception:
             db.rollback()
         db.execute("""
@@ -1458,7 +1470,7 @@ def add_category():
                 return redirect(url_for('categories'))
             except Exception as e:
                 db.rollback()
-                msg = 'Category already exists' if 'unique' in str(e).lower() or 'duplicate' in str(e).lower() else f'Could not add: {e}'
+                msg = 'A category with that name already exists here' if 'unique' in str(e).lower() or 'duplicate' in str(e).lower() else f'Could not add: {e}'
                 if is_ajax:
                     return jsonify({'ok': False, 'error': msg}), 400
                 flash(msg, 'error')
