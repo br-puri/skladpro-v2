@@ -20,10 +20,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .sidebar { width: 220px; height: 100vh; background: #1f3045; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; overflow-y: auto; overflow-x: hidden; z-index: 100; transition: width 0.22s ease; }
 .sidebar.collapsed { width: 52px; }
 .logo { padding: 16px 16px 12px; display: flex; align-items: center; gap: 10px; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,.07); margin-bottom: 6px; }
-.logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg,#3b82f6,#1d4ed8); border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(37,99,235,.4); }
+.logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg,#e8bd4e,#d9a024); border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(217,160,36,.45); }
 .logo-icon svg { width: 16px; height: 16px; fill: #fff; }
 .logo-text { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.04em; transition: opacity 0.15s, width 0.22s; overflow: hidden; }
-.logo-text span { color: #60a5fa; }
+.logo-text span { color: #e8bd4e; }
 .sidebar.collapsed .logo-text { opacity: 0; width: 0; }
 .sidebar-divider { height: 1px; background: rgba(255,255,255,.06); margin: 4px 0; }
 .nav-section { padding: 2px 0; }
@@ -31,8 +31,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .sidebar.collapsed .nav-label { opacity: 0; }
 .nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 14px; font-size: 13px; color: rgba(255,255,255,.6); text-decoration: none; transition: all 0.12s; position: relative; white-space: nowrap; margin: 1px 8px; border-radius: 7px; }
 .nav-item:hover { color: rgba(255,255,255,.95); background: rgba(255,255,255,.08); }
-.nav-item.active { color: #fff; background: rgba(59,130,246,.28); }
-.nav-item.active::before { content: ''; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 3px; background: #3b82f6; border-radius: 0 3px 3px 0; }
+.nav-item.active { color: #fff; background: rgba(217,160,36,.24); }
+.nav-item.active::before { content: ''; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 3px; background: #d9a024; border-radius: 0 3px 3px 0; }
 .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
 .nav-item.active svg { opacity: 1; }
 .nav-item .nav-text { transition: opacity 0.15s; font-size: 13px; }
