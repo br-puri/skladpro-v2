@@ -4205,7 +4205,28 @@ def report_receivables():
             buckets[bucket] += s['total']
             rows.append({'sale': dict(s), 'age': age, 'bucket': bucket})
         total = sum(s['total'] for s in sales)
-    return render_template('report_receivables.html', rows=rows, buckets=buckets, total=total)
+
+        # ── DSO / DPO (average receivable & payable days) ──────────────────
+        # Trailing-12-month convention:
+        #   DSO = AR / sales(12m)      × 365   (how long, on average, to collect)
+        #   DPO = AP / purchases(12m)  × 365   (how long, on average, we take to pay)
+        cutoff = (today - timedelta(days=365)).strftime('%Y-%m-%d')
+        sales_12m = db.execute(
+            "SELECT COALESCE(SUM(total),0) AS t FROM sales "
+            "WHERE status='completed' AND archived=0 AND doc_date>=%s", (cutoff,)
+        ).fetchone()['t'] or 0
+        purch_12m = db.execute(
+            "SELECT COALESCE(SUM(total),0) AS t FROM purchases WHERE doc_date>=%s", (cutoff,)
+        ).fetchone()['t'] or 0
+        ap_total = db.execute(
+            "SELECT COALESCE(SUM(total),0) AS t FROM purchases WHERE paid=0"
+        ).fetchone()['t'] or 0
+
+        dso = (total    / sales_12m * 365) if sales_12m else 0
+        dpo = (ap_total / purch_12m * 365) if purch_12m else 0
+    return render_template('report_receivables.html', rows=rows, buckets=buckets, total=total,
+                           dso=dso, dpo=dpo, ap_total=ap_total,
+                           sales_12m=sales_12m, purch_12m=purch_12m)
 
 
 @app.route('/reports/cashflow')

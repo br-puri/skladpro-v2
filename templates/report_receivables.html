@@ -3,6 +3,28 @@
 {% block page_title %}Aged Receivables{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
 {% block content %}
+<div class="metrics" style="margin-bottom:14px">
+  <div class="metric" style="background:linear-gradient(150deg,#20324a,#172438);color:#fff">
+    <div class="metric-label" style="color:rgba(255,255,255,.65)">Avg Receivable Days (DSO)</div>
+    <div class="metric-value" style="color:#fff">{{ "%.0f"|format(dso) }} <span style="font-size:13px;font-weight:600;opacity:.7">days</span></div>
+    <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:4px">Avg time to collect from customers</div>
+  </div>
+  <div class="metric" style="background:linear-gradient(150deg,#20324a,#172438);color:#fff">
+    <div class="metric-label" style="color:rgba(255,255,255,.65)">Avg Payable Days (DPO)</div>
+    <div class="metric-value" style="color:#fff">{{ "%.0f"|format(dpo) }} <span style="font-size:13px;font-weight:600;opacity:.7">days</span></div>
+    <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:4px">Avg time we take to pay suppliers</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Payables Outstanding</div>
+    <div class="metric-value">£{{ "{:,.2f}".format(ap_total) }}</div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:4px">Unpaid supplier orders</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Working-Capital Gap</div>
+    <div class="metric-value {{ 'red' if (dso - dpo) > 0 else '' }}">{{ "%+.0f"|format(dso - dpo) }} <span style="font-size:13px;font-weight:600;opacity:.6">days</span></div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:4px">DSO − DPO (lower is better)</div>
+  </div>
+</div>
 <div class="metrics">
   <div class="metric"><div class="metric-label">Total Outstanding</div><div class="metric-value red">£{{ "{:,.2f}".format(total) }}</div></div>
   <div class="metric"><div class="metric-label">Current</div><div class="metric-value">£{{ "{:,.2f}".format(buckets['current']) }}</div></div>
