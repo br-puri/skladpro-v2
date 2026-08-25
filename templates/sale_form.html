@@ -124,6 +124,31 @@
       const gd = document.getElementById('globalDiscount');
       if (gd) { gd.value = disc; if (typeof calcTotal === 'function') calcTotal(); }
     }
+    applyCustomerPrices(id);
+  }
+
+  // Remember what this customer last paid for each product and default to it.
+  window.CUSTOMER_PRICES = window.CUSTOMER_PRICES || {};
+  function applyCustomerPrices(id) {
+    window.CUSTOMER_PRICES = {};
+    if (!id) return;
+    fetch(`/customers/${id}/last-prices`)
+      .then(r => r.ok ? r.json() : {})
+      .then(map => {
+        window.CUSTOMER_PRICES = map || {};
+        // Re-price any lines already on the form to this customer's last prices
+        document.querySelectorAll('#itemsBody tr').forEach(row => {
+          const pidEl = row.querySelector('[name="product_id[]"]');
+          if (!pidEl || !pidEl.value) return;
+          const lp = window.CUSTOMER_PRICES[pidEl.value];
+          if (lp !== undefined && lp !== null) {
+            const pe = row.querySelector('[name="price[]"]');
+            if (pe) pe.value = lp;
+          }
+        });
+        if (typeof calcTotal === 'function') calcTotal();
+      })
+      .catch(() => {});
   }
 
   // Close dropdown when clicking elsewhere

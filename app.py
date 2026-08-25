@@ -3001,6 +3001,21 @@ def add_sale():
     return render_template('sale_form.html', customers=customers, warehouses=warehouses, products=products, discounts=discounts, today=date.today().isoformat())
 
 
+@app.route('/customers/<int:cid>/last-prices')
+@admin_required
+def customer_last_prices(cid):
+    """For the sale form: the price this customer was last charged for each
+    product (from their most recent completed invoice containing it)."""
+    with get_db() as db:
+        rows = db.execute("""
+            SELECT DISTINCT ON (si.product_id) si.product_id, si.price
+            FROM sale_items si JOIN sales s ON s.id = si.sale_id
+            WHERE s.customer_id = %s AND s.status = 'completed' AND s.archived = 0
+            ORDER BY si.product_id, s.doc_date DESC, s.id DESC
+        """, (cid,)).fetchall()
+    return jsonify({str(r['product_id']): r['price'] for r in rows})
+
+
 @app.route('/sales/<int:sid>')
 def view_sale(sid):
     with get_db() as db:

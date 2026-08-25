@@ -183,7 +183,10 @@ function fillRowForProduct(row, productId) {
   nameEl.textContent = p.name;
   nameEl.style.fontStyle = 'normal';
   nameEl.style.color = '';
-  row.querySelector('[name="price[]"]').value = p[PRICE_FIELD] || 0;
+  // If a customer is selected and we know what they last paid for this product,
+  // default to that price; otherwise use the product's standard price.
+  const _cp = (window.CUSTOMER_PRICES || {})[p.id];
+  row.querySelector('[name="price[]"]').value = (_cp !== undefined && _cp !== null) ? _cp : (p[PRICE_FIELD] || 0);
   const ctnInput = row.querySelector('.ctn-input');
   const ctn = parseFloat(p.carton_qty) || 0;
   ctnInput.placeholder = ctn > 0 ? `1 = ${ctn} pcs` : '—';
