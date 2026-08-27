@@ -1626,7 +1626,10 @@ def _product_fields(form):
     l = float(form.get('length') or 0)
     w = float(form.get('width') or 0)
     h = float(form.get('height') or 0)
-    cbm = round(l * w * h / 1_000_000, 6)  # cm → m³
+    # Prefer CBM computed from carton dimensions; if none were given, keep the
+    # CBM the user typed in directly (they have the volume but not the size).
+    calc_cbm = round(l * w * h / 1_000_000, 6)  # cm → m³
+    cbm = calc_cbm if calc_cbm > 0 else round(float(form.get('cbm') or 0), 6)
     return (
         form.get('sku', ''), form.get('barcode', ''), form['name'],
         form.get('category', ''), form.get('subcategory', ''), form.get('unit', 'pcs'),

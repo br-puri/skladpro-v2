@@ -146,9 +146,11 @@
   </div>
   <div class="form-row">
     <div class="form-group"><label class="form-label">Weight (kg)</label><input name="weight" type="number" step="0.001" min="0" class="form-control" value="{{ product['weight'] if product else '0' }}"></div>
-    <div class="form-group"><label class="form-label">CBM (m³) — auto-calculated</label>
-      <input id="cbm_display" class="form-control" readonly style="background:#f5f4f0;color:#555"
-        value="{{ '%.6f'|format(product['cbm']) if product and product['cbm'] else '0.000000' }}">
+    <div class="form-group"><label class="form-label">CBM (m³)</label>
+      <input id="cbm_display" name="cbm" type="number" step="0.000001" min="0" class="form-control"
+        value="{{ '%.6f'|format(product['cbm']) if product and product['cbm'] else '' }}"
+        placeholder="0.000000" oninput="cbmEdited=true">
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px">Auto-calculated from L×W×H when you enter them — or type it in directly if you only have the CBM.</div>
     </div>
   </div>
 
@@ -202,11 +204,17 @@ function setCnCurrency(cur) {
   document.querySelectorAll('.cn-opt').forEach(b => b.classList.toggle('active', b.dataset.cur === cur));
 }
 
+let cbmEdited = false;   // set true once the user types into the CBM box
 function calcCBM() {
   const l = parseFloat(document.querySelector('[name=length]').value) || 0;
   const w = parseFloat(document.querySelector('[name=width]').value) || 0;
   const h = parseFloat(document.querySelector('[name=height]').value) || 0;
-  document.getElementById('cbm_display').value = (l * w * h / 1000000).toFixed(6);
+  // Only overwrite the CBM box from dimensions when dimensions are actually
+  // entered — so a manually-typed CBM (no carton size) is preserved.
+  if (l > 0 && w > 0 && h > 0) {
+    document.getElementById('cbm_display').value = (l * w * h / 1000000).toFixed(6);
+    cbmEdited = false;
+  }
 }
 // Snapshot the full category-node list on load (id, name, parent) so the
 // Subcategory and Sub-subcategory pickers can cascade.
