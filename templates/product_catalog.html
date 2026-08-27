@@ -55,6 +55,9 @@
 {% endblock %}
 
 {% block content %}
+{% if co.get('co_catalog_prices','') == '0' %}
+<style>.cat-price-area,.cat-overlay-price{display:none!important}</style>
+{% endif %}
 <style>
 /* ── Reset & base ────────────────────────────────────────────── */
 .cat-wrap{max-width:1320px;margin:0 auto}

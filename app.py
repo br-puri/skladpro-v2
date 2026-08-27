@@ -760,6 +760,9 @@ def settings_page():
                        ('co_hide_stock', '1' if request.form.get('co_hide_stock') else ''))
             db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
                        ('reminder_enabled', '1' if request.form.get('reminder_enabled') else ''))
+            # Catalogue prices: '1'/'0' explicitly (unset '' is treated as show)
+            db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
+                       ('co_catalog_prices', '1' if request.form.get('co_catalog_prices') else '0'))
         with get_db() as db:
             for f in fields:
                 db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
@@ -980,6 +983,7 @@ def catalog_pdf_download():
 
     products, categories = _catalog_data()
     co = get_settings()
+    show_prices = (co.get('co_catalog_prices', '') != '0')  # unset defaults to show
 
     GOLD  = colors.HexColor('#d9a024')
     DARK  = colors.HexColor('#1e293b')
@@ -1014,6 +1018,7 @@ def catalog_pdf_download():
     s_card_lblR   = ps('cd_lr', fontSize=5.6, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8, alignment=TA_RIGHT)
     s_card_code   = ps('cd_c',  fontSize=8,   fontName='Helvetica-Bold', textColor=DARK,  leading=10)
     s_card_carton = ps('cd_ct', fontSize=7.5, fontName='Helvetica',      textColor=SLATE, leading=10,  alignment=TA_RIGHT)
+    s_card_price  = ps('cd_pr', fontSize=10.5,fontName='Helvetica-Bold', textColor=GOLD,  leading=12,  leftIndent=8)
 
     buf = io.BytesIO()
     W, H = A4
@@ -1266,8 +1271,20 @@ def catalog_pdf_download():
             ('BOTTOMPADDING', (0,1), (-1,1),  7),
         ]))
 
-        card = Table([[img_box], [Paragraph(name, s_card_name)], [spec]],
-                     colWidths=[CARD_W], rowHeights=[IMG_BOX_H, NAME_H, None])
+        card_rows    = [[img_box], [Paragraph(name, s_card_name)]]
+        card_heights = [IMG_BOX_H, NAME_H]
+        if show_prices:
+            pr   = p.get('price') or 0
+            unit = p.get('unit') or 'unit'
+            if pr:
+                price_txt = f'£{pr:,.2f} <font size=6 color="#94a3b8">/ {unit}</font>'
+            else:
+                price_txt = '<font size=8 color="#94a3b8">Price on request</font>'
+            card_rows.append([Paragraph(price_txt, s_card_price)])
+            card_heights.append(6.5*mm)
+        card_rows.append([spec])
+        card_heights.append(None)
+        card = Table(card_rows, colWidths=[CARD_W], rowHeights=card_heights)
         card.setStyle(TableStyle([
             ('BACKGROUND',   (0,0), (-1,-1), colors.white),
             ('BOX',          (0,0), (-1,-1), 0.6, LINE),
