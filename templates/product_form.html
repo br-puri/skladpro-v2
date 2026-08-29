@@ -159,7 +159,7 @@
   {% for w in warehouses %}
   <div class="form-group">
     <label class="form-label">{{ w['name'] }} — {{ w['location'] }}</label>
-    <input name="stock_{{ w['id'] }}" type="number" step="0.01" min="0" class="form-control" value="{{ stock.get(w['id'], 0) if stock else 0 }}">
+    <input name="stock_{{ w['id'] }}" type="number" step="0.01" class="form-control" value="{{ stock.get(w['id'], 0) if stock else 0 }}">
   </div>{% endfor %}
 
   <div style="margin-top:18px;display:flex;gap:8px">
