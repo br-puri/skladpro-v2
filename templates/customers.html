@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Contacts{% endblock %}
 {% block page_title %}Contacts{% endblock %}
-{% block topbar_actions %}<a href="{{ url_for('add_customer') }}" class="btn btn-primary">+ Add Contact</a>{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('add_customer', type=ctype) if ctype else url_for('add_customer') }}" class="btn btn-primary">+ Add {{ 'Supplier' if ctype=='supplier' else 'Customer' if ctype=='customer' else 'Contact' }}</a>{% endblock %}
 {% block content %}
 <style>
 @media(max-width:768px){

@@ -2366,6 +2366,10 @@ def add_customer():
                  float(request.form.get('balance',0)), float(request.form.get('discount_pct',0)),
                  request.form.get('currency','GBP'), request.form.get('notes','')))
             db.commit()
+        ctype = request.form.get('type', 'customer')
+        if ctype == 'supplier':
+            flash('Supplier added', 'success')
+            return redirect(url_for('customers', type='supplier'))
         flash('Customer added', 'success')
         return redirect(url_for('customers'))
     return render_template('customer_form.html', customer=None)
@@ -2395,6 +2399,10 @@ def edit_customer(cid):
                 db.execute("UPDATE sales SET customer=%s WHERE customer_id=%s OR (customer_id IS NULL AND customer=%s)", (new_label, cid, old_label))
                 db.execute("UPDATE quotes SET customer=%s WHERE customer_id=%s OR (customer_id IS NULL AND customer=%s)", (new_label, cid, old_label))
             db.commit()
+            ctype = request.form.get('type', 'customer')
+            if ctype == 'supplier':
+                flash('Supplier updated', 'success')
+                return redirect(url_for('customers', type='supplier'))
             flash('Customer updated', 'success')
             return redirect(url_for('customers'))
     return render_template('customer_form.html', customer=c)
@@ -2404,8 +2412,13 @@ def edit_customer(cid):
 @superadmin_required
 def delete_customer(cid):
     with get_db() as db:
+        row = db.execute("SELECT type FROM contacts WHERE id=%s", (cid,)).fetchone()
+        ctype = row['type'] if row else 'customer'
         db.execute("DELETE FROM contacts WHERE id=%s", (cid,))
         db.commit()
+    if ctype == 'supplier':
+        flash('Supplier deleted', 'success')
+        return redirect(url_for('customers', type='supplier'))
     flash('Customer deleted', 'success')
     return redirect(url_for('customers'))
 

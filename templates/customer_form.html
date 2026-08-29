@@ -8,8 +8,8 @@
     <div class="form-group"><label class="form-label">Name</label><input name="name" class="form-control" value="{{ customer['name'] if customer else '' }}"></div>
     <div class="form-group"><label class="form-label">Type</label>
       <select name="type" class="form-control">
-        <option value="customer" {{ 'selected' if customer and customer['type']=='customer' }}>Customer</option>
-        <option value="supplier" {{ 'selected' if customer and customer['type']=='supplier' }}>Supplier</option>
+        <option value="customer" {{ 'selected' if (customer and customer['type']=='customer') or (not customer and request.args.get('type') != 'supplier') }}>Customer</option>
+        <option value="supplier" {{ 'selected' if (customer and customer['type']=='supplier') or (not customer and request.args.get('type')=='supplier') }}>Supplier</option>
       </select></div>
   </div>
   <div class="form-row">
