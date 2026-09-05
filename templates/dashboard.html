@@ -16,6 +16,9 @@
 
   .kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; margin: 20px 0 18px; }
   .kc { border-radius: 16px; padding: 18px 20px; background: #fff; box-shadow: 0 1px 3px rgba(16,24,40,.06), 0 0 0 1px rgba(16,24,40,.04); }
+  a.kc { display: block; text-decoration: none; color: inherit; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+  a.kc:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(16,24,40,.13), 0 0 0 1px rgba(16,24,40,.05); }
+  a.kc-hero:hover { box-shadow: 0 16px 38px rgba(23,36,56,.36); }
   .kc-top { display: flex; align-items: center; justify-content: space-between; }
   .kc-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #97a2b2; }
   .kc-val { font-size: 30px; font-weight: 800; color: #16233a; margin: 12px 0 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
@@ -65,7 +68,7 @@
   <!-- KPIs -->
   <div class="kpis">
     <!-- Revenue hero -->
-    <div class="kc kc-hero">
+    <a href="{{ url_for('sales') }}" class="kc kc-hero">
       <div class="kc-top">
         <span class="kc-label">Revenue (completed)</span>
       </div>
@@ -73,10 +76,10 @@
       <svg width="100%" height="34" viewBox="0 0 200 34" preserveAspectRatio="none" id="heroSpark" style="position:relative">
         <polyline points="0,26 200,10" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-    </div>
+    </a>
 
     <!-- Inventory value -->
-    <div class="kc">
+    <a href="{{ url_for('products') }}" class="kc">
       <div class="kc-top">
         <span class="kc-label">Inventory value</span>
         <div class="kc-ic" style="background:#eef4ff">
@@ -85,10 +88,10 @@
       </div>
       <div class="kc-val">£{{ "{:,.0f}".format(stock_value or 0) }}</div>
       <div class="kc-sub">across {{ warehouse_count }} warehouse{{ 's' if warehouse_count != 1 }} · {{ product_count }} products</div>
-    </div>
+    </a>
 
     <!-- Net cash -->
-    <div class="kc">
+    <a href="{{ url_for('report_cashflow') }}" class="kc">
       <div class="kc-top">
         <span class="kc-label">Net cash</span>
         <div class="kc-ic" style="background:#eafaf1">
@@ -97,10 +100,10 @@
       </div>
       <div class="kc-val" style="color:{{ '#16a34a' if (net_cash or 0) >= 0 else '#dc2626' }}">£{{ "{:,.0f}".format(net_cash or 0) }}</div>
       <div class="kc-sub">income − expenses</div>
-    </div>
+    </a>
 
     <!-- Outstanding -->
-    <div class="kc">
+    <a href="{{ url_for('report_receivables') }}" class="kc">
       <div class="kc-top">
         <span class="kc-label">Outstanding</span>
         <div class="kc-ic" style="background:#fef2f2">
@@ -109,7 +112,7 @@
       </div>
       <div class="kc-val">£{{ "{:,.0f}".format(outstanding or 0) }}</div>
       <div class="kc-sub">{{ unpaid_count }} unpaid invoice{{ 's' if unpaid_count != 1 }}{% if pending_sales %} · {{ pending_sales }} pending{% endif %}</div>
-    </div>
+    </a>
   </div>
 
   <!-- Middle: trend + donut -->
