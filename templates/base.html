@@ -346,6 +346,20 @@ function initBulk(submitUrl, confirmMsg) {
   });
 }
 </script>
+<!-- Modern date picker (flatpickr) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+<style>
+  .flatpickr-day.selected, .flatpickr-day.selected:hover,
+  .flatpickr-day.startRange, .flatpickr-day.endRange {
+    background: #1a6ef5; border-color: #1a6ef5;
+  }
+  .flatpickr-day.today { border-color: #d9a024; }
+  .flatpickr-day.today:hover { background: #d9a024; border-color: #d9a024; color: #fff; }
+  .flatpickr-months .flatpickr-month, .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-weekdays, span.flatpickr-weekday { color: #1e293b; fill: #1e293b; }
+  .flatpickr-calendar { box-shadow: 0 10px 34px rgba(16,24,40,.18); border-radius: 12px; font-size: 14px; }
+  .flatpickr-day:hover { background: #eef4ff; }
+</style>
 </head>
 <body>
 <div class="sidebar" id="sidebar">
@@ -835,5 +849,25 @@ if ('serviceWorker' in navigator) {
     More
   </button>
 </nav>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+<script>
+  // Upgrade every native date field to a modern, always-visible calendar.
+  function initDatePickers(root) {
+    if (!window.flatpickr) return;
+    (root || document).querySelectorAll('input[type="date"]:not(.fp-ready)').forEach(function(el) {
+      el.classList.add('fp-ready');
+      flatpickr(el, {
+        dateFormat: 'Y-m-d',   // value submitted to the server stays ISO
+        altInput: true,
+        altFormat: 'D, j M Y', // friendly display, e.g. "Sun, 6 Sep 2026"
+        allowInput: true,
+        disableMobile: true    // use flatpickr on mobile too, not the OS picker
+      });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function() { initDatePickers(document); });
+  // Expose so dynamically-added rows (e.g. line items) can re-init if needed.
+  window.initDatePickers = initDatePickers;
+</script>
 </body>
 </html>
