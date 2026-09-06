@@ -4700,7 +4700,10 @@ def add_payment(sid):
             "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
             (sid, payment_date, amount, method, notes, datetime.utcnow().isoformat()))
         sale = db.execute("SELECT num, total, currency, customer, customer_id FROM sales WHERE id=%s", (sid,)).fetchone()
-        paid_total = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s'] + amount
+        # The payment was just inserted above, so SUM already includes it —
+        # do NOT add `amount` again (that double-counted and could flip a
+        # partial payment to fully 'paid').
+        paid_total = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s']
         db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= sale['total'] else 0, sid))
         db.execute(
             'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
