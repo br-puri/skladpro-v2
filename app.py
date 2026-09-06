@@ -3079,7 +3079,8 @@ def view_sale(sid):
     company = get_settings()
     return render_template('sale_view.html', sale=s, items=items, customer=customer, company=company,
                            payments=payments, paid_total=paid_total, outstanding=outstanding,
-                           credit_notes_list=credit_notes_list, invoice_token=invoice_token)
+                           credit_notes_list=credit_notes_list, invoice_token=invoice_token,
+                           today=date.today().isoformat())
 
 
 @app.route('/sales/<int:sid>/edit', methods=['GET', 'POST'])

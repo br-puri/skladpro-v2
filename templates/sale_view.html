@@ -275,7 +275,7 @@
       <form method="post" action="{{ url_for('add_payment', sid=sale['id']) }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
         <div>
           <label class="form-label">Date</label>
-          <input name="payment_date" type="date" class="form-control" style="width:145px" value="{{ sale['doc_date'] }}" required>
+          <input name="payment_date" type="date" class="form-control" style="width:145px" value="{{ today }}" required>
         </div>
         <div>
           <label class="form-label">Amount</label>
