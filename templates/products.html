@@ -41,7 +41,7 @@
 .mob-prod-card:last-child { border-bottom: none; }
 .mob-prod-card:active { background: #f8fafc; }
 .mob-prod-thumb { width: 44px; height: 44px; border-radius: 10px; background: #f0f2f5; border: 1px solid #e2e8f0; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.mob-prod-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mob-prod-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .mob-prod-body { flex: 1; min-width: 0; }
 .mob-prod-name { font-size: 14px; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mob-prod-meta { font-size: 11.5px; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -184,7 +184,7 @@
     <td style="padding:12px 14px" data-val="{{ p['name']|lower }}">
       <div style="display:flex;align-items:center;gap:12px">
         <div style="width:40px;height:40px;border-radius:9px;background:#f0f2f5;border:1px solid #e7ebf1;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
-          {% if p['photo'] %}<img src="{{ photo_url(p['photo']) }}" alt="" style="width:100%;height:100%;object-fit:cover">
+          {% if p['photo'] %}<img src="{{ photo_url(p['photo']) }}" alt="" style="width:100%;height:100%;object-fit:contain">
           {% else %}<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.3"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>{% endif %}
         </div>
         <div style="min-width:0">

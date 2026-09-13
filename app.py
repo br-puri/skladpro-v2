@@ -1197,7 +1197,7 @@ def catalog_pdf_download():
         if src is None:
             return None
         try:
-            pil = PILImage.open(src)
+            pil = _prepare_product_image(PILImage.open(src))
             pil.load()
             pw, ph = pil.size
             ratio = min(IMG_MAX_W / pw, IMG_MAX_H / ph)
@@ -1576,6 +1576,14 @@ def delete_category(cid):
     return redirect(url_for('categories'))
 
 
+def _prepare_product_image(img):
+    """Apply camera orientation and normalize alpha before resampling."""
+    from PIL import ImageOps
+    img = ImageOps.exif_transpose(img)
+    transparent = 'A' in img.getbands() or 'transparency' in img.info
+    return img.convert('RGBA' if transparent else 'RGB')
+
+
 def _encode_product_image(img):
     """Preserve alpha (including palette transparency); compress opaque photos."""
     transparent = 'A' in img.getbands() or 'transparency' in img.info
@@ -1593,7 +1601,7 @@ def _encode_product_image(img):
 def _save_photo(file):
     if file and file.filename and allowed_file(file.filename):
         from PIL import Image
-        img = Image.open(file.stream)
+        img = _prepare_product_image(Image.open(file.stream))
         img.thumbnail((1200, 1200), Image.LANCZOS)
         buf, extension = _encode_product_image(img)
         if _CLOUDINARY_URL:
@@ -1614,7 +1622,7 @@ def _save_photo_bytes(data):
         return None
     try:
         from PIL import Image
-        img = Image.open(io.BytesIO(data))
+        img = _prepare_product_image(Image.open(io.BytesIO(data)))
         img.thumbnail((1200, 1200), Image.LANCZOS)
         buf, extension = _encode_product_image(img)
         if _CLOUDINARY_URL:
