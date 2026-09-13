@@ -130,13 +130,7 @@
 
   <div class="form-group">
     <label class="form-label">Product Photo</label>
-    {% if product and product['photo'] %}
-    <div style="margin-bottom:8px">
-      <img src="{{ photo_url(product['photo']) }}" style="height:100px;border-radius:6px;object-fit:contain;border:1px solid #eaecf0">
-    </div>
-    {% endif %}
-    <input name="photo" type="file" accept="image/*" class="form-control" style="padding:6px">
-    {% if product and product['photo'] %}<div style="font-size:11px;color:#888;margin-top:4px">Leave empty to keep current photo</div>{% endif %}
+    {% include '_photo_cropper.html' %}
   </div>
 
   <div class="form-row">

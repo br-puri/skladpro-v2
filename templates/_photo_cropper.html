@@ -1,0 +1,32 @@
+<style>
+.photo-preview { max-width:240px;max-height:200px;object-fit:contain;border-radius:10px; }
+.crop-checker { background:repeating-conic-gradient(#e8edf2 0% 25%,#fff 0% 50%) 0/20px 20px; }
+#photo-crop-dialog { border:0;border-radius:18px;padding:24px;width:min(560px,calc(100vw - 32px));max-height:90vh;overflow:auto;color:#172438;box-sizing:border-box; }
+#photo-crop-dialog::backdrop { background:rgba(15,23,42,.65); }
+#crop-canvas { display:block;width:100%;height:300px;touch-action:none;cursor:move;border-radius:10px; }
+.crop-controls { display:grid;gap:12px;margin:16px 0; }
+.crop-controls label { display:grid;grid-template-columns:110px 1fr;align-items:center;gap:12px; }
+.crop-controls [hidden] { display:none; }
+.crop-actions { display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap; }
+</style>
+<div id="photo-preview-wrap" {% if not product or not product['photo'] %}hidden{% endif %} style="margin-bottom:10px">
+  <img id="photo-preview" class="photo-preview crop-checker" {% if product and product['photo'] %}src="{{ photo_url(product['photo']) }}"{% endif %} alt="Product photo preview">
+</div>
+<input id="product-photo-input" name="photo" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" class="form-control" style="padding:6px">
+<button id="open-photo-crop" type="button" class="btn btn-secondary" style="margin-top:10px" {% if not product or not product['photo'] %}hidden{% endif %}>Crop photo</button>
+<div id="photo-crop-status" role="status" style="font-size:12px;color:#64748b;margin-top:8px">Choose a photo, then crop it if needed. Changes are saved when you save the product.</div>
+<dialog id="photo-crop-dialog" aria-labelledby="crop-title">
+  <h2 id="crop-title" style="margin:0 0 6px">Crop photo</h2>
+  <p style="margin:0 0 16px;color:#64748b">Drag the picture to position it. The preview shows exactly what will be saved.</p>
+  <canvas id="crop-canvas" class="crop-checker" width="1000" height="600" aria-label="Cropped photo preview"></canvas>
+  <div class="crop-controls">
+    <label>Ratio <select id="crop-ratio" class="form-control"><option value="original">Original</option><option value="1">Square · 1:1</option><option value="0.75">Portrait · 3:4</option><option value="1.3333333333333333">Landscape · 4:3</option><option value="1.7777777777777777">Wide · 16:9</option><option value="free">Free crop</option></select></label>
+    <label id="crop-free-label" hidden>Free ratio <input id="crop-free" type="range" min="0.25" max="4" step="0.01" value="1"></label>
+    <label>Zoom <input id="crop-zoom" type="range" min="1" max="4" step="0.01" value="1"></label>
+    <label>Horizontal <input id="crop-x" type="range" min="0" max="1" step="0.001" value="0.5"></label>
+    <label>Vertical <input id="crop-y" type="range" min="0" max="1" step="0.001" value="0.5"></label>
+  </div>
+  <p id="crop-error" role="alert" style="color:#dc2626"></p>
+  <div class="crop-actions"><button type="button" class="btn btn-secondary" id="crop-reset">Reset</button><button type="button" class="btn btn-secondary" id="crop-cancel">Cancel</button><button type="button" class="btn btn-primary" id="crop-apply">Use crop</button></div>
+</dialog>
+<script src="{{ url_for('static', filename='product_cropper.js') }}"></script>
