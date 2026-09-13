@@ -1206,12 +1206,8 @@ def catalog_pdf_download():
             # low enough to build the whole catalogue on the 512 MB tier.
             target_px = int(max(IMG_MAX_W, IMG_MAX_H) / mm / 25.4 * 200)
             pil.thumbnail((target_px, target_px), PILImage.LANCZOS)
-            if pil.mode not in ('RGB', 'L'):
-                pil = pil.convert('RGB')
-            thumb = io.BytesIO()
-            pil.save(thumb, format='JPEG', quality=82, optimize=True)
-            thumb.seek(0)
-            return Image(thumb, width=pw*ratio, height=ph*ratio)
+            thumb, _ = _encode_product_image(pil)
+            return Image(thumb, width=pw*ratio, height=ph*ratio, mask='auto')
         except Exception:
             return None
 
@@ -1580,19 +1576,31 @@ def delete_category(cid):
     return redirect(url_for('categories'))
 
 
+def _encode_product_image(img):
+    """Preserve alpha (including palette transparency); compress opaque photos."""
+    transparent = 'A' in img.getbands() or 'transparency' in img.info
+    buf = io.BytesIO()
+    if transparent:
+        img.convert('RGBA').save(buf, 'PNG', optimize=True)
+        extension = 'png'
+    else:
+        img.convert('RGB').save(buf, 'JPEG', quality=82, optimize=True)
+        extension = 'jpg'
+    buf.seek(0)
+    return buf, extension
+
+
 def _save_photo(file):
     if file and file.filename and allowed_file(file.filename):
         from PIL import Image
-        img = Image.open(file.stream).convert('RGB')
+        img = Image.open(file.stream)
         img.thumbnail((1200, 1200), Image.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, 'JPEG', quality=82, optimize=True)
-        buf.seek(0)
+        buf, extension = _encode_product_image(img)
         if _CLOUDINARY_URL:
             result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
             return result['secure_url']
         # local fallback (dev only — Render filesystem is ephemeral)
-        filename = f"{int(time.time())}.jpg"
+        filename = f"{uuid.uuid4().hex}.{extension}"
         with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
             f.write(buf.read())
         return filename
@@ -1606,15 +1614,13 @@ def _save_photo_bytes(data):
         return None
     try:
         from PIL import Image
-        img = Image.open(io.BytesIO(data)).convert('RGB')
+        img = Image.open(io.BytesIO(data))
         img.thumbnail((1200, 1200), Image.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, 'JPEG', quality=82, optimize=True)
-        buf.seek(0)
+        buf, extension = _encode_product_image(img)
         if _CLOUDINARY_URL:
             result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
             return result['secure_url']
-        filename = f"{int(time.time()*1000)}.jpg"
+        filename = f"{uuid.uuid4().hex}.{extension}"
         with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
             f.write(buf.read())
         return filename
