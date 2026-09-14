@@ -184,7 +184,7 @@
 .cat-stock.low{background:rgba(194,65,12,.10);color:#c2410c}
 
 /* card body */
-.cat-body{padding:12px 14px 14px;display:flex;flex-direction:column;flex:1}
+.cat-body{min-width:0;padding:12px 14px 14px;display:flex;flex-direction:column;flex:1}
 .print-spec{display:none}
 .print-toc{display:none}
 .cat-name{white-space:normal;overflow-wrap:anywhere;min-width:0;font-size:13.5px;font-weight:700;color:#0f172a;line-height:1.35;margin-bottom:3px}
@@ -216,7 +216,7 @@
   overflow-y:auto;
 }
 .cat-card:hover .cat-overlay{opacity:1;pointer-events:auto}
-.cat-overlay-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;line-height:1.3}
+.cat-overlay-title{overflow-wrap:anywhere;flex-shrink:0;font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;line-height:1.3}
 .cat-overlay-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:11.5px}
 .cat-overlay-grid dt{color:rgba(255,255,255,.5);font-weight:500}
 .cat-overlay-grid dd{color:#fff;font-weight:600;text-align:right;margin:0}
@@ -230,8 +230,8 @@
 .list-mode .cat-card:hover{transform:none;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .list-mode .cat-img{width:88px;height:88px;aspect-ratio:unset;flex-shrink:0;border-radius:0;border-right:1.5px solid #e8edf2}
 .list-mode .cat-img img{padding:6px}
-.list-mode .cat-body{flex-direction:row;align-items:center;gap:16px;padding:10px 16px}
-.list-mode .cat-name{white-space:normal;overflow-wrap:anywhere;min-width:0;font-size:13.5px;min-width:180px;max-width:260px;margin-bottom:0}
+.list-mode .cat-body{flex-wrap:wrap;flex-direction:row;align-items:center;gap:16px;padding:10px 16px}
+.list-mode .cat-name{white-space:normal;overflow-wrap:anywhere;min-width:0;font-size:13.5px;flex:1 1 220px;max-width:100%;margin-bottom:0}
 .list-mode .cat-sku{margin-bottom:0}
 .list-mode .cat-info{margin-bottom:0;flex-shrink:0}
 .list-mode .cat-price-area{border-top:none;padding-top:0;margin-left:auto;flex-shrink:0;gap:16px}
