@@ -1151,8 +1151,8 @@ def catalog_pdf_download():
         local = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products', photo)
         return local if os.path.exists(local) else None
 
-    def _img_flowable(photo):
-        """Return an Image scaled to fit the card's image panel, or None."""
+    def _prepare_catalog_photo(photo):
+        """Prepare compressed photo bytes off the PDF rendering thread."""
         src = _img_source(photo)
         if src is None:
             return None
@@ -1167,9 +1167,23 @@ def catalog_pdf_download():
             target_px = int(max(IMG_MAX_W, IMG_MAX_H) / mm / 25.4 * 200)
             pil.thumbnail((target_px, target_px), PILImage.LANCZOS)
             thumb, _ = _encode_product_image(pil)
-            return Image(thumb, width=pw*ratio, height=ph*ratio, mask='auto')
+            return (thumb.getvalue(), pw*ratio, ph*ratio)
         except Exception:
             return None
+
+    # Fetch and resize a bounded number of images concurrently. Never share
+    # ReportLab flowables between threads or retain full-resolution downloads.
+    from concurrent.futures import ThreadPoolExecutor
+    photo_keys = list(dict.fromkeys(p.get('photo') for p in products if p.get('photo')))
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        photo_assets = dict(zip(photo_keys, executor.map(_prepare_catalog_photo, photo_keys)))
+
+    def _img_flowable(photo):
+        asset = photo_assets.get(photo)
+        if asset is None:
+            return None
+        data, width, height = asset
+        return Image(io.BytesIO(data), width=width, height=height, mask='auto')
 
     def _category_banner(cat_name):
         """Gold rounded banner at the top-left of a category page."""

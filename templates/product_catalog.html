@@ -39,14 +39,33 @@
   </style>
   <script>
     function doPrint(){closeExportMenu();window.print()}
-    function doSavePDF(){
+    async function doSavePDF(){
       closeExportMenu();
-      const tip=document.createElement('div');
-      tip.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px';
-      tip.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Generating PDF…';
-      const s=document.createElement('style');s.textContent='@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';document.head.appendChild(s);document.body.appendChild(tip);
-      const a=document.createElement('a');a.href="{{ url_for('catalog_pdf_download') }}";a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();document.body.removeChild(a);
-      setTimeout(()=>tip.remove(),4000);
+      const pdfURL = {{ url_for('catalog_pdf_download')|tojson }};
+      const tab = window.open('about:blank', '_blank');
+      if (!tab) { window.location.href = pdfURL; return; }
+      tab.opener = null;
+      tab.document.title = 'Preparing catalogue — NEON';
+      tab.document.body.style.cssText = 'margin:0;background:#f5f7fa;font-family:Arial,sans-serif;color:#20324a;display:grid;place-items:center;min-height:100vh';
+      tab.document.body.innerHTML = '<main style="padding:40px;max-width:420px;background:white;border-radius:16px;border-top:4px solid #d9a024"><h1 style="font-size:24px">Preparing your catalogue</h1><p style="line-height:1.6;color:#64748b">We’re gathering the product images and creating your PDF. This tab will open it automatically when it’s ready.</p><p id="pdf-status" role="status">Please keep this tab open…</p></main>';
+      try {
+        const response = await fetch(pdfURL, {credentials:'same-origin'});
+        if (!response.ok || !(response.headers.get('Content-Type') || '').includes('application/pdf')) throw new Error('PDF generation failed');
+        const blob = await response.blob();
+        if (tab.closed) return;
+        const blobURL = URL.createObjectURL(blob);
+        tab.location.replace(blobURL);
+        setTimeout(() => URL.revokeObjectURL(blobURL), 300000);
+      } catch (error) {
+        if (!tab.closed) {
+          tab.document.title = 'Catalogue could not be downloaded';
+          const status = tab.document.getElementById('pdf-status');
+          if (status) {
+            status.textContent = 'The PDF could not be created. Please return to the catalogue and try again.';
+            status.style.color = '#b42318';
+          }
+        }
+      }
     }
     function toggleExportMenu(e){e.stopPropagation();document.getElementById('exportMenu').classList.toggle('open')}
     function closeExportMenu(){document.getElementById('exportMenu').classList.remove('open')}
