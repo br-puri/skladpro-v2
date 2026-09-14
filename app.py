@@ -969,7 +969,7 @@ def catalog_render():
 
 @app.route('/products/catalog/pdf')
 def catalog_pdf_download():
-    """Generate a Magnum-style product catalogue PDF (trade layout, no prices)."""
+    """Generate the branded print catalogue with full names and optional prices."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.platypus import (BaseDocTemplate, PageTemplate, Frame,
@@ -981,6 +981,7 @@ def catalog_pdf_download():
     from reportlab.lib.enums import TA_RIGHT, TA_LEFT, TA_CENTER
     from PIL import Image as PILImage
 
+    from xml.sax.saxutils import escape
     products, categories = _catalog_data()
     co = get_settings()
     show_prices = (co.get('co_catalog_prices', '') != '0')  # unset defaults to show
@@ -1005,25 +1006,26 @@ def catalog_pdf_download():
     s_toc_num     = ps('tc_n',  fontSize=14, fontName='Helvetica-Bold', textColor=GOLD, leading=18)
     s_toc_name    = ps('tc_nm', fontSize=11, fontName='Helvetica-Bold', textColor=DARK, leading=14, letterSpacing=0.5)
 
-    s_cat_banner  = ps('ct_b',  fontSize=15, fontName='Helvetica-Bold', textColor=colors.white, leading=18, letterSpacing=1.2)
-    s_sub_head    = ps('sb_h',  fontSize=10, fontName='Helvetica-Bold', textColor=GOLD, leading=13, letterSpacing=0.6)
-    s_subsub_head = ps('ss_h',  fontSize=8,  fontName='Helvetica-Bold', textColor=SLATE, leading=11, letterSpacing=0.8, leftIndent=6)
+    s_cat_banner  = ps('ct_b',  fontSize=15, fontName='Helvetica-Bold', textColor=DARK, leading=24, letterSpacing=1.2)
+    s_sub_head    = ps('sb_h',  fontSize=10, fontName='Helvetica-Bold', textColor=DARK, leading=13, keepWithNext=True, letterSpacing=0.6)
+    s_subsub_head = ps('ss_h',  fontSize=8,  fontName='Helvetica-Bold', textColor=SLATE, leading=11, letterSpacing=0.8, leftIndent=0, keepWithNext=True)
     s_prod_name   = ps('pd_n',  fontSize=10, fontName='Helvetica-Bold', textColor=DARK, leading=12, letterSpacing=0.4)
     s_tbl_head    = ps('tb_h',  fontSize=7,  fontName='Helvetica-Bold', textColor=MUTED, leading=9,  letterSpacing=1)
     s_tbl_code    = ps('tb_c',  fontSize=9,  fontName='Helvetica-Bold', textColor=DARK, leading=11)
     s_tbl_carton  = ps('tb_ct', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#475569'), leading=11, alignment=TA_RIGHT)
     # Grid-card styles (premium multi-column layout)
-    s_card_name   = ps('cd_n',  fontSize=7.6, fontName='Helvetica-Bold', textColor=DARK,  leading=9.4, alignment=TA_LEFT)
-    s_card_lbl    = ps('cd_l',  fontSize=5.6, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8)
-    s_card_lblR   = ps('cd_lr', fontSize=5.6, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8, alignment=TA_RIGHT)
+    s_card_name   = ps('cd_n',  fontSize=9, fontName='Helvetica-Bold', textColor=DARK,  leading=11.5, alignment=TA_LEFT)
+    s_card_lbl    = ps('cd_l',  fontSize=6.5, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8)
+    s_card_lblR   = ps('cd_lr', fontSize=6.5, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8, alignment=TA_RIGHT)
     s_card_code   = ps('cd_c',  fontSize=8,   fontName='Helvetica-Bold', textColor=DARK,  leading=10)
     s_card_carton = ps('cd_ct', fontSize=7.5, fontName='Helvetica',      textColor=SLATE, leading=10,  alignment=TA_RIGHT)
-    s_card_price  = ps('cd_pr', fontSize=10.5,fontName='Helvetica-Bold', textColor=GOLD,  leading=12,  leftIndent=8)
+    s_card_price  = ps('cd_pr', fontSize=10.5,fontName='Helvetica-Bold', textColor=DARK,  leading=12,  leftIndent=8)
 
     buf = io.BytesIO()
     W, H = A4
     LM = RM = 15*mm
-    TM = BM = 15*mm
+    TM = 23*mm
+    BM = 17*mm
     UW = W - LM - RM
     UH = H - TM - BM
 
@@ -1041,13 +1043,50 @@ def catalog_pdf_download():
     # ── Frame templates ─────────────────────────────────────────────────────
     def _draw_page_num(canv, doc):
         canv.saveState()
-        canv.setFont('Helvetica', 8)
-        canv.setFillColor(MUTED)
-        canv.drawCentredString(W/2, 10*mm, str(canv.getPageNumber()))
+        canv.setStrokeColor(LINE)
+        canv.setLineWidth(0.5)
+        canv.line(LM, H-16*mm, W-RM, H-16*mm)
+        canv.setFillColor(DARK)
+        canv.setFont('Helvetica-Bold', 8)
+        canv.drawString(LM, H-12*mm, 'NEON / PRODUCT CATALOGUE')
+        canv.setFont('Helvetica', 7)
+        canv.setFillColor(SLATE)
+        canv.drawRightString(W-RM, H-12*mm, str(date.today().year))
+        canv.line(LM, 13*mm, W-RM, 13*mm)
+        canv.drawRightString(W-RM, 8*mm, f'{canv.getPageNumber():02d}')
         canv.restoreState()
 
-    def _draw_blank(canv, doc):
-        pass
+    def _draw_cover(canv, doc):
+        canv.saveState()
+        canv.setFillColor(GOLD)
+        canv.rect(0, 0, W, H, fill=1, stroke=0)
+        if logo_path:
+            canv.drawImage(logo_path, 20*mm, H-49*mm, width=80*mm, height=25*mm,
+                           preserveAspectRatio=True, anchor='sw', mask='auto')
+        else:
+            canv.setFillColor(DARK)
+            canv.setFont('Helvetica-Bold', 44)
+            canv.drawString(20*mm, H-42*mm, 'NEON')
+        canv.setFillColor(DARK)
+        canv.setFont('Helvetica', 10)
+        canv.drawString(20*mm, H-91*mm, 'THE COLLECTION / ' + str(date.today().year))
+        canv.setFont('Helvetica-Bold', 50)
+        canv.drawString(20*mm, H-117*mm, 'Product')
+        canv.drawString(20*mm, H-137*mm, 'Catalogue')
+        canv.setLineWidth(1)
+        canv.setStrokeColor(DARK)
+        canv.line(20*mm, 61*mm, W-20*mm, 61*mm)
+        contact_style = ps('cover_contact', fontName='Helvetica-Bold', fontSize=10,
+                           leading=15, textColor=DARK)
+        lines = []
+        if address:
+            lines.append(escape(address.upper()))
+        contacts = [co.get('co_phone'), co.get('co_email')]
+        lines.append(escape('  /  '.join(v for v in contacts if v)))
+        para = Paragraph('<br/>'.join(lines), contact_style)
+        _, height = para.wrap(W-40*mm, 48*mm)
+        para.drawOn(canv, 20*mm, 53*mm-height)
+        canv.restoreState()
 
     frame_normal = Frame(LM, BM, UW, UH, id='normal', leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     frame_full   = Frame(0, 0, W, H, id='full', leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
@@ -1059,106 +1098,27 @@ def catalog_pdf_download():
 
     doc = CatalogueDoc(buf, pagesize=A4)
     doc.addPageTemplates([
-        PageTemplate(id='cover',  frames=[frame_full],   onPage=_draw_blank),
-        PageTemplate(id='toc',    frames=[frame_normal], onPage=_draw_blank),
+        PageTemplate(id='cover',  frames=[frame_full],   onPage=_draw_cover),
+        PageTemplate(id='toc',    frames=[frame_normal], onPage=_draw_page_num),
         PageTemplate(id='normal', frames=[frame_normal], onPage=_draw_page_num),
     ])
 
     story = []
 
-    # ── Cover ─────────────────────────────────────────────────────────────────
-    # Magnum-inspired: white page with big logo/name centered, tagline, then
-    # slim "PRODUCT CATALOGUE" label at the bottom above a gold accent strip.
-    s_cover_brand    = ps('cv_br', fontSize=52, fontName='Helvetica-Bold', textColor=GOLD, leading=58, alignment=TA_CENTER, letterSpacing=1.5)
-    s_cover_tagline  = ps('cv_tg', fontSize=13, fontName='Helvetica-Bold', textColor=DARK, leading=17, alignment=TA_CENTER, letterSpacing=3)
-    s_cover_subitalic= ps('cv_si', fontSize=10, fontName='Helvetica-Oblique', textColor=SLATE, leading=14, alignment=TA_CENTER)
-    s_cover_bottom   = ps('cv_bt', fontSize=12, fontName='Helvetica-Bold', textColor=DARK, leading=15, alignment=TA_CENTER, letterSpacing=5)
-
-    tagline  = (co.get('co_tagline')  or 'A TRUSTED NAME IN QUALITY PRODUCTS').upper()
-    subtitle = co.get('co_subtitle')  or 'Committed to High Quality, Outstanding Service & Competitive Prices'
-
-    cover_rows = []
-    cover_rows.append([Spacer(1, 55*mm)])
-
-    # Logo (bigger) or company name as fallback
-    if logo_path:
-        try:
-            pil = PILImage.open(logo_path)
-            lw, lh = pil.size
-            ratio = min(120*mm / lw, 55*mm / lh)
-            cover_rows.append([Image(logo_path, width=lw*ratio, height=lh*ratio)])
-        except Exception:
-            cover_rows.append([Paragraph(co_name.upper(), s_cover_brand)])
-    else:
-        cover_rows.append([Paragraph(co_name.upper(), s_cover_brand)])
-
-    cover_rows.append([Spacer(1, 12*mm)])
-    # Thin gold rule
-    from reportlab.platypus import HRFlowable
-    cover_rows.append([HRFlowable(width=100*mm, thickness=0.7, color=GOLD, spaceBefore=0, spaceAfter=0)])
-    cover_rows.append([Spacer(1, 8*mm)])
-    cover_rows.append([Paragraph(tagline, s_cover_tagline)])
-    cover_rows.append([Spacer(1, 5*mm)])
-    cover_rows.append([Paragraph(subtitle, s_cover_subitalic)])
-    # Push the bottom content down
-    cover_rows.append([Spacer(1, 90*mm)])
-    cover_rows.append([Paragraph('PRODUCT CATALOGUE', s_cover_bottom)])
-    cover_rows.append([Spacer(1, 3*mm)])
-    cover_rows.append([Paragraph(str(date.today().year), s_cover_subitalic)])
-
-    cover_tbl = Table(cover_rows, colWidths=[W])
-    cover_tbl.setStyle(TableStyle([
-        ('BACKGROUND',   (0,0), (-1,-1), colors.white),
-        ('ALIGN',        (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN',       (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING',  (0,0), (-1,-1), 20*mm),
-        ('RIGHTPADDING', (0,0), (-1,-1), 20*mm),
-        ('TOPPADDING',   (0,0), (-1,-1), 0),
-        ('BOTTOMPADDING',(0,0), (-1,-1), 0),
-    ]))
-    story.append(cover_tbl)
-    story.append(PageBreak())
-
-    # ── Contents page ────────────────────────────────────────────────────────
-    from reportlab.platypus import NextPageTemplate
-    story.append(NextPageTemplate('toc'))
-
-    # Gold rounded banner for "CONTENTS"
-    toc_banner = Table([[Paragraph('CONTENTS', s_toc_banner)]],
-                       colWidths=[UW * 0.55], rowHeights=[16*mm])
-    toc_banner.setStyle(TableStyle([
-        ('BACKGROUND',   (0,0), (-1,-1), GOLD),
-        ('LEFTPADDING',  (0,0), (-1,-1), 14*mm),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8*mm),
-        ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
-        ('ROUNDEDCORNERS',[0, 0, 20, 0]),
-    ]))
-    story.append(toc_banner)
-    story.append(Spacer(1, 20*mm))
-
-    # Column header
-    story.append(Paragraph('PAGE', s_toc_head))
+    # The cover is drawn on its own page; switch templates before each break.
+    from reportlab.platypus import NextPageTemplate, HRFlowable
+    story.extend([Spacer(1, 1), NextPageTemplate('toc'), PageBreak()])
+    story.append(Paragraph('Contents', ps('contents_title', fontName='Helvetica-Bold',
+                                        fontSize=30, leading=36, textColor=DARK)))
     story.append(Spacer(1, 5*mm))
-
-    # TOC with per-row gold underline and roomier leading
+    story.append(HRFlowable(width=24*mm, thickness=3, color=GOLD, hAlign='LEFT'))
+    story.append(Spacer(1, 14*mm))
     toc = TableOfContents()
-    toc.levelStyles = [
-        ps('toc_lvl',
-           fontSize=13, fontName='Helvetica-Bold', textColor=DARK,
-           leftIndent=0, firstLineIndent=0,
-           spaceBefore=6, spaceAfter=8,
-           leading=18,
-           letterSpacing=1,
-           borderPadding=(0, 0, 6, 0),
-           # Gold underline under each entry
-           underlineWidth=0.4, underlineOffset=-8,
-        ),
-    ]
-    # Fallback: some ReportLab versions ignore underline props on TOC style,
-    # so we also draw a manual bottom border via ParagraphStyle borderColor.
-    toc.levelStyles[0].__dict__.update(borderColor=GOLD, borderWidth=0)
+    toc.levelStyles = [ps('toc_level', fontName='Helvetica', fontSize=13,
+                          leading=22, textColor=DARK, spaceBefore=12,
+                          spaceAfter=10, leftIndent=0, firstLineIndent=0)]
     story.append(toc)
-    story.append(PageBreak())
+    story.extend([NextPageTemplate('normal'), PageBreak()])
 
     # ── Category pages ───────────────────────────────────────────────────────
     story.append(NextPageTemplate('normal'))
@@ -1167,7 +1127,7 @@ def catalog_pdf_download():
     NCOLS     = 3                                   # products per row
     GUT       = 5*mm                                # gutter between cards
     CARD_W    = (UW - (NCOLS - 1) * GUT) / NCOLS    # card width
-    IMG_BOX_H = 40*mm                               # image panel height
+    IMG_BOX_H = 48*mm                               # image panel height
     IMG_MAX_W = CARD_W - 8*mm
     IMG_MAX_H = IMG_BOX_H - 5*mm
     NAME_H    = 11*mm                               # fixed name row → aligned grid
@@ -1213,16 +1173,17 @@ def catalog_pdf_download():
 
     def _category_banner(cat_name):
         """Gold rounded banner at the top-left of a category page."""
-        p = Paragraph(cat_name.upper(), s_cat_banner)
-        banner = Table([[p]], colWidths=[UW * 0.55], rowHeights=[15*mm])
+        p = Paragraph(escape(cat_name), s_cat_banner)
+        banner = Table([[p]], colWidths=[UW])
         banner.setStyle(TableStyle([
-            ('BACKGROUND',   (0,0), (-1,-1), GOLD),
-            ('LEFTPADDING',  (0,0), (-1,-1), 12*mm),
-            ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
-            ('ROUNDEDCORNERS',[0, 0, 18, 0]),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 3*mm),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4*mm),
+            ('LINEBELOW', (0,0), (-1,-1), 2, GOLD),
         ]))
-        # Attach TOC entry to the outer flowable that afterFlowable actually sees
-        banner._toc_entry = cat_name
+        banner._toc_entry = escape(cat_name)
+        banner.keepWithNext = True
         return banner
 
     def _product_card(p, name_height=None):
@@ -1249,12 +1210,12 @@ def catalog_pdf_download():
             ('RIGHTPADDING', (0,0), (-1,-1), 4),
             ('TOPPADDING',   (0,0), (-1,-1), 4),
             ('BOTTOMPADDING',(0,0), (-1,-1), 4),
-            ('LINEBELOW',    (0,0), (-1,-1), 1.1, GOLD),
+            ('LINEBELOW',    (0,0), (-1,-1), 0.4, LINE),
         ]))
 
         spec = Table(
-            [[Paragraph('CODE', s_card_lbl),  Paragraph('CARTON', s_card_lblR)],
-             [Paragraph(code, s_card_code),   Paragraph(carton, s_card_carton)]],
+            [[Paragraph('ARTICLE', s_card_lbl),  Paragraph('CARTON', s_card_lblR)],
+             [Paragraph(escape(str(code)), s_card_code),   Paragraph(escape(carton), s_card_carton)]],
             colWidths=[CARD_W * 0.46, CARD_W * 0.54]
         )
         spec.setStyle(TableStyle([
@@ -1279,6 +1240,13 @@ def catalog_pdf_download():
             card_rows.append([Paragraph(price_txt, s_card_price)])
             card_heights.append(6.5*mm)
         card_rows.append([spec])
+        card_heights.append(None)
+        barcode = Paragraph('BARCODE  ' + escape(str(p.get('barcode') or '—')),
+                            ps('barcode', fontName='Helvetica', fontSize=7, leading=10, textColor=SLATE))
+        barcode_row = Table([[barcode]], colWidths=[CARD_W], style=[
+            ('LEFTPADDING',(0,0),(-1,-1),8), ('RIGHTPADDING',(0,0),(-1,-1),8),
+            ('TOPPADDING',(0,0),(-1,-1),3), ('BOTTOMPADDING',(0,0),(-1,-1),4)])
+        card_rows.append([barcode_row])
         card_heights.append(None)
         card = Table(card_rows, colWidths=[CARD_W], rowHeights=card_heights)
         card.setStyle(TableStyle([
@@ -1339,7 +1307,7 @@ def catalog_pdf_download():
             if not sub_prods:
                 continue
             if sub:
-                story.append(Paragraph(sub.upper(), s_sub_head))
+                story.append(Paragraph(escape(sub.upper()), s_sub_head))
                 story.append(Spacer(1, 3*mm))
             subsubs = list(dict.fromkeys((p.get('subsubcategory') or '') for p in sub_prods))
             has_real_ss = any(ss for ss in subsubs)
@@ -1348,12 +1316,14 @@ def catalog_pdf_download():
                 if not ss_prods:
                     continue
                 if ss and has_real_ss:
-                    story.append(Paragraph(ss.upper(), s_subsub_head))
+                    story.append(Paragraph(escape(ss.upper()), s_subsub_head))
                     story.append(Spacer(1, 2*mm))
                 for f in _grid(ss_prods):
                     story.append(f)
 
     # multiBuild does two passes so TOC page numbers resolve correctly
+    doc.title = 'NEON Product Catalogue'
+    doc.author = 'NEON'
     doc.multiBuild(story)
     buf.seek(0)
     fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
