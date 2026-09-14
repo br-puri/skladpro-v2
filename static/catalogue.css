@@ -1,5 +1,8 @@
 /* Catalogue browsing surface; printed documents retain their own layout. */
 @media screen {
+body:has(.cat-wrap) .main,body:has(.cat-wrap) .content{min-width:0}
+.cat-wrap{width:100%;min-width:0}
+.cat-nav{max-width:100%}
 .cat-wrap{max-width:1480px;color:#20324a}
 .cat-cover{background:#fff;color:#20324a;border:1px solid #e3e8ee;border-top:4px solid #d9a024;border-radius:14px;padding:28px 32px;margin-bottom:24px;box-shadow:0 3px 12px #20324a04}
 .cat-cover::before{display:none}
