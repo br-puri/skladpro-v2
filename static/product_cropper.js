@@ -12,10 +12,12 @@
   }
   function draw() {
     $('crop-free-label').hidden = ratio.value !== 'free';
+    document.querySelectorAll('[data-crop-ratio]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.cropRatio === ratio.value)));
+    $('crop-zoom-value').textContent = Math.round(Number(zoom.value)*100) + '%';
     if (!image) return;
     const r = rect(), scale = Math.min(1000/r.w,600/r.h);
     canvas.width = Math.max(1,Math.round(r.w*scale)); canvas.height = Math.max(1,Math.round(r.h*scale));
-    canvas.style.width = 'auto'; canvas.style.maxWidth = '100%'; canvas.style.height = 'auto'; canvas.style.maxHeight = '300px'; canvas.style.margin = '0 auto';
+
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(image,r.sx,r.sy,r.w,r.h,0,0,canvas.width,canvas.height);
   }
@@ -37,6 +39,8 @@
     loaded.onerror = () => { if (current === version) $('crop-error').textContent = 'Could not open this photo for cropping. Choose the original image file and try again.'; };
     loaded.src = original;
   });
+  document.querySelectorAll('[data-crop-ratio]').forEach(button => button.addEventListener('click', () => { ratio.value = button.dataset.cropRatio; draw(); }));
+  $('crop-close').addEventListener('click',()=>dialog.close());
   [ratio,zoom,x,y,$('crop-free')].forEach(el => el.addEventListener('input',draw));
   canvas.addEventListener('pointerdown', e => { if (!image) return; drag={x:e.clientX,y:e.clientY,px:Number(x.value),py:Number(y.value)}; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener('pointermove', e => {

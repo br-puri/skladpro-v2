@@ -1,14 +1,42 @@
 <style>
 .photo-preview { max-width:240px;max-height:200px;object-fit:contain;border-radius:10px; }
-.crop-checker { background:repeating-conic-gradient(#e8edf2 0% 25%,#fff 0% 50%) 0/20px 20px; }
-#open-photo-crop[hidden] { display:none; }
-#photo-crop-dialog { position:fixed;inset:0;margin:auto;border:0;border-radius:18px;padding:24px;width:min(560px,calc(100vw - 32px));max-height:90vh;overflow:auto;color:#172438;box-sizing:border-box; }
-#photo-crop-dialog::backdrop { background:rgba(15,23,42,.65); }
-#crop-canvas { display:block;width:100%;height:300px;touch-action:none;cursor:move;border-radius:10px; }
-.crop-controls { display:grid;gap:12px;margin:16px 0; }
-.crop-controls label { display:grid;grid-template-columns:110px 1fr;align-items:center;gap:12px; }
-.crop-controls [hidden] { display:none; }
-.crop-actions { display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap; }
+.crop-checker { background:repeating-conic-gradient(#e9edf1 0% 25%,#fff 0% 50%) 0/16px 16px; }
+#open-photo-crop[hidden], #photo-crop-dialog [hidden] { display:none!important; }
+#photo-crop-dialog { position:fixed;inset:0;margin:auto;border:1px solid #dce3eb;border-radius:22px;padding:0;width:min(980px,calc(100vw - 32px));max-height:92dvh;overflow:auto;color:#172438;box-sizing:border-box;box-shadow:0 28px 100px #08152655;background:#fff; }
+#photo-crop-dialog::backdrop { background:#101c30aa;backdrop-filter:blur(5px); }
+.crop-header { display:flex;align-items:center;justify-content:space-between;padding:24px 28px;border-bottom:1px solid #e8edf2; }
+.crop-header h2 { font-size:22px;letter-spacing:-.5px;margin:0 0 4px;font-weight:700; }
+.crop-header p,.crop-hint { color:#7c899b;font-size:13px;margin:0; }
+.crop-close { border:1px solid #e2e8f0;background:white;width:34px;height:34px;border-radius:50%;font-size:22px;color:#64748b;cursor:pointer; }
+.crop-layout { display:grid;grid-template-columns:minmax(0,1fr) 280px; }
+.crop-stage { background:#f0f3f7;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;min-height:450px; }
+.crop-stage-label { align-self:flex-start;font-size:10px;letter-spacing:1.7px;font-weight:700;color:#8090a4; }
+.crop-image-space { width:100%;height:360px;display:flex;align-items:center;justify-content:center; }
+#crop-canvas { display:block;max-width:100%;max-height:360px;width:auto;height:auto;touch-action:none;cursor:grab;box-shadow:0 5px 24px #23395514;border:1px solid #fff;border-radius:3px; }
+#crop-canvas:active { cursor:grabbing; }
+.crop-hint { font-size:12px;text-align:center; }
+.crop-controls { padding:24px;border-left:1px solid #e8edf2; }
+.crop-controls h3 { font-size:13px;font-weight:700;margin:0 0 14px; }
+.crop-ratios { display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:26px; }
+.crop-ratios button { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;height:76px;border:1px solid #e4e9ef;border-radius:10px;background:#fff;color:#78879a;font-size:10px;cursor:pointer;transition:background .15s,border-color .15s; }
+.crop-ratios button:hover { background:#f4f7fa;border-color:#b5c1cf; }
+.crop-ratios button[aria-pressed=true] { background:#edf3fb;border:1.5px solid #315a89;color:#203d60;box-shadow:0 0 0 1px #315a8910; }
+.crop-ratios i { width:21px;height:21px;border:1.5px solid currentColor;border-radius:2px;display:block; }
+.crop-controls label { display:flex;flex-direction:column;gap:10px;font-size:12px;color:#607188;margin:18px 0; }
+.crop-controls input[type=range] { width:100%;height:4px;accent-color:#274c76;cursor:pointer; }
+.crop-controls details { margin-top:22px;border-top:1px solid #e8edf2;padding-top:18px;font-size:12px;color:#607188; }
+.crop-controls summary { cursor:pointer; }
+.crop-note { margin-top:22px;color:#8290a2;font-size:11px;line-height:1.7; }
+.crop-footer { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 28px;border-top:1px solid #e8edf2;background:#fff;position:sticky;bottom:0; }
+.crop-actions { display:flex;gap:10px; }
+#photo-crop-dialog .crop-button { border:1px solid #dce3eb;border-radius:9px;padding:10px 18px;font-weight:600;font-size:12px;background:#fff;color:#4b5f78;cursor:pointer; }
+#photo-crop-dialog #crop-apply { background:#20324a;border-color:#20324a;color:white;min-width:125px; }
+#photo-crop-dialog #crop-reset { border:0;background:transparent;color:#7c899b;padding-left:0; }
+#photo-crop-dialog button:focus-visible { outline:3px solid #d9a024;outline-offset:2px; }
+#photo-crop-dialog button:disabled { opacity:.45;cursor:wait; }
+#crop-error { color:#c83d3d;font-size:12px;padding:0 24px; }
+#crop-error:empty { display:none; }
+@media(max-width:650px) { #photo-crop-dialog { width:calc(100vw - 16px);border-radius:16px; } .crop-header { padding:18px; } .crop-layout { grid-template-columns:1fr; } .crop-stage { min-height:270px;padding:16px;gap:10px; } .crop-image-space { height:240px; } #crop-canvas { max-height:240px; } .crop-controls { padding:18px;border-left:0; } .crop-ratios { grid-template-columns:repeat(6,1fr);margin-bottom:18px;gap:5px; } .crop-ratios button { height:66px;font-size:9px; } .crop-footer { padding:14px 18px; } .crop-note { margin-top:12px; } }
 </style>
 <div id="photo-preview-wrap" {% if not product or not product['photo'] %}hidden{% endif %} style="margin-bottom:10px">
   <img id="photo-preview" class="photo-preview crop-checker" {% if product and product['photo'] %}src="{{ photo_url(product['photo']) }}"{% endif %} alt="Product photo preview">
@@ -17,17 +45,26 @@
 <button id="open-photo-crop" type="button" class="btn btn-secondary" style="margin-top:10px" {% if not product or not product['photo'] %}hidden{% endif %}>Crop photo</button>
 <div id="photo-crop-status" role="status" style="font-size:12px;color:#64748b;margin-top:8px">Choose a photo, then crop it if needed. Changes are saved when you save the product.</div>
 <dialog id="photo-crop-dialog" aria-labelledby="crop-title">
-  <h2 id="crop-title" style="margin:0 0 6px">Crop photo</h2>
-  <p style="margin:0 0 16px;color:#64748b">Drag the picture to position it. The preview shows exactly what will be saved.</p>
-  <canvas id="crop-canvas" class="crop-checker" width="1000" height="600" aria-label="Cropped photo preview"></canvas>
-  <div class="crop-controls">
-    <label>Ratio <select id="crop-ratio" class="form-control"><option value="original">Original</option><option value="1">Square · 1:1</option><option value="0.75">Portrait · 3:4</option><option value="1.3333333333333333">Landscape · 4:3</option><option value="1.7777777777777777">Wide · 16:9</option><option value="free">Free crop</option></select></label>
-    <label id="crop-free-label" hidden>Free ratio <input id="crop-free" type="range" min="0.25" max="4" step="0.01" value="1"></label>
-    <label>Zoom <input id="crop-zoom" type="range" min="1" max="4" step="0.01" value="1"></label>
-    <label>Horizontal <input id="crop-x" type="range" min="0" max="1" step="0.001" value="0.5"></label>
-    <label>Vertical <input id="crop-y" type="range" min="0" max="1" step="0.001" value="0.5"></label>
+  <header class="crop-header"><div><h2 id="crop-title">Frame your product</h2><p>A consistent crop for a cleaner catalogue.</p></div><button class="crop-close" id="crop-close" type="button" aria-label="Close crop editor">×</button></header>
+  <div class="crop-layout">
+    <div class="crop-stage"><span class="crop-stage-label">LIVE PREVIEW</span><div class="crop-image-space"><canvas id="crop-canvas" class="crop-checker" width="1000" height="600" aria-label="Cropped photo preview"></canvas></div><p class="crop-hint">↔ Drag the photo to reposition</p></div>
+    <div class="crop-controls"><h3>Aspect ratio</h3>
+      <select id="crop-ratio" hidden aria-label="Crop ratio"><option value="original">Original</option><option value="1">Square</option><option value="0.75">Portrait</option><option value="1.3333333333333333">Landscape</option><option value="1.7777777777777777">Wide</option><option value="free">Custom</option></select>
+      <div class="crop-ratios" role="group" aria-label="Aspect ratio">
+        <button type="button" data-crop-ratio="1" aria-pressed="true"><i></i>Square · 1:1</button>
+        <button type="button" data-crop-ratio="0.75" aria-pressed="false"><i style="width:16px"></i>Portrait · 3:4</button>
+        <button type="button" data-crop-ratio="1.3333333333333333" aria-pressed="false"><i style="height:16px"></i>Landscape</button>
+        <button type="button" data-crop-ratio="1.7777777777777777" aria-pressed="false"><i style="height:12px"></i>Wide · 16:9</button>
+        <button type="button" data-crop-ratio="original" aria-pressed="false"><i style="border-style:dashed"></i>Original</button>
+        <button type="button" data-crop-ratio="free" aria-pressed="false"><i style="width:24px;height:17px;border-style:dashed"></i>Custom</button>
+      </div>
+      <label id="crop-free-label" hidden>Custom ratio<input id="crop-free" type="range" min="0.25" max="4" step="0.01" value="1"></label>
+      <label><span style="display:flex;justify-content:space-between">Zoom <output id="crop-zoom-value">100%</output></span><input aria-label="Zoom" id="crop-zoom" type="range" min="1" max="4" step="0.01" value="1"></label>
+      <details><summary>Fine-tune position</summary><label>Horizontal<input id="crop-x" type="range" min="0" max="1" step="0.001" value="0.5"></label><label>Vertical<input id="crop-y" type="range" min="0" max="1" step="0.001" value="0.5"></label></details>
+      <p class="crop-note">Square works best for matching catalogue cards.<br>Transparent backgrounds stay transparent.</p>
+    </div>
   </div>
-  <p id="crop-error" role="alert" style="color:#dc2626"></p>
-  <div class="crop-actions"><button type="button" class="btn btn-secondary" id="crop-reset">Reset</button><button type="button" class="btn btn-secondary" id="crop-cancel">Cancel</button><button type="button" class="btn btn-primary" id="crop-apply">Use crop</button></div>
+  <p id="crop-error" role="alert"></p>
+  <footer class="crop-footer"><button type="button" class="crop-button" id="crop-reset">↺ Reset crop</button><div class="crop-actions"><button type="button" class="crop-button" id="crop-cancel">Cancel</button><button type="button" class="crop-button" id="crop-apply">Use this crop</button></div></footer>
 </dialog>
-<script src="{{ url_for('static', filename='product_cropper.js') }}"></script>
+<script src="{{ url_for('static', filename='product_cropper.js', v='2') }}"></script>

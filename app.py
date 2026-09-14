@@ -1225,7 +1225,7 @@ def catalog_pdf_download():
         banner._toc_entry = cat_name
         return banner
 
-    def _product_card(p):
+    def _product_card(p, name_height=None):
         """Vertical product card: image panel on top, name, then CODE / CARTON
         spec row. Fixed row heights keep every card the same size for a clean grid."""
         code = p.get('sku') or '—'
@@ -1234,8 +1234,8 @@ def catalog_pdf_download():
         else:
             carton = '—'
         name = (p.get('name') or '').strip()
-        if len(name) > 52:
-            name = name[:51].rstrip() + '…'
+        from xml.sax.saxutils import escape
+        name = escape(name)
 
         # Image panel (or a subtle placeholder)
         img = _img_flowable(p.get('photo') or '')
@@ -1268,7 +1268,7 @@ def catalog_pdf_download():
         ]))
 
         card_rows    = [[img_box], [Paragraph(name, s_card_name)]]
-        card_heights = [IMG_BOX_H, NAME_H]
+        card_heights = [IMG_BOX_H, name_height or max(NAME_H, Paragraph(name, s_card_name).wrap(CARD_W - 16, 10000)[1] + 10)]
         if show_prices:
             pr   = p.get('price') or 0
             unit = p.get('unit') or 'unit'
@@ -1300,9 +1300,11 @@ def catalog_pdf_download():
         flows = []
         for i in range(0, len(prods), NCOLS):
             chunk = prods[i:i+NCOLS]
+            from xml.sax.saxutils import escape
+            name_height = max([NAME_H] + [Paragraph(escape((p.get('name') or '').strip()), s_card_name).wrap(CARD_W - 16, 10000)[1] + 10 for p in chunk])
             cells, widths = [], []
             for j in range(NCOLS):
-                cells.append(_product_card(chunk[j]) if j < len(chunk) else '')
+                cells.append(_product_card(chunk[j], name_height) if j < len(chunk) else '')
                 widths.append(CARD_W)
                 if j < NCOLS - 1:
                     cells.append('')
