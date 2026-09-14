@@ -395,6 +395,7 @@
 }
 </style>
 
+<link rel="stylesheet" href="{{ url_for('static', filename='catalogue.css', v='1') }}">
 <div class="cat-wrap">
 
   <!-- PRINT cover -->
@@ -481,7 +482,7 @@
     <button class="cat-nav-pill active" onclick="filterCat('', this)">All ({{ products|length }})</button>
     {% for c in categories %}
     {% set cnt = cat_groups.get(c, {}).values()|map('length')|sum %}
-    <button class="cat-nav-pill" onclick="filterCat('{{ c }}', this)">{{ c }} <span style="opacity:.6;font-weight:500">({{ cnt }})</span></button>
+    <button class="cat-nav-pill" onclick='filterCat({{ c|tojson }}, this)'>{{ c }} <span style="opacity:.6;font-weight:500">({{ cnt }})</span></button>
     {% endfor %}
   </div>
 
@@ -489,8 +490,9 @@
   <div class="cat-toolbar">
     <div class="cat-search">
       <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2"/><path d="M15 15l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <input type="search" id="catSearch" placeholder="Search by name, SKU or barcode…" autocomplete="off">
+      <input type="search" id="catSearch" placeholder="Search products, articles or barcodes…" aria-label="Search catalogue" autocomplete="off">
     </div>
+    <span class="catalogue-results" id="catalogue-results" role="status"></span>
     <div class="cat-view-toggle">
       <button id="btnGrid" class="active" onclick="setView('grid')">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg>Grid
@@ -618,7 +620,9 @@
           </div>
 
           <!-- Hover overlay with full specs -->
-          <div class="cat-overlay">
+          <button type="button" class="catalogue-details" aria-expanded="false" onclick="toggleDetails(this)">Product details <span aria-hidden="true">↗</span></button>
+          <div class="cat-overlay" inert>
+            <button type="button" class="catalogue-close" onclick="toggleDetails(this)">Close details ×</button>
             <div class="cat-overlay-title">{{ p['name'] }}</div>
             <dl class="cat-overlay-grid">
               {% if p['sku'] %}<dt>Article</dt><dd>{{ p['sku'] }}</dd>{% endif %}
@@ -650,6 +654,7 @@
   </div>
   {% endif %}
 
+  <div id="catalogue-no-results" hidden>No products match your search. Try a different name or category.</div>
   <!-- PRINT last page -->
   <div class="print-last-page">
     {% if co.get('co_logo') %}<img src="{{ url_for('static', filename='uploads/' + co['co_logo']) }}" alt="Logo">{% endif %}
@@ -663,6 +668,16 @@
 </div>
 
 <script>
+function toggleDetails(button) {
+  const card = button.closest('.cat-card');
+  const open = card.classList.toggle('details-open');
+  card.querySelector('.cat-overlay').inert = !open;
+  card.querySelector('.catalogue-details').setAttribute('aria-expanded', String(open));
+  (open ? card.querySelector('.catalogue-close') : card.querySelector('.catalogue-details')).focus();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.details-open .catalogue-close').forEach(b => toggleDetails(b));
+});
 // Category filter pills
 function filterCat(cat, btn) {
   document.querySelectorAll('.cat-nav-pill').forEach(p => p.classList.remove('active'));
@@ -687,8 +702,12 @@ function applySearch() {
     const vis = s.querySelectorAll('.prod-card:not([style*="display: none"])').length;
     s.style.display = vis ? '' : 'none';
   });
+  const count = [...document.querySelectorAll('.prod-card')].filter(c => c.style.display !== 'none').length;
+  document.getElementById('catalogue-results').textContent = count + (count === 1 ? ' product' : ' products');
+  document.getElementById('catalogue-no-results').hidden = count !== 0;
 }
 searchEl?.addEventListener('input', applySearch);
+applySearch();
 
 // Grid / list toggle
 function setView(mode) {
