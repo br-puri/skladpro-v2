@@ -1584,12 +1584,25 @@ def _encode_product_image(img):
     return buf, extension
 
 
+def _encode_product_upload(img):
+    """Bound upload dimensions and keep the smallest transparency-safe encoding."""
+    from PIL import Image
+    img.thumbnail((1200, 1200), Image.LANCZOS)
+    baseline, extension = _encode_product_image(img)
+    # WebP supports an alpha channel; do not flatten transparent cutouts.
+    compact = io.BytesIO()
+    img.save(compact, 'WEBP', quality=82, method=4)
+    if compact.tell() < baseline.getbuffer().nbytes:
+        compact.seek(0)
+        return compact, 'webp'
+    return baseline, extension
+
+
 def _save_photo(file):
     if file and file.filename and allowed_file(file.filename):
         from PIL import Image
         img = _prepare_product_image(Image.open(file.stream))
-        img.thumbnail((1200, 1200), Image.LANCZOS)
-        buf, extension = _encode_product_image(img)
+        buf, extension = _encode_product_upload(img)
         if _CLOUDINARY_URL:
             result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
             return result['secure_url']
@@ -1609,8 +1622,7 @@ def _save_photo_bytes(data):
     try:
         from PIL import Image
         img = _prepare_product_image(Image.open(io.BytesIO(data)))
-        img.thumbnail((1200, 1200), Image.LANCZOS)
-        buf, extension = _encode_product_image(img)
+        buf, extension = _encode_product_upload(img)
         if _CLOUDINARY_URL:
             result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
             return result['secure_url']
