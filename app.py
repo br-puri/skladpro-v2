@@ -5020,143 +5020,132 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
 
 
 def generate_delivery_note_pdf(sale, items, customer=None, company=None):
+    """Price-free packing and delivery document, with repeating page furniture."""
+    from html import escape
+    from datetime import date
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, KeepTogether, Image, Flowable
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.lib.enums import TA_RIGHT
-    from reportlab.graphics.barcode import code128
 
-    ACCENT   = colors.HexColor('#1a1a2e')
-    ACCENT2  = colors.HexColor('#e8e6df')
-    MUTED    = colors.HexColor('#666666')
-    WHITE    = colors.white
-    LIGHT_BG = colors.HexColor('#f8f8f6')
+    navy = colors.HexColor('#20324a')
+    gold = colors.HexColor('#d9a024')
+    grey = colors.HexColor('#64748b')
+    line = colors.HexColor('#dce3eb')
+    pale = colors.HexColor('#f4f6f9')
+    co, contact = company or {}, customer or {}
+    width = 178*mm
+    ref = str(sale.get('num') or '')
+    def text(value):
+        return escape(str(value or '')).replace('\n', '<br/>')
+    body = ParagraphStyle('delivery-body', fontName='Helvetica', fontSize=9, leading=13, textColor=navy)
+    small = ParagraphStyle('delivery-small', parent=body, fontSize=8, leading=11, textColor=grey)
+    heading = ParagraphStyle('delivery-heading', parent=body, fontName='Helvetica-Bold', fontSize=11, leading=15)
+    label = ParagraphStyle('delivery-label', parent=small, fontName='Helvetica-Bold', fontSize=7, leading=11)
+    def para(value, style=body):
+        return Paragraph(text(value), style)
+    def table_style(extra=()):
+        return TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'), ('LEFTPADDING',(0,0),(-1,-1),10),
+            ('RIGHTPADDING',(0,0),(-1,-1),10), ('TOPPADDING',(0,0),(-1,-1),6),
+            ('BOTTOMPADDING',(0,0),(-1,-1),6)] + list(extra))
+
+    class CheckBox(Flowable):
+        def __init__(self):
+            Flowable.__init__(self)
+            self.width = self.height = 10
+        def draw(self):
+            self.canv.setStrokeColor(grey)
+            self.canv.setLineWidth(.6)
+            self.canv.rect(0,0,9,9)
+
+    def page_frame(canvas, doc):
+        canvas.saveState()
+        canvas.setFillColor(gold)
+        canvas.rect(16*mm, A4[1]-13*mm, width, 1.2*mm, fill=1, stroke=0)
+        if doc.page > 1:
+            canvas.setFont('Helvetica-Bold',9)
+            canvas.setFillColor(navy)
+            canvas.drawString(16*mm,A4[1]-17*mm,'NEON / DELIVERY NOTE')
+            canvas.setFont('Helvetica',8)
+            canvas.drawRightString(A4[0]-16*mm,A4[1]-17*mm,ref)
+        canvas.setStrokeColor(line)
+        canvas.line(16*mm,17*mm,A4[0]-16*mm,17*mm)
+        canvas.setFillColor(grey)
+        canvas.setFont('Helvetica',8)
+        canvas.drawString(16*mm,12*mm,'Delivery note | '+ref)
+        canvas.drawRightString(A4[0]-16*mm,12*mm,'Page '+str(doc.page))
+        canvas.restoreState()
 
     buf = io.BytesIO()
-    pdf = SimpleDocTemplate(buf, pagesize=A4, topMargin=14*mm, bottomMargin=20*mm, leftMargin=18*mm, rightMargin=18*mm)
-
-    styles = getSampleStyleSheet()
-    def ps(name, **kw):
-        return ParagraphStyle(name, parent=styles['Normal'], **kw)
-
-    normal   = ps('dn_n',  fontSize=9,  leading=13)
-    normal_r = ps('dn_nr', fontSize=9,  leading=13, alignment=TA_RIGHT)
-    small_m  = ps('dn_sm', fontSize=8,  leading=11, textColor=MUTED)
-    label_s  = ps('dn_lb', fontSize=7,  leading=10, textColor=MUTED, fontName='Helvetica-Bold', spaceAfter=1)
-    inv_title= ps('dn_it', fontSize=28, fontName='Helvetica-Bold', textColor=ACCENT, alignment=TA_RIGHT)
-    co_name_s= ps('dn_cn', fontSize=11, fontName='Helvetica-Bold', textColor=ACCENT, leading=14)
-    bill_name= ps('dn_bn', fontSize=9,  fontName='Helvetica-Bold', leading=13)
-
-    co = company or {}
-    elements = []
-
-    logo_cell = ''
-    logo_key = co.get('co_logo', '')
+    pdf = SimpleDocTemplate(buf,pagesize=A4,leftMargin=16*mm,rightMargin=16*mm,
+        topMargin=19*mm,bottomMargin=24*mm,title='Delivery Note '+ref,author='NEON')
+    brand = para('NEON',ParagraphStyle('brand',parent=heading,fontSize=28,leading=32))
+    logo_key = co.get('co_logo')
     if logo_key:
-        logo_path = os.path.normpath(os.path.join(UPLOAD_FOLDER, '..', logo_key))
-        if os.path.exists(logo_path):
+        logo_path = os.path.join(UPLOAD_FOLDER, str(logo_key))
+        if os.path.isfile(logo_path):
             try:
-                img = Image(logo_path); img._restrictSize(55*mm, 22*mm); logo_cell = img
+                brand = Image(logo_path)
+                brand._restrictSize(45*mm,20*mm)
+                brand.hAlign = 'LEFT'
             except Exception:
                 pass
-    banner = Table([[logo_cell, Paragraph('DELIVERY NOTE', inv_title)]], colWidths=[65*mm, 105*mm])
-    banner.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 0)]))
-    elements.append(banner)
-    elements.append(Spacer(1, 3*mm))
-    elements.append(HRFlowable(width='100%', thickness=2, color=ACCENT))
-    elements.append(Spacer(1, 5*mm))
-
-    co_block = []
-    if co.get('co_company'): co_block.append(Paragraph(co['co_company'], co_name_s))
-    for line in filter(None, [co.get('co_address'), co.get('co_address2')]): co_block.append(Paragraph(line, small_m))
-    addr_parts = ' '.join(filter(None, [co.get('co_city',''), co.get('co_postcode','')]))
-    if addr_parts: co_block.append(Paragraph(addr_parts, small_m))
-    if co.get('co_country'): co_block.append(Paragraph(co['co_country'], small_m))
-
-    meta_table = Table([
-        [Paragraph('<font color="#888888" size="7">DELIVERY NOTE NO</font>', label_s), Paragraph(f"<b>{sale['num']}</b>", normal_r)],
-        [Paragraph('<font color="#888888" size="7">DATE</font>', label_s), Paragraph(sale['doc_date'], normal_r)],
-    ], colWidths=[38*mm, 32*mm])
-    meta_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 3),  ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ]))
-    info_table = Table([[co_block, meta_table]], colWidths=[100*mm, 70*mm])
-    info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('PADDING', (0,0), (-1,-1), 0)]))
-    elements.append(info_table)
-    elements.append(Spacer(1, 6*mm))
-
-    elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
-    elements.append(Spacer(1, 4*mm))
-    bill_block = [Paragraph('<font color="#888888" size="7">DELIVER TO</font>', label_s)]
-    if customer:
-        display_name = customer.get('company') or customer.get('name', '')
-        if display_name: bill_block.append(Paragraph(display_name, bill_name))
-        if customer.get('company') and customer.get('name') and customer['name'] != customer['company']:
-            bill_block.append(Paragraph(customer['name'], small_m))
-        for line in filter(None, [customer.get('address'), customer.get('address2')]): bill_block.append(Paragraph(line, small_m))
-        if customer.get('city'):     bill_block.append(Paragraph(customer['city'], small_m))
-        if customer.get('postcode'): bill_block.append(Paragraph(customer['postcode'], small_m))
-        if customer.get('country'):  bill_block.append(Paragraph(customer['country'], small_m))
-    else:
-        bill_block.append(Paragraph(str(sale.get('customer', '')), bill_name))
-    elements.append(Table([[bill_block]], colWidths=[170*mm]))
-    elements.append(Spacer(1, 6*mm))
-
-    has_ctns = any((i.get('carton_qty') or 0) > 0 for i in items)
-    hdr = ['Description', 'SKU', 'Qty', 'Unit']
-    col_w = [0, 30*mm, 18*mm, 14*mm]
-    if has_ctns:
-        hdr += ['Pcs/CTN', 'CTNs']
-        col_w += [16*mm, 14*mm]
-    col_w[0] = 170*mm - sum(col_w[1:])
-
-    data = [hdr]
-    for i in items:
-        ctn_qty = i.get('carton_qty') or 0
-        desc_cell = Paragraph(i['product_name'], normal)
-        row = [desc_cell, i.get('sku', ''), f"{i['qty']:g}", i.get('unit', '')]
-        if has_ctns:
-            row.append(f"{int(ctn_qty)}" if ctn_qty > 0 else '—')
-            row.append(f"{i['qty']/ctn_qty:g}" if ctn_qty > 0 else '—')
-        data.append(row)
-
-    n = len(items)
-    if has_ctns:
-        total_c = sum(i['qty'] / i['carton_qty'] for i in items if (i.get('carton_qty') or 0) > 0)
-        data.append([''] * (len(hdr) - 2) + [Paragraph('<b>Total CTNs</b>', normal_r), Paragraph(f"<b>{total_c:g}</b>", normal_r)])
-
-    t = Table(data, colWidths=col_w, repeatRows=1)
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), ACCENT), ('TEXTCOLOR', (0,0), (-1,0), WHITE),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,0), 8.5),
-        ('BOTTOMPADDING', (0,0), (-1,0), 7), ('TOPPADDING', (0,0), (-1,0), 7),
-        ('FONTSIZE', (0,1), (-1,n), 9), ('ROWBACKGROUNDS', (0,1), (-1,n), [WHITE, LIGHT_BG]),
-        ('LINEBELOW', (0,1), (-1,n), 0.3, ACCENT2), ('TOPPADDING', (0,1), (-1,n), 6), ('BOTTOMPADDING', (0,1), (-1,n), 6),
-        ('ALIGN', (2,0), (-1,-1), 'RIGHT'), ('LEFTPADDING', (0,0), (-1,-1), 6), ('RIGHTPADDING', (0,0), (-1,-1), 6),
-    ]))
-    elements.append(t)
-
+    title = ParagraphStyle('delivery-title',parent=heading,fontSize=24,leading=28,alignment=2)
+    header = Table([[brand,para('DELIVERY NOTE',title)]],colWidths=[60*mm,118*mm])
+    header.setStyle(table_style([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    elements = [header,Spacer(1,3*mm)]
+    try:
+        doc_date = date.fromisoformat(str(sale.get('doc_date') or '')[:10]).strftime('%d %b %Y')
+    except ValueError:
+        doc_date = str(sale.get('doc_date') or '—')
+    metadata = Table([[para('INVOICE / DELIVERY REF',label),para('DOCUMENT DATE',label),para('DELIVERY METHOD',label)],
+        [para(ref,heading),para(doc_date,heading),para(sale.get('delivery_method') or 'Not specified')]],
+        colWidths=[69*mm,49*mm,60*mm])
+    metadata.setStyle(table_style([('BACKGROUND',(0,0),(-1,-1),pale),
+        ('BOTTOMPADDING',(0,0),(-1,0),1),('TOPPADDING',(0,1),(-1,1),0)]))
+    elements.extend([metadata,Spacer(1,4*mm)])
+    recipient = [para('DELIVER TO',label),para(contact.get('company') or contact.get('name') or sale.get('customer') or 'Customer',heading)]
+    if contact.get('company') and contact.get('name') != contact.get('company'):
+        recipient.append(para(contact.get('name')))
+    for key in ('address','address2','city','postcode','country','phone'):
+        if contact.get(key): recipient.append(para(contact[key]))
+    sender = [para('FROM',label),para(co.get('co_company') or 'NEON',heading)]
+    for key in ('co_address','co_address2','co_city','co_postcode','co_phone','co_email'):
+        if co.get(key): sender.append(para(co[key],small))
+    addresses = Table([[recipient,sender]],colWidths=[106*mm,72*mm])
+    addresses.setStyle(table_style([('LEFTPADDING',(0,0),(-1,-1),0)]))
+    elements.extend([addresses,Spacer(1,3*mm)])
+    has_cartons = any(float(i.get('carton_qty') or 0)>0 for i in items)
+    headers = ['#','PRODUCT / ARTICLE','QTY','UNIT'] + (['CARTONS'] if has_cartons else []) + ['CHECK']
+    widths = [9*mm,(98 if not has_cartons else 78)*mm,20*mm,20*mm] + ([20*mm] if has_cartons else []) + [31*mm]
+    white = ParagraphStyle('delivery-white',parent=label,textColor=colors.white)
+    rows = [[para(h,white) for h in headers]]
+    for index,item in enumerate(items,1):
+        description = [para(item.get('product_name') or 'Product')]
+        if item.get('sku'): description.append(para('Article: '+str(item['sku']),small))
+        row = [para(index,small),description,para(format(float(item.get('qty') or 0),'g'),heading),para(item.get('unit') or '—')]
+        if has_cartons:
+            carton = float(item.get('carton_qty') or 0)
+            row.append(para(format(float(item.get('qty') or 0)/carton,'.3g') if carton>0 else '—'))
+        rows.append(row+[CheckBox()])
+    listing = Table(rows,colWidths=widths,repeatRows=1,hAlign='CENTER')
+    listing.setStyle(table_style([('BACKGROUND',(0,0),(-1,0),navy),
+        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,pale]),
+        ('LINEBELOW',(0,1),(-1,-1),.4,line),('LEFTPADDING',(0,0),(-1,-1),6),
+        ('RIGHTPADDING',(0,0),(-1,-1),6)]))
+    elements.append(listing)
+    elements.extend([Spacer(1,3*mm),para(str(len(items))+' product lines • Check quantities against the goods received.',small)])
     if sale.get('notes'):
-        elements.append(Spacer(1, 5*mm))
-        elements.append(Paragraph(f"<b>Notes:</b> {sale['notes']}", small_m))
-
-    elements.append(Spacer(1, 8*mm))
-    elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
-    elements.append(Spacer(1, 3*mm))
-    bc = code128.Code128(sale['num'], barHeight=10*mm, barWidth=0.85, humanReadable=True, fontSize=7)
-    bc_label = Paragraph('<font color="#888888" size="7">DELIVERY REF</font>', label_s)
-    footer_row = Table([['', [bc_label, bc]]], colWidths=[110*mm, 60*mm])
-    footer_row.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'), ('ALIGN', (1,0), (1,0), 'RIGHT'),
-        ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-    ]))
-    elements.append(footer_row)
-    pdf.build(elements)
+        elements.extend([Spacer(1,3*mm),para('DELIVERY NOTES',label),para(sale['notes'])])
+    receipt = Table([[para('RECEIVED BY',label),para('DATE / TIME',label)],
+        [para('Name: __________________________'),para('__________________________')],
+        [para('Signature: _______________________'),para('Driver: _____________________')],
+        [para('SHORTAGES / DAMAGE / COMMENTS',label),''],['','']],colWidths=[100*mm,78*mm])
+    receipt.setStyle(table_style([('BOX',(0,0),(-1,-1),.6,line),('SPAN',(0,3),(-1,3)),
+        ('SPAN',(0,4),(-1,4)),('BOTTOMPADDING',(0,4),(-1,4),15)]))
+    elements.append(KeepTogether([Spacer(1,4*mm),receipt]))
+    pdf.build(elements,onFirstPage=page_frame,onLaterPages=page_frame)
     return buf.getvalue()
 
 
