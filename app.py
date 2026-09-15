@@ -1645,8 +1645,8 @@ def _product_fields(form):
     return (
         form.get('sku', ''), form.get('barcode', ''), form['name'],
         form.get('category', ''), form.get('subcategory', ''), form.get('unit', 'pcs'),
-        float(form.get('cost', 0)), float(form.get('price', 0)),
-        float(form.get('min_stock', 0)), form.get('description', ''),
+        float(form.get('cost') or 0), float(form.get('price') or 0),
+        float(form.get('min_stock') or 0), form.get('description', ''),
         l, w, h, float(form.get('weight') or 0), cbm,
         float(form.get('carton_qty') or 0),
         float(form.get('ctn_price') or 0),
@@ -1664,8 +1664,21 @@ def add_product():
         cats = db.execute("SELECT * FROM categories WHERE parent_id IS NULL ORDER BY name").fetchall()
         subcats = db.execute("SELECT * FROM categories WHERE parent_id IS NOT NULL ORDER BY name").fetchall()
     if request.method == 'POST':
-        photo = _save_photo(request.files.get('photo'))
-        fields = _product_fields(request.form)
+        try:
+            fields = _product_fields(request.form)
+            quantities = {w['id']: float(request.form.get(f'stock_{w["id"]}') or 0) for w in warehouses}
+        except (ValueError, TypeError):
+            flash('Please enter valid numbers for prices, dimensions and stock quantities.', 'error')
+            return render_template('product_form.html', product=request.form.to_dict(), warehouses=warehouses,
+                stock={w['id']: request.form.get(f'stock_{w["id"]}', '') for w in warehouses},
+                cats=cats, subcats=subcats, next_url=request.form.get('next')), 400
+        try:
+            photo = _save_photo(request.files.get('photo'))
+        except Exception:
+            app.logger.exception('Product photo upload failed before saving product')
+            flash('The photo could not be uploaded. Your product has not been saved. Your details are kept below; please select the image again and retry, or save without a photo.', 'error')
+            return render_template('product_form.html', product=request.form.to_dict(), warehouses=warehouses,
+                stock=quantities, cats=cats, subcats=subcats, next_url=request.form.get('next')), 422
         with get_db() as db:
             cur = db.execute(
                 "INSERT INTO products(sku,barcode,name,category,subcategory,unit,cost,price,min_stock,description,length,width,height,weight,cbm,carton_qty,ctn_price,china_price,china_currency,subsubcategory,photo) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
@@ -1673,7 +1686,7 @@ def add_product():
             )
             pid = cur.fetchone()['id']
             for w in warehouses:
-                db.execute("INSERT INTO stock VALUES(%s,%s,%s)", (pid, w['id'], float(request.form.get(f'stock_{w["id"]}', 0))))
+                db.execute("INSERT INTO stock VALUES(%s,%s,%s)", (pid, w['id'], quantities[w['id']]))
             db.commit()
         flash('Product added', 'success')
         next_url = request.form.get('next') or url_for('products')
@@ -1700,7 +1713,7 @@ def edit_product(pid):
                 fields + (photo_val, pid)
             )
             for w in warehouses:
-                db.execute("INSERT INTO stock VALUES(%s,%s,%s) ON CONFLICT (product_id, warehouse_id) DO UPDATE SET qty=EXCLUDED.qty", (pid, w['id'], float(request.form.get(f'stock_{w["id"]}', 0))))
+                db.execute("INSERT INTO stock VALUES(%s,%s,%s) ON CONFLICT (product_id, warehouse_id) DO UPDATE SET qty=EXCLUDED.qty", (pid, w['id'], float(request.form.get(f'stock_{w["id"]}') or 0)))
             db.commit()
             flash('Product updated', 'success')
             next_url = request.form.get('next') or url_for('products')
