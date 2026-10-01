@@ -4769,16 +4769,27 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     from reportlab.lib.enums import TA_RIGHT, TA_CENTER
     from reportlab.graphics.barcode import code128
 
-    ACCENT   = colors.HexColor('#1a1a2e')
-    ACCENT2  = colors.HexColor('#e8e6df')
-    MUTED    = colors.HexColor('#666666')
+    from html import escape
+    from datetime import date as invoice_date
+    def safe(value):
+        return escape(str(value or '')).replace('\n', '<br/>')
+    sale = {k: safe(v) if isinstance(v, str) else v for k, v in sale.items()}
+    items = [{k: safe(v) if isinstance(v, str) else v for k, v in item.items()} for item in items]
+    customer = {k: safe(v) if isinstance(v, str) else v for k, v in (customer or {}).items()}
+    company = dict(company or {})
+    logo_key_raw = company.get('co_logo', '')
+    company = {k: safe(v) if isinstance(v, str) else v for k, v in company.items()}
+    ACCENT   = colors.HexColor('#20324a')
+    GOLD = colors.HexColor('#d9a024')
+    ACCENT2  = colors.HexColor('#dce3eb')
+    MUTED    = colors.HexColor('#64748b')
     WHITE    = colors.white
-    LIGHT_BG = colors.HexColor('#f8f8f6')
+    LIGHT_BG = colors.HexColor('#f4f6f9')
 
     buf = io.BytesIO()
     W, H = A4
     pdf = SimpleDocTemplate(buf, pagesize=A4,
-                            topMargin=14*mm, bottomMargin=20*mm,
+                            topMargin=22*mm, bottomMargin=22*mm,
                             leftMargin=18*mm, rightMargin=18*mm)
 
     CURRENCY_SYM = {'GBP': '£', 'USD': '$', 'EUR': '€', 'PLN': 'zł'}
@@ -4788,13 +4799,13 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     def ps(name, **kw):
         return ParagraphStyle(name, parent=styles['Normal'], **kw)
 
-    normal    = ps('n', fontSize=9, leading=13)
+    normal    = ps('n', fontSize=9, leading=13, textColor=ACCENT)
     normal_r  = ps('nr', fontSize=9, leading=13, alignment=TA_RIGHT)
     small_m   = ps('sm', fontSize=8, leading=11, textColor=MUTED)
     small_mr  = ps('smr', fontSize=8, leading=11, textColor=MUTED, alignment=TA_RIGHT)
     label_s   = ps('lb', fontSize=7, leading=10, textColor=MUTED, fontName='Helvetica-Bold',
                    spaceAfter=1)
-    inv_title = ps('it', fontSize=28, fontName='Helvetica-Bold', textColor=ACCENT, alignment=TA_RIGHT)
+    inv_title = ps('it', fontSize=30, leading=34, fontName='Helvetica-Bold', textColor=ACCENT, alignment=TA_RIGHT)
     co_name_s = ps('cn', fontSize=11, fontName='Helvetica-Bold', textColor=ACCENT, leading=14)
     bill_name = ps('bn', fontSize=9, fontName='Helvetica-Bold', leading=13)
 
@@ -4802,8 +4813,8 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     elements = []
 
     # ── TOP BANNER ────────────────────────────────────────────────────────────
-    logo_cell = ''
-    logo_key = co.get('co_logo', '')
+    logo_cell = Paragraph('NEON', ps('brand', fontSize=28, leading=32, fontName='Helvetica-Bold', textColor=ACCENT))
+    logo_key = logo_key_raw
     if logo_key:
         logo_path = os.path.normpath(os.path.join(UPLOAD_FOLDER, '..', logo_key))
         if os.path.exists(logo_path):
@@ -4824,7 +4835,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     ]))
     elements.append(banner)
     elements.append(Spacer(1, 3*mm))
-    elements.append(HRFlowable(width='100%', thickness=2, color=ACCENT))
+    elements.append(HRFlowable(width='100%', thickness=2, color=GOLD))
     elements.append(Spacer(1, 5*mm))
 
     # ── FROM / INVOICE META ───────────────────────────────────────────────────
@@ -4838,6 +4849,10 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     if co.get('co_country'): co_block.append(Paragraph(co['co_country'], small_m))
     if co.get('co_vat'):     co_block.append(Paragraph(f"VAT No: {co['co_vat']}", small_m))
 
+    try:
+        sale['doc_date'] = invoice_date.fromisoformat(str(sale.get('doc_date'))[:10]).strftime('%d %b %Y')
+    except (TypeError, ValueError):
+        pass
     paid_badge = 'PAID' if sale.get('paid') else 'UNPAID'
     paid_color = '#1a8a4a' if sale.get('paid') else '#c0392b'
 
@@ -4845,7 +4860,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         [Paragraph('<font color="#888888" size="7">INVOICE NUMBER</font>', label_s),
          Paragraph(f"<b>{sale['num']}</b>", normal_r)],
         [Paragraph('<font color="#888888" size="7">DATE</font>', label_s),
-         Paragraph(sale['doc_date'], normal_r)],
+         Paragraph(str(sale.get('doc_date') or ''), normal_r)],
         [Paragraph('<font color="#888888" size="7">STATUS</font>', label_s),
          Paragraph(f"<font color='{paid_color}'><b>{paid_badge}</b></font>", normal_r)],
     ], colWidths=[30*mm, 40*mm])
@@ -4876,8 +4891,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
 
     bill_block = [Paragraph('<font color="#888888" size="7">BILL TO</font>', label_s)]
     if customer:
-        if customer.get('company'):
-            bill_block.append(Paragraph(customer['company'], bill_name))
+        bill_block.append(Paragraph(customer.get('company') or customer.get('name') or sale.get('customer') or '', bill_name))
         for line in filter(None, [customer.get('address'), customer.get('address2')]):
             bill_block.append(Paragraph(line, small_m))
         if customer.get('city'):     bill_block.append(Paragraph(customer['city'], small_m))
@@ -4885,7 +4899,11 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         if customer.get('country'):    bill_block.append(Paragraph(customer['country'], small_m))
         if customer.get('vat_number'): bill_block.append(Paragraph(f"VAT No: {customer['vat_number']}", small_m))
 
-    elements.append(Table([[bill_block]], colWidths=[170*mm]))
+    if not customer:
+        bill_block.append(Paragraph(sale.get('customer') or 'Customer', bill_name))
+    billing = Table([[bill_block]], colWidths=[170*mm])
+    billing.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),LIGHT_BG),('LEFTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    elements.append(billing)
     elements.append(Spacer(1, 6*mm))
 
     # ── LINE ITEMS TABLE ──────────────────────────────────────────────────────
@@ -4930,11 +4948,12 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     n = len(items)
     num_cols = len(hdr)
 
+    item_data = list(data)
+    data = []
     def total_row(label, value, bold=False):
         fn = 'Helvetica-Bold' if bold else 'Helvetica'
         sz = 10 if bold else 9
-        empty = [''] * span_start
-        return empty + [
+        return [
             Paragraph(f"<font name='{fn}' size='{sz}'>{label}</font>", normal_r),
             Paragraph(f"<font name='{fn}' size='{sz}'>{value}</font>", normal_r),
         ]
@@ -4948,40 +4967,28 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         data.append(total_row('Delivery', f"{sym}{sale['delivery_charge']:,.2f}"))
     if sale.get('tax_pct', 0):
         data.append(total_row(f"VAT ({sale['tax_pct']:g}%)", f"{sym}{sale['tax_amount']:,.2f}"))
-    data.append(total_row('TOTAL DUE', f"{sym}{sale['total']:,.2f}", bold=True))
+    data.append(total_row('QUOTE TOTAL' if doc_title == 'QUOTE' else 'INVOICE TOTAL', f"{sym}{sale['total']:,.2f}", bold=True))
     if has_ctns:
         total_c = sum(i['qty'] / i['carton_qty'] for i in items if (i.get('carton_qty') or 0) > 0)
         data.append(total_row('Total CTNs', f"{total_c:g}"))
-    t = Table(data, colWidths=col_w, repeatRows=1)
+    t = Table(item_data, colWidths=col_w, repeatRows=1)
     t.setStyle(TableStyle([
-        # header row
-        ('BACKGROUND', (0,0), (-1,0), ACCENT),
-        ('TEXTCOLOR',  (0,0), (-1,0), WHITE),
-        ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE',   (0,0), (-1,0), 8.5),
-        ('BOTTOMPADDING', (0,0), (-1,0), 7),
-        ('TOPPADDING',    (0,0), (-1,0), 7),
-        # item rows
-        ('FONTSIZE',  (0,1), (-1,n), 9),
-        ('ROWBACKGROUNDS', (0,1), (-1,n), [WHITE, LIGHT_BG]),
-        ('LINEBELOW', (0,1), (-1,n), 0.3, ACCENT2),
-        ('TOPPADDING',    (0,1), (-1,n), 6),
-        ('BOTTOMPADDING', (0,1), (-1,n), 6),
-        # totals rows
-        ('FONTSIZE',  (0,n+1), (-1,-1), 9),
-        ('TOPPADDING',    (0,n+1), (-1,-1), 5),
-        ('BOTTOMPADDING', (0,n+1), (-1,-1), 5),
-        ('LINEABOVE', (0,n+1), (-1,n+1), 0.8, ACCENT2),
-        ('SPAN',      (0,n+1), (span_start-1,-1)),
-        ('LINEABOVE', (span_start,-1), (-1,-1), 1, ACCENT),
-        ('TOPPADDING',    (0,-1), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,-1), (-1,-1), 8),
-        # all
-        ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
-        ('LEFTPADDING',  (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ('BACKGROUND',(0,0),(-1,0),ACCENT),('TEXTCOLOR',(0,0),(-1,0),WHITE),
+        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,-1),8.5),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),('ROWBACKGROUNDS',(0,1),(-1,-1),[WHITE,LIGHT_BG]),
+        ('LINEBELOW',(0,1),(-1,-1),.35,ACCENT2),('ALIGN',(1,0),(-1,-1),'RIGHT'),
+        ('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),
+        ('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),
     ]))
     elements.append(t)
+    totals = Table(data,colWidths=[48*mm,36*mm],hAlign='RIGHT')
+    totals.setStyle(TableStyle([
+        ('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),
+        ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
+        ('BACKGROUND',(0,-1),(-1,-1),colors.HexColor('#fff4d9')),
+        ('LINEABOVE',(0,-1),(-1,-1),1.5,GOLD),
+    ]))
+    elements.append(KeepTogether([Spacer(1,4*mm),totals]))
 
     # ── NOTES ─────────────────────────────────────────────────────────────────
     if sale.get('delivery_method'):
@@ -5028,7 +5035,24 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     ]))
     elements.append(footer_row)
 
-    pdf.build(elements)
+    def page_frame(canvas, doc):
+        canvas.saveState()
+        canvas.setTitle(str(doc_title)+' '+sale['num'])
+        canvas.setAuthor('NEON')
+        canvas.setStrokeColor(ACCENT2)
+        canvas.line(18*mm,17*mm,W-18*mm,17*mm)
+        canvas.setFont('Helvetica',8)
+        canvas.setFillColor(MUTED)
+        canvas.drawString(18*mm,12*mm,'NEON | '+str(doc_title)+' | '+sale['num'])
+        canvas.drawRightString(W-18*mm,12*mm,'Page '+str(doc.page))
+        if doc.page > 1:
+            canvas.setFillColor(ACCENT)
+            canvas.setFont('Helvetica-Bold',9)
+            canvas.drawString(18*mm,H-15*mm,str(doc_title)+' / '+sale['num'])
+            canvas.setStrokeColor(GOLD)
+            canvas.line(18*mm,H-18*mm,W-18*mm,H-18*mm)
+        canvas.restoreState()
+    pdf.build(elements,onFirstPage=page_frame,onLaterPages=page_frame)
     return buf.getvalue()
 
 
