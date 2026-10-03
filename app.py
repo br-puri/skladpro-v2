@@ -743,6 +743,45 @@ def audit_log():
                            total=total, user_filter=user_filter, users=users)
 
 
+@app.route('/api/address-lookup')
+@admin_required
+def address_lookup():
+    import urllib.request
+    import urllib.error
+    import urllib.parse
+    postcode = re.sub(r'\s+', '', request.args.get('postcode', '')).upper()
+    if not re.fullmatch(r'(?:GIR0AA|[A-Z]{1,2}[0-9][A-Z0-9]?[0-9][A-Z]{2})', postcode):
+        return jsonify(error='Enter a complete UK postcode, for example SW1A 2AA.'), 400
+    key = (os.environ.get('IDEAL_POSTCODES_API_KEY') or get_settings().get('address_lookup_api_key') or '').strip()
+    if not key:
+        return jsonify(error='Address finder needs setup: ask an administrator to add an Ideal Postcodes API key in Settings. You can enter the address manually.'), 503
+    req = urllib.request.Request('https://api.ideal-postcodes.co.uk/v1/postcodes/' + urllib.parse.quote(postcode),
+        headers={'Authorization': 'Bearer ' + key, 'Accept': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=12) as response:
+            payload = json.load(response)
+        if payload.get('code') != 2000:
+            return jsonify(error='Address lookup was unavailable. Check the provider account or enter the address manually.'), 502
+        addresses = []
+        for row in payload.get('result', []):
+            addresses.append(dict(
+                label=', '.join(str(row.get(k) or '') for k in ('line_1','line_2','line_3','post_town','postcode') if row.get(k)),
+                address=row.get('line_1') or '',
+                address2=', '.join(row[k] for k in ('line_2','line_3') if row.get(k)),
+                city=row.get('post_town') or '', postcode=row.get('postcode') or '',
+                country='United Kingdom'))
+        return jsonify(addresses=addresses)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return jsonify(addresses=[])
+        message = 'Address lookup is unavailable. Please try again or enter the address manually.'
+        if exc.code in (401,402,403):
+            message = 'Address finder account needs attention. Ask an administrator to check its API key and lookup credit.'
+        return jsonify(error=message), 502
+    except (OSError, ValueError):
+        return jsonify(error='Address lookup could not connect. Please try again or enter the address manually.'), 502
+
+
 @app.route('/settings', methods=['GET', 'POST'])
 @superadmin_required
 def settings_page():
@@ -753,7 +792,7 @@ def settings_page():
                   'co_delivery_address', 'co_delivery_address2', 'co_delivery_city', 'co_delivery_postcode', 'co_delivery_country',
                   'co_bank_name', 'co_sort_code', 'co_account_number',
                   'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_tls',
-                  'resend_api_key']
+                  'resend_api_key', 'address_lookup_api_key']
         # Boolean toggles (checkboxes)
         with get_db() as db:
             db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
