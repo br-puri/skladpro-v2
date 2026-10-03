@@ -1183,6 +1183,10 @@ def catalog_pdf_download():
             # Remote (Cloudinary) — download into memory
             try:
                 import urllib.request
+                # Request a bounded image from Cloudinary before decoding it on Render.
+                from urllib.parse import urlsplit
+                if urlsplit(photo).hostname == 'res.cloudinary.com' and '/image/upload/' in photo:
+                    photo = photo.replace('/image/upload/', '/image/upload/c_limit,w_900,h_900,q_auto,f_png/', 1)
                 req = urllib.request.Request(photo, headers={'User-Agent': 'Mozilla/5.0'})
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     return io.BytesIO(resp.read())
