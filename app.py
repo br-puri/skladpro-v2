@@ -1386,8 +1386,9 @@ def catalog_pdf_download():
     doc.multiBuild(story)
     buf.seek(0)
     fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
-    resp = send_file(buf, mimetype='application/pdf', download_name=fname, as_attachment=False)
-    resp.headers['Content-Disposition'] = f'inline; filename="{fname}"'
+    download = request.args.get('download') == '1'
+    resp = send_file(buf, mimetype='application/pdf', download_name=fname, as_attachment=download)
+    resp.headers['Cache-Control'] = 'private, no-store'
     return resp
 
 
