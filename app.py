@@ -1026,7 +1026,7 @@ def catalog_pdf_download():
     show_prices = (co.get('co_catalog_prices', '') != '0')  # unset defaults to show
 
     GOLD  = colors.HexColor('#d9a024')
-    DARK  = colors.HexColor('#1e293b')
+    DARK  = colors.HexColor('#20324a')
     SLATE = colors.HexColor('#64748b')
     MUTED = colors.HexColor('#94a3b8')
     LIGHT = colors.HexColor('#f8fafc')
@@ -1045,7 +1045,7 @@ def catalog_pdf_download():
     s_toc_num     = ps('tc_n',  fontSize=14, fontName='Helvetica-Bold', textColor=GOLD, leading=18)
     s_toc_name    = ps('tc_nm', fontSize=11, fontName='Helvetica-Bold', textColor=DARK, leading=14, letterSpacing=0.5)
 
-    s_cat_banner  = ps('ct_b',  fontSize=15, fontName='Helvetica-Bold', textColor=DARK, leading=24, letterSpacing=1.2)
+    s_cat_banner  = ps('ct_b',  fontSize=24, fontName='Helvetica-Bold', textColor=DARK, leading=29, letterSpacing=1.2)
     s_sub_head    = ps('sb_h',  fontSize=10, fontName='Helvetica-Bold', textColor=DARK, leading=13, keepWithNext=True, letterSpacing=0.6)
     s_subsub_head = ps('ss_h',  fontSize=8,  fontName='Helvetica-Bold', textColor=SLATE, leading=11, letterSpacing=0.8, leftIndent=0, keepWithNext=True)
     s_prod_name   = ps('pd_n',  fontSize=10, fontName='Helvetica-Bold', textColor=DARK, leading=12, letterSpacing=0.4)
@@ -1053,7 +1053,7 @@ def catalog_pdf_download():
     s_tbl_code    = ps('tb_c',  fontSize=9,  fontName='Helvetica-Bold', textColor=DARK, leading=11)
     s_tbl_carton  = ps('tb_ct', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#475569'), leading=11, alignment=TA_RIGHT)
     # Grid-card styles (premium multi-column layout)
-    s_card_name   = ps('cd_n',  fontSize=9, fontName='Helvetica-Bold', textColor=DARK,  leading=11.5, alignment=TA_LEFT)
+    s_card_name   = ps('cd_n',  fontSize=11, fontName='Helvetica-Bold', textColor=DARK,  leading=14, alignment=TA_LEFT)
     s_card_lbl    = ps('cd_l',  fontSize=6.5, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8)
     s_card_lblR   = ps('cd_lr', fontSize=6.5, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8, alignment=TA_RIGHT)
     s_card_code   = ps('cd_c',  fontSize=8,   fontName='Helvetica-Bold', textColor=DARK,  leading=10)
@@ -1112,6 +1112,8 @@ def catalog_pdf_download():
         canv.setFont('Helvetica-Bold', 50)
         canv.drawString(20*mm, H-117*mm, 'Product')
         canv.drawString(20*mm, H-137*mm, 'Catalogue')
+        canv.setFillColor(DARK)
+        canv.roundRect(20*mm, H-162*mm, 28*mm, 2*mm, 1*mm, fill=1, stroke=0)
         canv.setLineWidth(1)
         canv.setStrokeColor(DARK)
         canv.line(20*mm, 61*mm, W-20*mm, 61*mm)
@@ -1163,10 +1165,10 @@ def catalog_pdf_download():
     story.append(NextPageTemplate('normal'))
 
     from reportlab.platypus import KeepTogether
-    NCOLS     = 3                                   # products per row
-    GUT       = 5*mm                                # gutter between cards
+    NCOLS     = 2                                   # products per row
+    GUT       = 7*mm                                # gutter between cards
     CARD_W    = (UW - (NCOLS - 1) * GUT) / NCOLS    # card width
-    IMG_BOX_H = 48*mm                               # image panel height
+    IMG_BOX_H = 57*mm                               # image panel height
     IMG_MAX_W = CARD_W - 8*mm
     IMG_MAX_H = IMG_BOX_H - 5*mm
     NAME_H    = 11*mm                               # fixed name row → aligned grid
@@ -1256,7 +1258,7 @@ def catalog_pdf_download():
         img_box = Table([[img if img is not None else '']],
                         colWidths=[CARD_W], rowHeights=[IMG_BOX_H])
         img_box.setStyle(TableStyle([
-            ('BACKGROUND',   (0,0), (-1,-1), colors.HexColor('#f8fafc')),
+            ('BACKGROUND',   (0,0), (-1,-1), colors.white),
             ('ALIGN',        (0,0), (-1,-1), 'CENTER'),
             ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
             ('LEFTPADDING',  (0,0), (-1,-1), 4),
@@ -1267,7 +1269,7 @@ def catalog_pdf_download():
         ]))
 
         spec = Table(
-            [[Paragraph('ARTICLE', s_card_lbl),  Paragraph('CARTON', s_card_lblR)],
+            [[Paragraph('ARTICLE', s_card_lbl),  Paragraph('PCS / CARTON', s_card_lblR)],
              [Paragraph(escape(str(code)), s_card_code),   Paragraph(escape(carton), s_card_carton)]],
             colWidths=[CARD_W * 0.46, CARD_W * 0.54]
         )
@@ -1287,7 +1289,7 @@ def catalog_pdf_download():
             pr   = p.get('price') or 0
             unit = p.get('unit') or 'unit'
             if pr:
-                price_txt = f'£{pr:,.2f} <font size=6 color="#94a3b8">/ {unit}</font>'
+                price_txt = f'£{pr:,.2f} <font size=7 color="#64748b">/ {escape(str(unit))}</font>'
             else:
                 price_txt = '<font size=8 color="#94a3b8">Price on request</font>'
             card_rows.append([Paragraph(price_txt, s_card_price)])
@@ -1304,7 +1306,8 @@ def catalog_pdf_download():
         card = Table(card_rows, colWidths=[CARD_W], rowHeights=card_heights)
         card.setStyle(TableStyle([
             ('BACKGROUND',   (0,0), (-1,-1), colors.white),
-            ('BOX',          (0,0), (-1,-1), 0.6, LINE),
+            ('LINEBELOW',    (0,-1), (-1,-1), 0.7, LINE),
+            ('BACKGROUND', (0,2), (-1,-1), LIGHT),
             ('VALIGN',       (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING',  (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 0),
@@ -1352,16 +1355,15 @@ def catalog_pdf_download():
         first_category = False
 
         story.append(_category_banner(cat))
-        story.append(Spacer(1, 8*mm))
+        story.append(Spacer(1, 5*mm))
 
         subcats = list(dict.fromkeys((p.get('subcategory') or '') for p in cat_prods))
         for sub in subcats:
             sub_prods = [p for p in cat_prods if (p.get('subcategory') or '') == sub]
             if not sub_prods:
                 continue
-            if sub:
-                story.append(Paragraph(escape(sub.upper()), s_sub_head))
-                story.append(Spacer(1, 3*mm))
+            story.append(Paragraph(escape((sub or 'Others').upper()), s_sub_head))
+            story.append(Spacer(1, 3*mm))
             subsubs = list(dict.fromkeys((p.get('subsubcategory') or '') for p in sub_prods))
             has_real_ss = any(ss for ss in subsubs)
             for ss in subsubs:
