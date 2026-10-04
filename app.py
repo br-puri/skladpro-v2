@@ -1006,6 +1006,7 @@ def catalog_render():
                            now=date.today())
 
 
+@app.route('/products/catalog/b2b.pdf', endpoint='catalog_b2b_pdf')
 @app.route('/products/catalog/pdf')
 def catalog_pdf_download():
     """Generate the branded print catalogue with full names and optional prices."""
@@ -1023,7 +1024,8 @@ def catalog_pdf_download():
     from xml.sax.saxutils import escape
     products, categories = _catalog_data()
     co = get_settings()
-    show_prices = (co.get('co_catalog_prices', '') != '0')  # unset defaults to show
+    b2b = request.endpoint == 'catalog_b2b_pdf'
+    show_prices = not b2b and (co.get('co_catalog_prices', '') != '0')
 
     GOLD  = colors.HexColor('#d9a024')
     DARK  = colors.HexColor('#20324a')
@@ -1108,7 +1110,7 @@ def catalog_pdf_download():
             canv.drawString(20*mm, H-42*mm, 'NEON')
         canv.setFillColor(DARK)
         canv.setFont('Helvetica', 10)
-        canv.drawString(20*mm, H-91*mm, 'THE COLLECTION / ' + str(date.today().year))
+        canv.drawString(20*mm, H-91*mm, ('TRADE COLLECTION / ' if b2b else 'THE COLLECTION / ') + str(date.today().year))
         canv.setFont('Helvetica-Bold', 50)
         canv.drawString(20*mm, H-117*mm, 'Product')
         canv.drawString(20*mm, H-137*mm, 'Catalogue')
@@ -1124,6 +1126,8 @@ def catalog_pdf_download():
             lines.append(escape(address.upper()))
         contacts = [co.get('co_phone'), co.get('co_email')]
         lines.append(escape('  /  '.join(v for v in contacts if v)))
+        if b2b:
+            lines.append('For trade enquiries, contact us with the article codes and quantities.')
         para = Paragraph('<br/>'.join(lines), contact_style)
         _, height = para.wrap(W-40*mm, 48*mm)
         para.drawOn(canv, 20*mm, 53*mm-height)
@@ -1381,12 +1385,13 @@ def catalog_pdf_download():
                     story.append(f)
 
     # multiBuild does two passes so TOC page numbers resolve correctly
-    doc.title = 'NEON Product Catalogue'
+    doc.title = 'NEON Trade Catalogue' if b2b else 'NEON Product Catalogue'
     doc.author = 'NEON'
     doc.multiBuild(story)
     buf.seek(0)
-    fname = f"Product_Catalogue_{date.today().strftime('%Y%m%d')}.pdf"
-    download = request.args.get('download') == '1'
+    prefix = "NEON_Trade_Catalogue" if b2b else "Product_Catalogue"
+    fname = f"{prefix}_{date.today().strftime('%Y%m%d')}.pdf"
+    download = b2b or request.args.get('download') == '1'
     resp = send_file(buf, mimetype='application/pdf', download_name=fname, as_attachment=download)
     resp.headers['Cache-Control'] = 'private, no-store'
     return resp
