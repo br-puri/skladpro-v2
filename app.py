@@ -1353,17 +1353,15 @@ def catalog_pdf_download():
             flows.append(Spacer(1, GUT))
         return flows
 
-    first_category = True
     for cat in categories:
         cat_prods = [p for p in products if (p.get('category') or 'Uncategorised') == cat]
         if not cat_prods:
             continue
-        if not first_category:
-            story.append(PageBreak())
-        first_category = False
 
         story.append(_category_banner(cat))
-        story.append(Spacer(1, 5*mm))
+        heading_gap = Spacer(1, 3*mm)
+        heading_gap.keepWithNext = True
+        story.append(heading_gap)
 
         subcats = list(dict.fromkeys((p.get('subcategory') or '') for p in cat_prods))
         for sub in subcats:
@@ -1371,7 +1369,9 @@ def catalog_pdf_download():
             if not sub_prods:
                 continue
             story.append(Paragraph(escape((sub or 'Others').upper()), s_sub_head))
-            story.append(Spacer(1, 3*mm))
+            sub_gap = Spacer(1, 2*mm)
+            sub_gap.keepWithNext = True
+            story.append(sub_gap)
             subsubs = list(dict.fromkeys((p.get('subsubcategory') or '') for p in sub_prods))
             has_real_ss = any(ss for ss in subsubs)
             for ss in subsubs:
@@ -1380,7 +1380,9 @@ def catalog_pdf_download():
                     continue
                 if ss and has_real_ss:
                     story.append(Paragraph(escape(ss.upper()), s_subsub_head))
-                    story.append(Spacer(1, 2*mm))
+                    subsub_gap = Spacer(1, 2*mm)
+                    subsub_gap.keepWithNext = True
+                    story.append(subsub_gap)
                 for f in _grid(ss_prods):
                     story.append(f)
 
