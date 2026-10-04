@@ -1055,7 +1055,7 @@ def catalog_pdf_download():
     s_tbl_code    = ps('tb_c',  fontSize=9,  fontName='Helvetica-Bold', textColor=DARK, leading=11)
     s_tbl_carton  = ps('tb_ct', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#475569'), leading=11, alignment=TA_RIGHT)
     # Grid-card styles (premium multi-column layout)
-    s_card_name   = ps('cd_n',  fontSize=11, fontName='Helvetica-Bold', textColor=DARK,  leading=14, alignment=TA_LEFT)
+    s_card_name   = ps('cd_n',  fontSize=9.5, fontName='Helvetica-Bold', textColor=DARK,  leading=12, alignment=TA_LEFT)
     s_card_lbl    = ps('cd_l',  fontSize=6.5, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8)
     s_card_lblR   = ps('cd_lr', fontSize=6.5, fontName='Helvetica-Bold', textColor=MUTED, leading=7,   letterSpacing=0.8, alignment=TA_RIGHT)
     s_card_code   = ps('cd_c',  fontSize=8,   fontName='Helvetica-Bold', textColor=DARK,  leading=10)
@@ -1138,8 +1138,8 @@ def catalog_pdf_download():
 
     class CatalogueDoc(BaseDocTemplate):
         def afterFlowable(self, flowable):
-            if hasattr(flowable, '_toc_entry'):
-                self.notify('TOCEntry', (0, flowable._toc_entry, self.page))
+            for entry in getattr(flowable, '_toc_entries', []):
+                self.notify('TOCEntry', (0, entry, self.page))
 
     doc = CatalogueDoc(buf, pagesize=A4)
     doc.addPageTemplates([
@@ -1169,13 +1169,13 @@ def catalog_pdf_download():
     story.append(NextPageTemplate('normal'))
 
     from reportlab.platypus import KeepTogether
-    NCOLS     = 2                                   # products per row
-    GUT       = 7*mm                                # gutter between cards
+    NCOLS     = 3                                   # products per row
+    GUT       = 5*mm                                # gutter between cards
     CARD_W    = (UW - (NCOLS - 1) * GUT) / NCOLS    # card width
-    IMG_BOX_H = 57*mm                               # image panel height
+    IMG_BOX_H = 58*mm                               # image panel height
     IMG_MAX_W = CARD_W - 8*mm
     IMG_MAX_H = IMG_BOX_H - 5*mm
-    NAME_H    = 11*mm                               # fixed name row → aligned grid
+    NAME_H    = 27*mm                               # fixed name row → aligned grid
     TINT = colors.HexColor('#fbf3dc')  # very light gold tint
 
     def _img_source(photo):
@@ -1266,14 +1266,14 @@ def catalog_pdf_download():
         img_box = Table([[img if img is not None else '']],
                         colWidths=[CARD_W], rowHeights=[IMG_BOX_H])
         img_box.setStyle(TableStyle([
-            ('BACKGROUND',   (0,0), (-1,-1), colors.white),
+            ('BACKGROUND',   (0,0), (-1,-1), LIGHT),
             ('ALIGN',        (0,0), (-1,-1), 'CENTER'),
             ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
             ('LEFTPADDING',  (0,0), (-1,-1), 4),
             ('RIGHTPADDING', (0,0), (-1,-1), 4),
             ('TOPPADDING',   (0,0), (-1,-1), 4),
             ('BOTTOMPADDING',(0,0), (-1,-1), 4),
-            ('LINEBELOW',    (0,0), (-1,-1), 0.4, LINE),
+            ('LINEBELOW',    (0,0), (-1,-1), 1.4, GOLD),
         ]))
 
         spec = Table(
@@ -1291,8 +1291,13 @@ def catalog_pdf_download():
             ('BOTTOMPADDING', (0,1), (-1,1),  7),
         ]))
 
-        card_rows    = [[img_box], [Paragraph(name, s_card_name)]]
-        card_heights = [IMG_BOX_H, name_height or max(NAME_H, Paragraph(name, s_card_name).wrap(CARD_W - 16, 10000)[1] + 10)]
+        from reportlab.platypus import KeepInFrame
+        breadcrumb = ' / '.join(str(p.get(k) or '') for k in ('category', 'subcategory', 'subsubcategory') if p.get(k))
+        details = KeepInFrame(CARD_W - 16, NAME_H - 8,
+            [Paragraph(escape(breadcrumb), ps('card_category', fontName='Helvetica', fontSize=6.5, leading=8, textColor=SLATE)),
+             Spacer(1, 3), Paragraph(name, s_card_name)], mode='shrink')
+        card_rows = [[img_box], [details]]
+        card_heights = [IMG_BOX_H, NAME_H]
         if show_prices:
             pr   = p.get('price') or 0
             unit = p.get('unit') or 'unit'
@@ -1353,38 +1358,24 @@ def catalog_pdf_download():
             flows.append(Spacer(1, GUT))
         return flows
 
-    for cat in categories:
-        cat_prods = [p for p in products if (p.get('category') or 'Uncategorised') == cat]
-        if not cat_prods:
-            continue
-
-        story.append(_category_banner(cat))
-        heading_gap = Spacer(1, 3*mm)
-        heading_gap.keepWithNext = True
-        story.append(heading_gap)
-
-        subcats = list(dict.fromkeys((p.get('subcategory') or '') for p in cat_prods))
-        for sub in subcats:
-            sub_prods = [p for p in cat_prods if (p.get('subcategory') or '') == sub]
-            if not sub_prods:
-                continue
-            story.append(Paragraph(escape((sub or 'Others').upper()), s_sub_head))
-            sub_gap = Spacer(1, 2*mm)
-            sub_gap.keepWithNext = True
-            story.append(sub_gap)
-            subsubs = list(dict.fromkeys((p.get('subsubcategory') or '') for p in sub_prods))
-            has_real_ss = any(ss for ss in subsubs)
-            for ss in subsubs:
-                ss_prods = [p for p in sub_prods if (p.get('subsubcategory') or '') == ss]
-                if not ss_prods:
-                    continue
-                if ss and has_real_ss:
-                    story.append(Paragraph(escape(ss.upper()), s_subsub_head))
-                    subsub_gap = Spacer(1, 2*mm)
-                    subsub_gap.keepWithNext = True
-                    story.append(subsub_gap)
-                for f in _grid(ss_prods):
-                    story.append(f)
+    # Six products on every full product page, even across category boundaries.
+    # Card breadcrumbs retain the hierarchy without wasting half a page.
+    ordered = [p for cat in categories for p in products
+               if (p.get('category') or 'Uncategorised') == cat]
+    seen_categories = set()
+    for offset in range(0, len(ordered), 6):
+        if offset:
+            story.append(PageBreak())
+        page_products = ordered[offset:offset + 6]
+        page_categories = list(dict.fromkeys(p.get('category') or 'Uncategorised' for p in page_products))
+        title = page_categories[0] if len(page_categories) == 1 else 'The collection'
+        banner = _category_banner(title)
+        banner._toc_entries = [escape(cat) for cat in page_categories if cat not in seen_categories]
+        seen_categories.update(page_categories)
+        story.append(banner)
+        story.append(Spacer(1, 4*mm))
+        for flowable in _grid(page_products):
+            story.append(flowable)
 
     # multiBuild does two passes so TOC page numbers resolve correctly
     doc.title = 'NEON Trade Catalogue' if b2b else 'NEON Product Catalogue'
