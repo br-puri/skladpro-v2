@@ -17,23 +17,23 @@
 body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f4f6f9; color: #1a2332; min-height: 100vh; display: flex; -webkit-font-smoothing: antialiased; }
 
 /* ── Sidebar ── */
-.sidebar { width: 220px; height: 100vh; background: linear-gradient(180deg,#20324a 0%,#172438 100%); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; overflow-y: auto; overflow-x: hidden; z-index: 100; transition: width 0.22s ease; }
+.sidebar { width: 220px; height: 100vh; background: #20324a; border-right:1px solid #31445d; scrollbar-width:thin; scrollbar-color:#52647b #20324a; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; overflow-y: auto; overflow-x: hidden; z-index: 100; transition: width 0.22s ease; }
 .sidebar.collapsed { width: 52px; }
-.logo { padding: 16px 16px 12px; display: flex; align-items: center; gap: 10px; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,.07); margin-bottom: 6px; }
-.logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg,#e8bd4e,#d9a024); border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(217,160,36,.45); }
-.logo-icon svg { width: 16px; height: 16px; fill: #fff; }
-.logo-text { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.04em; transition: opacity 0.15s, width 0.22s; overflow: hidden; }
+.logo { padding: 22px 18px 20px; display: flex; align-items: center; gap: 10px; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,.07); margin-bottom: 6px; }
+.logo-icon { width: 32px; height: 32px; background: #d9a024; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: none; }
+.logo-icon svg { width: 16px; height: 16px; fill: #20324a; }
+.logo-text { font-size: 19px; font-weight: 700; color: #fff; letter-spacing: 0.04em; transition: opacity 0.15s, width 0.22s; overflow: hidden; }
 .logo-text span { color: #e8bd4e; }
 .sidebar.collapsed .logo-text { opacity: 0; width: 0; }
 .sidebar-divider { height: 1px; background: rgba(255,255,255,.06); margin: 4px 0; }
 .nav-section { padding: 2px 0; }
-.nav-label { font-size: 9.5px; color: rgba(255,255,255,.28); padding: 8px 14px 3px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; white-space: nowrap; overflow: hidden; transition: opacity 0.15s; }
+.nav-label { font-size: 9.5px; color: #a8b7c9; padding: 14px 20px 6px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; white-space: nowrap; overflow: hidden; transition: opacity 0.15s; }
 .sidebar.collapsed .nav-label { opacity: 0; }
-.nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 14px; font-size: 13px; color: rgba(255,255,255,.6); text-decoration: none; transition: all 0.12s; position: relative; white-space: nowrap; margin: 1px 8px; border-radius: 7px; }
-.nav-item:hover { color: rgba(255,255,255,.95); background: rgba(255,255,255,.08); }
-.nav-item.active { color: #fff; background: rgba(217,160,36,.24); }
-.nav-item.active::before { content: ''; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 3px; background: #d9a024; border-radius: 0 3px 3px 0; }
-.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+.nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; font-size: 13px; color: #d6dfeb; text-decoration: none; transition: all 0.12s; position: relative; white-space: nowrap; margin: 2px 10px; border-radius: 9px; }
+.nav-item:hover { color: #fff; background: #304761; }
+.nav-item.active { color: #20324a; background: #f1d79a; font-weight:600; }
+.nav-item.active::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; background: #d9a024; border-radius: 0 3px 3px 0; }
+.nav-item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: 1; }
 .nav-item.active svg { opacity: 1; }
 .nav-item .nav-text { transition: opacity 0.15s; font-size: 13px; }
 .sidebar.collapsed .nav-item .nav-text { opacity: 0; width: 0; overflow: hidden; }
@@ -60,15 +60,24 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .sidebar-toggle { margin-top: auto; padding: 8px 10px 12px; }
 .sidebar-toggle-btn {
   width: 100%; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09);
-  color: rgba(255,255,255,.4); border-radius: 8px; padding: 7px 10px;
+  color: #c7d3e2; border-radius: 8px; padding: 7px 10px;
   cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;
   transition: all 0.15s; white-space: nowrap; overflow: hidden;
 }
-.sidebar-toggle-btn:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); }
+.sidebar-toggle-btn:hover { background: #304761; color: #fff; }
 .sidebar-toggle-btn .toggle-icon { flex-shrink: 0; transition: transform 0.22s; }
 .sidebar.collapsed .sidebar-toggle-btn .toggle-icon { transform: rotate(180deg); }
 .sidebar-toggle-btn .toggle-label { transition: opacity 0.15s; }
 .sidebar.collapsed .sidebar-toggle-btn .toggle-label { opacity: 0; width: 0; overflow: hidden; }
+
+.sidebar .logo {position:sticky;top:0;background:#20324a;z-index:2;flex-shrink:0}
+.sidebar .nav-section {flex-shrink:0}
+.sidebar .sidebar-toggle {position:sticky;bottom:0;background:#20324a;border-top:1px solid #31445d;flex-shrink:0;padding-top:12px}
+.sidebar .nav-item:focus-visible,.sidebar-toggle-btn:focus-visible {outline:2px solid #f1d79a;outline-offset:2px}
+.sidebar.collapsed .logo {padding:18px 9px;gap:0;justify-content:center}
+.sidebar.collapsed .sidebar-toggle {padding:10px 7px}
+.sidebar.collapsed .sidebar-toggle-btn {padding:8px 0;gap:0}
+@media(prefers-reduced-motion:reduce){.sidebar,.sidebar *{transition:none!important}}
 
 /* ── Main ── */
 .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; transition: margin-left 0.22s ease; }
@@ -195,6 +204,10 @@ input[type=checkbox].bulk-cb, input[type=checkbox]#select-all { width: 15px; hei
     z-index: 200;
     box-shadow: 4px 0 24px rgba(0,0,0,.3);
   }
+  .sidebar.collapsed .logo {padding:22px 18px 20px;gap:10px;justify-content:flex-start}
+  .sidebar.collapsed .nav-item {justify-content:flex-start;gap:11px;padding:10px 12px;margin:2px 10px}
+  .sidebar.collapsed .nav-label {height:auto;padding:14px 20px 6px}
+  .sidebar.collapsed .nav-item:hover::after {display:none}
   .sidebar.mob-open {
     transform: translateX(0) !important;
   }
@@ -362,7 +375,7 @@ function initBulk(submitUrl, confirmMsg) {
 </style>
 </head>
 <body>
-<div class="sidebar" id="sidebar">
+<div class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation" data-design="neon-sidebar-v2">
   <a href="{{ url_for('dashboard') }}" class="logo" style="text-decoration:none">
     <div class="logo-icon">
       <svg viewBox="0 0 16 16"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
@@ -385,7 +398,7 @@ function initBulk(submitUrl, confirmMsg) {
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5l6-3 6 3v7l-6 3-6-3V5zm6-1.8L4.3 5 8 6.8 11.7 5 8 3.2zm-5.5 3l5 2.5V14l-5-2.5V6.2zm6 2.5l5-2.5V11.5L8.5 14V8.7z"/></svg>
       <span class="nav-text">Products</span>
     </a>
-    <a href="{{ url_for('categories') }}" data-label="Categories" class="nav-item {% if 'categor' in request.endpoint %}active{% endif %}">
+    <a href="{{ url_for('categories') }}" data-label="Categories" class="nav-item {% if 'categor' in (request.endpoint or '') %}active{% endif %}">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 3a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H2a1 1 0 01-1-1V3zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H10a1 1 0 01-1-1V3zM1 11a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1H2a1 1 0 01-1-1v-2zm8 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1H10a1 1 0 01-1-1v-2z"/></svg>
       <span class="nav-text">Categories</span>
     </a>
@@ -500,7 +513,7 @@ function initBulk(submitUrl, confirmMsg) {
 
   <!-- Collapse toggle -->
   <div class="sidebar-toggle">
-    <button class="sidebar-toggle-btn" id="sidebarToggle" onclick="toggleSidebar()">
+    <button class="sidebar-toggle-btn" id="sidebarToggle" aria-label="Toggle sidebar" onclick="toggleSidebar()">
       <svg class="toggle-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
         <path d="M10 3L5 8l5 5"/>
       </svg>
