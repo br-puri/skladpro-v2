@@ -787,7 +787,7 @@ def address_lookup():
 def settings_page():
     if request.method == 'POST':
         fields = ['co_name', 'co_company', 'co_address', 'co_address2', 'co_city', 'co_postcode',
-                  'co_country', 'co_vat', 'co_email', 'co_phone',
+                  'co_country', 'co_vat', 'co_email', 'co_phone', 'co_registration',
                   'co_tagline', 'co_subtitle',
                   'co_delivery_address', 'co_delivery_address2', 'co_delivery_city', 'co_delivery_postcode', 'co_delivery_country',
                   'co_bank_name', 'co_sort_code', 'co_account_number',
@@ -4892,6 +4892,13 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     if addr_parts: co_block.append(Paragraph(addr_parts, small_m))
     if co.get('co_country'): co_block.append(Paragraph(co['co_country'], small_m))
     if co.get('co_vat'):     co_block.append(Paragraph(f"VAT No: {co['co_vat']}", small_m))
+    if co.get('co_registration'):
+        co_block.append(Paragraph(f"Company No: {co['co_registration']}", small_m))
+    if co.get('co_phone'):
+        co_block.append(Paragraph(f"Tel: {co['co_phone']}", small_m))
+    if co.get('co_email'):
+        co_block.append(Paragraph(f"Email: {co['co_email']}", small_m))
+
 
     try:
         sale['doc_date'] = invoice_date.fromisoformat(str(sale.get('doc_date'))[:10]).strftime('%d %b %Y')
