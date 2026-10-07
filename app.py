@@ -5063,6 +5063,9 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     bc_label = Paragraph('<font color="#888888" size="7">INVOICE REF</font>', label_s)
 
     if bank_parts:
+        elements.append(Paragraph('BANK DETAILS', label_s))
+        elements.append(Paragraph(f"Payment reference: <b>{sale['num']}</b>", small_m))
+        elements.append(Spacer(1, 3*mm))
         bank_cells = [Paragraph(f"<font color='#888888' size='7'>{k}</font><br/><b>{v}</b>", normal)
                       for k, v in bank_parts]
         bw = 110*mm / max(len(bank_parts), 1)
