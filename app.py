@@ -830,15 +830,14 @@ def dashboard():
         warehouses = db.execute("SELECT * FROM warehouses").fetchall()
         sales = db.execute("SELECT * FROM sales ORDER BY doc_date DESC LIMIT 8").fetchall()
         transactions = db.execute("SELECT * FROM transactions").fetchall()
-        stock_value = sum(
-            db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM stock WHERE product_id=%s", (p['id'],)).fetchone()['s'] * p['cost']
-            for p in products
-        )
+        stock_totals = {r['product_id']: r['qty'] for r in db.execute(
+            "SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id").fetchall()}
+        stock_value = sum(stock_totals.get(p['id'], 0) * p['cost'] for p in products)
         completed_revenue = db.execute("SELECT COALESCE(SUM(total),0) AS s FROM sales WHERE status='completed'").fetchone()['s']
         pending_sales = db.execute("SELECT COUNT(*) AS n FROM sales WHERE status='pending'").fetchone()['n']
         low_stock = []
         for p in products:
-            qty = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM stock WHERE product_id=%s", (p['id'],)).fetchone()['s']
+            qty = stock_totals.get(p['id'], 0)
             if qty <= p['min_stock']:
                 low_stock.append({'name': p['name'], 'qty': qty, 'min_stock': p['min_stock'], 'unit': p['unit']})
         income = sum(t['amount'] for t in transactions if t['type'] == 'income')
@@ -909,12 +908,13 @@ def products():
         subcategories = [dict(r) for r in db.execute("SELECT DISTINCT category, subcategory FROM products WHERE subcategory!='' ORDER BY subcategory").fetchall()]
         # Full category tree (all depths) for cascading Category → Sub → Sub-sub pickers
         cat_tree = [dict(r) for r in db.execute("SELECT id, name, parent_id FROM categories ORDER BY name").fetchall()]
+        stock_lookup = {(r['product_id'], r['warehouse_id']): r['qty']
+                        for r in db.execute("SELECT product_id, warehouse_id, qty FROM stock").fetchall()}
         result = []
         for p in rows:
             stock_by_wh, total = {}, 0
             for w in warehouses:
-                r = db.execute("SELECT qty FROM stock WHERE product_id=%s AND warehouse_id=%s", (p['id'], w['id'])).fetchone()
-                q_val = r['qty'] if r else 0
+                q_val = stock_lookup.get((p['id'], w['id']), 0)
                 stock_by_wh[w['id']] = q_val
                 total += q_val
             result.append({'product': p, 'stock': stock_by_wh, 'total': total, 'low': total <= p['min_stock']})
@@ -6014,7 +6014,8 @@ def _payment_reminder_worker():
         time.sleep(3600)  # Check every hour
 
 
-threading.Thread(target=_payment_reminder_worker, daemon=True).start()
+if os.environ.get('ENABLE_PAYMENT_REMINDERS', '1') == '1':
+    threading.Thread(target=_payment_reminder_worker, daemon=True).start()
 
 
 if __name__ == '__main__':

@@ -1,0 +1,21 @@
+services:
+  neon:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: '8080'
+      ENABLE_PAYMENT_REMINDERS: '0'
+    ports:
+      - '192.168.0.37:8080:8080'
+    command: ['gunicorn', '--bind', '0.0.0.0:8080', '--workers', '2', '--threads', '4', '--timeout', '180', 'app:app']
+    volumes:
+      - neon_uploads:/app/static/uploads
+    mem_limit: 2g
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+volumes:
+  neon_uploads:

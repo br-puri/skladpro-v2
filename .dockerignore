@@ -7,3 +7,10 @@ venv
 .claude
 node_modules
 *.db
+
+.env
+.env.*
+deploy
+AGENTS.md
+design_canvas
+design_products
