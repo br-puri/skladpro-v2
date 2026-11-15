@@ -149,7 +149,26 @@ const warehouses = {{ warehouses | tojson }};
 const defaultWhId   = {{ default_wh_id | tojson }};
 const PRICE_FIELD   = '{{ li_price_field }}';   // 'price' or 'cost'
 const SHOW_WH_COL   = {{ 'true' if li_show_wh else 'false' }};
+const FILTER_STOCK  = {{ 'true' if li_filter_stock else 'false' }};   // sales form: stock reduces as lines are added
 const SYMBOLS = { GBP: '£', USD: '$', EUR: '€', PLN: 'zł' };
+
+// Qty of a product already sitting in the current (unsaved) line items —
+// so the stock shown when you search again reflects this invoice's own usage.
+function getPendingQty(productId) {
+  let total = 0;
+  document.querySelectorAll('#itemsBody tr').forEach(row => {
+    const h = row.querySelector('[name="product_id[]"]');
+    if (h && h.value == productId) {
+      total += parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
+    }
+  });
+  return total;
+}
+
+function remainingStock(p) {
+  const raw = parseFloat(p.stock_total) || 0;
+  return FILTER_STOCK ? raw - getPendingQty(p.id) : raw;
+}
 
 function getSym() {
   const sel = document.getElementById('currencySelect');
@@ -324,7 +343,7 @@ function renderScanDropdown(matches) {
   const sym = getSym();
   scanDropdown.innerHTML = matches.slice(0, 30).map(p => {
     const ctn = p.carton_qty > 0 ? `${p.carton_qty} ${p.unit||'pcs'}/ctn` : '';
-    const stock = p.stock_total != null ? parseFloat(p.stock_total) : 0;
+    const stock = remainingStock(p);
     const stockColor = stock > 0 ? '#16a34a' : stock < 0 ? '#dc2626' : '#94a3b8';
     const stockLabel = `${stock % 1 === 0 ? stock : stock.toFixed(2)} ${p.unit || 'pcs'}`;
     return `<div class="sd-item" data-id="${p.id}"
@@ -367,7 +386,7 @@ barcodeInput.addEventListener('input', function() {
       const textMatch = p.name.toLowerCase().includes(lower) ||
         (p.sku || '').toLowerCase().includes(lower) ||
         (p.barcode || '').includes(q);
-      const inStock = (parseFloat(p.stock_total) || 0) > 0;
+      const inStock = remainingStock(p) > 0;
       return textMatch && (!hideOOS || inStock);
     });
     const exact = products.find(p => p.barcode === q || p.sku === q);

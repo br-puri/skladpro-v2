@@ -41,6 +41,13 @@
           <input name="sale_id" class="form-control" value="{{ prefill_sale['id'] if prefill_sale else '' }}" placeholder="Sale ID">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">VAT (%)</label>
+          <input name="tax_pct" id="tax-pct" type="number" min="0" max="100" step="0.1" class="form-control"
+            value="{{ prefill_sale['tax_pct']|int if prefill_sale else 20 }}" oninput="calcTotal()">
+        </div>
+      </div>
       <div class="form-group">
         <label class="form-label">Notes</label>
         <textarea name="notes" class="form-control" rows="2"></textarea>
@@ -101,8 +108,10 @@
             {% endif %}
           </tbody>
         </table>
-        <div style="text-align:right;margin-top:10px;font-size:15px;font-weight:700;padding-bottom:12px">
-          Total: £<span id="grand-total">0.00</span>
+        <div style="text-align:right;margin-top:10px;padding-bottom:12px;font-size:13px;color:#64748b">
+          <div>Subtotal: £<span id="subtotal">0.00</span></div>
+          <div>VAT: £<span id="vat-amount">0.00</span></div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;margin-top:4px">Total: £<span id="grand-total">0.00</span></div>
         </div>
       </div>
     </div>
@@ -154,9 +163,13 @@ function calcRow(input) {
 }
 
 function calcTotal() {
-  let total = 0;
-  document.querySelectorAll('.amount').forEach(el => total += parseFloat(el.textContent) || 0);
-  document.getElementById('grand-total').textContent = total.toFixed(2);
+  let subtotal = 0;
+  document.querySelectorAll('.amount').forEach(el => subtotal += parseFloat(el.textContent) || 0);
+  const taxPct = parseFloat(document.getElementById('tax-pct').value) || 0;
+  const vat = subtotal * taxPct / 100;
+  document.getElementById('subtotal').textContent = subtotal.toFixed(2);
+  document.getElementById('vat-amount').textContent = vat.toFixed(2);
+  document.getElementById('grand-total').textContent = (subtotal + vat).toFixed(2);
 }
 
 function fillCustomerName(sel) {

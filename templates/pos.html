@@ -1,0 +1,315 @@
+{% extends 'base.html' %}
+{% block title %}POS{% endblock %}
+{% block page_title %}Point of Sale{% endblock %}
+{% block content %}
+<div class="pos-wrap">
+  <div class="pos-products">
+    <input id="posSearch" class="form-control" placeholder="Search products by name or SKU…" autofocus>
+    <div class="pos-grid" id="posGrid">
+      {% for p in products %}
+      <div class="pos-card" data-id="{{ p.id }}" data-name="{{ p.name|lower }}" data-sku="{{ (p.sku or '')|lower }}"
+           data-price="{{ p.price }}" data-stock="{{ p.stock_qty }}" onclick="posAddToCart(this)">
+        <div class="pos-card-name">{{ p.name }}</div>
+        <div class="pos-card-meta">
+          <span class="pos-price">£{{ '%.2f'|format(p.price) }}</span>
+          <span class="pos-stock {{ 'low' if p.stock_qty <= p.min_stock else '' }}">{{ p.stock_qty|int }} {{ p.unit }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="pos-cart">
+    <div class="pos-cart-header">Cart</div>
+    <div id="posCartItems" class="pos-cart-items">
+      <div class="pos-empty">No items yet — click a product to add it.</div>
+    </div>
+    <div class="pos-totals">
+      <div class="pos-row"><span>Subtotal</span><span id="posSubtotal">£0.00</span></div>
+      <div class="pos-row">
+        <span>Tax</span>
+        <span><input id="posTaxPct" type="number" value="20" min="0" step="0.1" style="width:50px" onchange="posRecalc()">%</span>
+      </div>
+      <div class="pos-row pos-total"><span>Total</span><span id="posTotal">£0.00</span></div>
+    </div>
+
+    <div class="pos-customer">
+      <label class="form-label">Customer</label>
+      <div style="position:relative">
+        <input type="text" id="posCustomerSearch" class="form-control" autocomplete="off"
+               placeholder="Walk-in customer" value=""
+               oninput="posFilterCustomers()" onfocus="posFilterCustomers()">
+        <input type="hidden" id="posCustomerId" value="">
+        <div id="posCustomerDropdown" class="pos-cust-dropdown" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="pos-payment">
+      <label class="form-label">Payment</label>
+      <div class="pos-pay-tabs">
+        <button type="button" class="pos-pay-tab active" data-method="cash" onclick="posSetMethod('cash')">Cash</button>
+        <button type="button" class="pos-pay-tab" data-method="card" onclick="posSetMethod('card')">Card</button>
+        <button type="button" class="pos-pay-tab" data-method="split" onclick="posSetMethod('split')">Split</button>
+      </div>
+      <div id="posCashPanel" class="pos-pay-panel">
+        <label class="form-label">Amount tendered</label>
+        <input id="posTendered" type="number" step="0.01" class="form-control" oninput="posRecalc()">
+        <div class="pos-change">Change due: <strong id="posChange">£0.00</strong></div>
+      </div>
+      <div id="posCardPanel" class="pos-pay-panel" style="display:none">
+        <div style="font-size:12px;color:#64748b">Full amount charged to card.</div>
+      </div>
+      <div id="posSplitPanel" class="pos-pay-panel" style="display:none">
+        <label class="form-label">Cash amount</label>
+        <input id="posSplitCash" type="number" step="0.01" class="form-control" oninput="posRecalc()">
+        <label class="form-label" style="margin-top:8px">Card amount</label>
+        <input id="posSplitCard" type="number" step="0.01" class="form-control" oninput="posRecalc()">
+        <div class="pos-change" id="posSplitWarn"></div>
+      </div>
+    </div>
+
+    <button type="button" class="btn btn-primary pos-complete" onclick="posCheckout()">Complete Sale</button>
+  </div>
+</div>
+
+<form id="posForm" method="post" action="{{ url_for('pos_checkout') }}" data-default-wh="{{ default_wh_id or '' }}" style="display:none"></form>
+
+<style>
+.pos-wrap { display:flex; gap:20px; align-items:flex-start; }
+.pos-products { flex:1; min-width:0; }
+.pos-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-top:14px; max-height:calc(100vh - 180px); overflow-y:auto; padding-right:4px; }
+.pos-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px; cursor:pointer; transition:all .12s; }
+.pos-card:hover { border-color:#1a6ef5; box-shadow:0 2px 8px rgba(26,110,245,.15); }
+.pos-card-name { font-size:13px; font-weight:600; color:#1e293b; margin-bottom:8px; min-height:34px; }
+.pos-card-meta { display:flex; justify-content:space-between; align-items:center; font-size:12px; }
+.pos-price { font-weight:700; color:#1a6ef5; }
+.pos-stock { color:#64748b; }
+.pos-stock.low { color:#dc2626; font-weight:600; }
+.pos-cart { width:360px; flex-shrink:0; background:#fff; border-radius:10px; border:1px solid #e2e8f0; padding:18px; position:sticky; top:14px; }
+.pos-cart-header { font-size:15px; font-weight:700; margin-bottom:12px; }
+.pos-cart-items { max-height:260px; overflow-y:auto; margin-bottom:12px; }
+.pos-empty { color:#94a3b8; font-size:13px; text-align:center; padding:20px 0; }
+.pos-line { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }
+.pos-line-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pos-qty-btn { width:22px; height:22px; border:1px solid #d8dce3; background:#fff; border-radius:5px; cursor:pointer; font-size:14px; line-height:1; }
+.pos-qty-input { width:40px; text-align:center; border:1px solid #d8dce3; border-radius:5px; padding:3px 2px; font-size:13px; -moz-appearance:textfield; }
+.pos-line-total { width:60px; text-align:right; font-weight:600; }
+.pos-line-remove { color:#dc2626; cursor:pointer; font-size:16px; padding:0 2px; }
+.pos-totals { border-top:1px solid #e2e8f0; padding-top:10px; }
+.pos-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:#475569; }
+.pos-total { font-size:16px; font-weight:800; color:#1e293b; border-top:1px solid #e2e8f0; margin-top:6px; padding-top:8px; }
+.pos-customer, .pos-payment { margin-top:14px; }
+.pos-cust-dropdown { position:absolute; top:100%; left:0; right:0; z-index:50; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:220px; overflow-y:auto; margin-top:4px; }
+.pos-cust-opt { padding:9px 13px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+.pos-cust-opt:hover { background:#f8fafc; }
+.pos-cust-name { font-size:13px; font-weight:600; color:#1e293b; }
+.pos-cust-sub { font-size:11.5px; color:#94a3b8; margin-top:1px; }
+.pos-pay-tabs { display:flex; gap:6px; margin-top:6px; }
+.pos-pay-tab { flex:1; padding:7px; border:1px solid #d8dce3; background:#fff; border-radius:7px; cursor:pointer; font-size:12px; font-weight:600; color:#475569; }
+.pos-pay-tab.active { background:#1a6ef5; border-color:#1a6ef5; color:#fff; }
+.pos-pay-panel { margin-top:10px; }
+.pos-change { margin-top:8px; font-size:13px; color:#15803d; }
+.pos-complete { width:100%; margin-top:16px; padding:12px; font-size:14px; }
+@media (max-width:860px) { .pos-wrap { flex-direction:column; } .pos-cart { width:100%; position:static; } }
+</style>
+
+<script>
+let posCart = {};   // product_id -> {name, price, qty, stock}
+let posMethod = 'cash';
+
+const POS_CUSTOMERS = [
+  { id: '', label: 'Walk-in customer', name: 'Walk-in customer', company: '', phone: '' },
+  {% for c in customers %}
+  { id: '{{ c.id }}', label: {{ (c.company or c.name)|tojson }}, name: {{ c.name|tojson }},
+    company: {{ (c.company or '')|tojson }}, phone: {{ (c.phone or '')|tojson }} },
+  {% endfor %}
+];
+
+const posCustSearch = document.getElementById('posCustomerSearch');
+const posCustId = document.getElementById('posCustomerId');
+const posCustDropdown = document.getElementById('posCustomerDropdown');
+
+function posFilterCustomers() {
+  const q = posCustSearch.value.toLowerCase().trim();
+  const matches = POS_CUSTOMERS.filter(c =>
+    !q || c.label.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+       || c.company.toLowerCase().includes(q) || (c.phone || '').toLowerCase().includes(q)
+  ).slice(0, 40);
+  if (!matches.length) { posCustDropdown.style.display = 'none'; return; }
+  posCustDropdown.innerHTML = matches.map(c => {
+    const sub = c.phone || '';
+    return `<div class="pos-cust-opt" data-id="${c.id}" data-label="${c.label.replace(/"/g,'&quot;')}">
+      <div class="pos-cust-name">${c.label}</div>
+      ${sub ? `<div class="pos-cust-sub">${sub}</div>` : ''}
+    </div>`;
+  }).join('');
+  posCustDropdown.style.display = 'block';
+  posCustDropdown.querySelectorAll('.pos-cust-opt').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      posPickCustomer(el.dataset.label, el.dataset.id);
+    });
+  });
+}
+
+function posPickCustomer(label, id) {
+  posCustSearch.value = id ? label : '';
+  posCustId.value = id;
+  posCustDropdown.style.display = 'none';
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target !== posCustSearch && !posCustDropdown.contains(e.target)) {
+    posCustDropdown.style.display = 'none';
+  }
+});
+
+function posAddToCart(el) {
+  const id = el.dataset.id;
+  const stock = parseFloat(el.dataset.stock);
+  if (!posCart[id]) {
+    if (stock <= 0) { alert('Out of stock'); return; }
+    posCart[id] = { name: el.dataset.name, price: parseFloat(el.dataset.price), qty: 1, stock: stock };
+  } else {
+    if (posCart[id].qty + 1 > stock) { alert('Not enough stock'); return; }
+    posCart[id].qty += 1;
+  }
+  posRenderCart();
+}
+
+function posChangeQty(id, delta) {
+  if (!posCart[id]) return;
+  const newQty = posCart[id].qty + delta;
+  if (newQty <= 0) { delete posCart[id]; }
+  else if (newQty > posCart[id].stock) { alert('Not enough stock'); return; }
+  else { posCart[id].qty = newQty; }
+  posRenderCart();
+}
+
+function posSetQty(id, value) {
+  if (!posCart[id]) return;
+  const qty = parseFloat(value);
+  if (!qty || qty <= 0) { delete posCart[id]; posRenderCart(); return; }
+  if (qty > posCart[id].stock) {
+    alert('Not enough stock (have ' + posCart[id].stock + ')');
+    posRenderCart();
+    return;
+  }
+  posCart[id].qty = qty;
+  posRenderCart();
+}
+
+function posRemove(id) { delete posCart[id]; posRenderCart(); }
+
+function posRenderCart() {
+  const container = document.getElementById('posCartItems');
+  const ids = Object.keys(posCart);
+  if (ids.length === 0) {
+    container.innerHTML = '<div class="pos-empty">No items yet — click a product to add it.</div>';
+  } else {
+    container.innerHTML = ids.map(id => {
+      const item = posCart[id];
+      const lineTotal = (item.price * item.qty).toFixed(2);
+      return `<div class="pos-line">
+        <span class="pos-line-name">${item.name}</span>
+        <button type="button" class="pos-qty-btn" onclick="posChangeQty('${id}',-1)">−</button>
+        <input type="number" class="pos-qty-input" value="${item.qty}" min="0" step="any"
+               onchange="posSetQty('${id}', this.value)" onclick="this.select()">
+        <button type="button" class="pos-qty-btn" onclick="posChangeQty('${id}',1)">+</button>
+        <span class="pos-line-total">£${lineTotal}</span>
+        <span class="pos-line-remove" onclick="posRemove('${id}')">&times;</span>
+      </div>`;
+    }).join('');
+  }
+  posRecalc();
+}
+
+function posSubtotal() {
+  return Object.values(posCart).reduce((sum, i) => sum + i.price * i.qty, 0);
+}
+
+function posRecalc() {
+  const subtotal = posSubtotal();
+  const taxPct = parseFloat(document.getElementById('posTaxPct').value) || 0;
+  const total = subtotal + subtotal * taxPct / 100;
+  document.getElementById('posSubtotal').textContent = '£' + subtotal.toFixed(2);
+  document.getElementById('posTotal').textContent = '£' + total.toFixed(2);
+
+  const tendered = parseFloat(document.getElementById('posTendered').value) || 0;
+  document.getElementById('posChange').textContent = '£' + Math.max(0, tendered - total).toFixed(2);
+
+  const splitCash = parseFloat(document.getElementById('posSplitCash').value) || 0;
+  const splitCard = parseFloat(document.getElementById('posSplitCard').value) || 0;
+  const splitSum = splitCash + splitCard;
+  const warnEl = document.getElementById('posSplitWarn');
+  if ((splitCash > 0 || splitCard > 0) && Math.abs(splitSum - total) > 0.01) {
+    warnEl.textContent = `Split must total £${total.toFixed(2)} (currently £${splitSum.toFixed(2)})`;
+    warnEl.style.color = '#dc2626';
+  } else {
+    warnEl.textContent = '';
+  }
+}
+
+function posSetMethod(m) {
+  posMethod = m;
+  document.querySelectorAll('.pos-pay-tab').forEach(b => b.classList.toggle('active', b.dataset.method === m));
+  document.getElementById('posCashPanel').style.display = m === 'cash' ? '' : 'none';
+  document.getElementById('posCardPanel').style.display = m === 'card' ? '' : 'none';
+  document.getElementById('posSplitPanel').style.display = m === 'split' ? '' : 'none';
+  posRecalc();
+}
+
+document.getElementById('posSearch').addEventListener('input', function() {
+  const q = this.value.trim().toLowerCase();
+  document.querySelectorAll('.pos-card').forEach(card => {
+    const match = card.dataset.name.includes(q) || card.dataset.sku.includes(q);
+    card.style.display = match ? '' : 'none';
+  });
+});
+
+function posCheckout() {
+  const ids = Object.keys(posCart);
+  if (ids.length === 0) { alert('Cart is empty'); return; }
+  const subtotal = posSubtotal();
+  const taxPct = parseFloat(document.getElementById('posTaxPct').value) || 0;
+  const total = subtotal + subtotal * taxPct / 100;
+
+  let cashAmount = 0, cardAmount = 0, tendered = 0;
+  if (posMethod === 'cash') {
+    tendered = parseFloat(document.getElementById('posTendered').value) || 0;
+    if (tendered < total - 0.01) { alert('Amount tendered is less than the total'); return; }
+    cashAmount = total;
+  } else if (posMethod === 'card') {
+    cardAmount = total;
+  } else {
+    cashAmount = parseFloat(document.getElementById('posSplitCash').value) || 0;
+    cardAmount = parseFloat(document.getElementById('posSplitCard').value) || 0;
+    if (Math.abs(cashAmount + cardAmount - total) > 0.01) { alert('Split amounts must add up to the total'); return; }
+  }
+
+  const form = document.getElementById('posForm');
+  form.innerHTML = '';
+  const addField = (name, value) => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = name; inp.value = value;
+    form.appendChild(inp);
+  };
+  ids.forEach(id => {
+    addField('product_id[]', id);
+    addField('qty[]', posCart[id].qty);
+    addField('price[]', posCart[id].price);
+  });
+  addField('warehouse_id', form.dataset.defaultWh);
+  addField('tax_pct', taxPct);
+  addField('currency', 'GBP');
+  addField('customer_id', posCustId.value);
+  addField('customer', posCustId.value ? posCustSearch.value : 'Walk-in customer');
+  addField('cash_amount', cashAmount);
+  addField('card_amount', cardAmount);
+  addField('amount_tendered', tendered);
+  form.submit();
+}
+
+posSetMethod('cash');
+</script>
+{% endblock %}

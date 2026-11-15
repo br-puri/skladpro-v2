@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+// Apply the sidebar's collapsed state to <html> before the page paints, so a
+// reload doesn't flash full-width-then-snap-collapsed (the real #sidebar
+// element doesn't exist yet to apply the class to directly at this point —
+// see the matching html.sidebar-collapsed-init CSS rules below).
+if (localStorage.getItem('sidebarCollapsed') === '1') {
+  document.documentElement.classList.add('sidebar-collapsed-init');
+}
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NEON – {% block title %}{% endblock %}</title>
@@ -11,8 +20,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEON">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f4f6f9; color: #1a2332; min-height: 100vh; display: flex; -webkit-font-smoothing: antialiased; }
 
@@ -25,7 +36,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .logo-text { font-size: 19px; font-weight: 700; color: #fff; letter-spacing: 0.04em; transition: opacity 0.15s, width 0.22s; overflow: hidden; }
 .logo-text span { color: #e8bd4e; }
 .sidebar.collapsed .logo-text { opacity: 0; width: 0; }
-.sidebar-divider { height: 1px; background: rgba(255,255,255,.06); margin: 4px 0; }
+.sidebar-divider { height: 2px; background: #d6dfeb; margin: 8px 14px; border-radius: 1px; }
+.sidebar.collapsed .sidebar-divider { margin: 6px 10px; }
 .nav-section { padding: 2px 0; }
 .nav-label { font-size: 9.5px; color: #a8b7c9; padding: 14px 20px 6px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; white-space: nowrap; overflow: hidden; transition: opacity 0.15s; }
 .sidebar.collapsed .nav-label { opacity: 0; }
@@ -40,11 +52,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .sidebar.collapsed .nav-item { margin: 1px 8px; justify-content: center; padding: 8px 0; gap: 0; }
 .sidebar.collapsed .nav-label { height: 0; padding: 0; margin: 0; }
 .sidebar.collapsed .nav-item.active::before { display: none; }
-/* Tooltip on collapsed hover */
-.sidebar.collapsed .nav-item:hover::after {
-  content: attr(data-label);
+/* Tooltip on collapsed hover — a real DOM element (#navTooltip), shown/positioned by JS */
+#navTooltip {
+  display: none;
   position: fixed;
-  left: 60px;
   background: #1e293b;
   color: #fff;
   font-size: 12px;
@@ -56,6 +67,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
   z-index: 9999;
   box-shadow: 0 4px 12px rgba(0,0,0,.3);
 }
+#navTooltip.show { display: block; }
 /* Toggle button */
 .sidebar-toggle { margin-top: auto; padding: 8px 10px 12px; }
 .sidebar-toggle-btn {
@@ -82,6 +94,27 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 /* ── Main ── */
 .main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; transition: margin-left 0.22s ease; }
 .main.sidebar-collapsed { margin-left: 52px; }
+
+/* First-paint equivalents of the .collapsed rules above, driven by the early
+   <head> script (see top of file) instead of the later body script — avoids
+   a flash of the full-width sidebar on reload before JS can collapse it. */
+html.sidebar-collapsed-init .sidebar { width: 52px; }
+html.sidebar-collapsed-init .sidebar .logo-text { opacity: 0; width: 0; }
+html.sidebar-collapsed-init .sidebar .nav-label { opacity: 0; height: 0; padding: 0; margin: 0; }
+html.sidebar-collapsed-init .sidebar .nav-item .nav-text { opacity: 0; width: 0; overflow: hidden; }
+html.sidebar-collapsed-init .sidebar .nav-item { margin: 1px 8px; justify-content: center; padding: 8px 0; gap: 0; }
+html.sidebar-collapsed-init .sidebar .nav-item.active::before { display: none; }
+html.sidebar-collapsed-init .sidebar .sidebar-toggle-btn .toggle-icon { transform: rotate(180deg); }
+html.sidebar-collapsed-init .sidebar .sidebar-toggle-btn .toggle-label { opacity: 0; width: 0; overflow: hidden; }
+html.sidebar-collapsed-init .sidebar .logo {padding:18px 9px;gap:0;justify-content:center}
+html.sidebar-collapsed-init .sidebar .sidebar-toggle {padding:10px 7px}
+html.sidebar-collapsed-init .sidebar .sidebar-toggle-btn {padding:8px 0;gap:0}
+html.sidebar-collapsed-init .main { margin-left: 52px; }
+@media (max-width: 768px) {
+  /* On mobile the sidebar is off-canvas by default regardless of this state — don't apply desktop collapse styles */
+  html.sidebar-collapsed-init .sidebar { width: 260px; transform: translateX(-100%) !important; }
+  html.sidebar-collapsed-init .main { margin-left: 0; }
+}
 .topbar { background: #fff; border-bottom: 1px solid #eaecf0; padding: 0 24px; height: 54px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
 .topbar h1 { font-size: 15px; font-weight: 700; color: #1a2332; letter-spacing: -0.01em; }
 .topbar-actions { display: flex; gap: 8px; }
@@ -392,6 +425,7 @@ function initBulk(submitUrl, confirmMsg) {
     </a>
   </div>
 
+  <div class="sidebar-divider"></div>
   <div class="nav-section">
     <div class="nav-label">Inventory</div>
     <a href="{{ url_for('products') }}" data-label="Products" class="nav-item {% if request.endpoint in ['products','add_product','edit_product','delete_product'] %}active{% endif %}">
@@ -416,6 +450,7 @@ function initBulk(submitUrl, confirmMsg) {
     </a>
   </div>
 
+  <div class="sidebar-divider"></div>
   <div class="nav-section">
     <div class="nav-label">Warehouse</div>
     <a href="{{ url_for('warehouses') }}" data-label="Warehouses" class="nav-item {% if 'warehouse' in request.endpoint %}active{% endif %}">
@@ -428,6 +463,7 @@ function initBulk(submitUrl, confirmMsg) {
     </a>
   </div>
 
+  <div class="sidebar-divider"></div>
   <div class="nav-section">
     <div class="nav-label">Trade</div>
     <a href="{{ url_for('purchases') }}" data-label="Purchases" class="nav-item {% if 'purchase' in request.endpoint %}active{% endif %}">
@@ -441,6 +477,10 @@ function initBulk(submitUrl, confirmMsg) {
     <a href="{{ url_for('quotes') }}" data-label="Quotes" class="nav-item {% if 'quote' in request.endpoint %}active{% endif %}">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
       <span class="nav-text">Quotes</span>
+    </a>
+    <a href="{{ url_for('pos') }}" data-label="POS" class="nav-item {% if request.endpoint in ('pos','pos_checkout','pos_receipt') %}active{% endif %}">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="9" rx="1.5"/><path d="M2 6h12M5 9h2" stroke-linecap="round"/></svg>
+      <span class="nav-text">POS</span>
     </a>
     <a href="{{ url_for('sales') }}" data-label="Sales" class="nav-item {% if request.endpoint in ('sales','add_sale','view_sale','export_sale_pdf','export_sale_excel','cancel_sale') %}active{% endif %}">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8l2 2 4-4" stroke-linecap="round"/></svg>
@@ -460,18 +500,21 @@ function initBulk(submitUrl, confirmMsg) {
     </a>
   </div>
 
+  {% set _ctype = customer.type if (customer is defined and customer) else request.args.get('type', 'customer') %}
+  <div class="sidebar-divider"></div>
   <div class="nav-section">
     <div class="nav-label">Contacts</div>
-    <a href="{{ url_for('customers') }}?type=customer" data-label="Customers" class="nav-item {% if 'customer' in request.endpoint %}active{% endif %}">
+    <a href="{{ url_for('customers') }}?type=customer" data-label="Customers" class="nav-item {% if 'customer' in request.endpoint and _ctype != 'supplier' %}active{% endif %}">
       <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
       <span class="nav-text">Customers</span>
     </a>
-    <a href="{{ url_for('customers') }}?type=supplier" data-label="Suppliers" class="nav-item {% if request.endpoint == 'customers' and request.args.get('type')=='supplier' %}active{% endif %}">
+    <a href="{{ url_for('customers') }}?type=supplier" data-label="Suppliers" class="nav-item {% if 'customer' in request.endpoint and _ctype == 'supplier' %}active{% endif %}">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="4" width="14" height="9" rx="1.5"/><path d="M5 4V3a2 2 0 014 0v1"/><line x1="8" y1="8" x2="8" y2="11"/><line x1="6" y1="9.5" x2="10" y2="9.5"/></svg>
       <span class="nav-text">Suppliers</span>
     </a>
   </div>
 
+  <div class="sidebar-divider"></div>
   <div class="nav-section">
     <div class="nav-label">Finance</div>
     <a href="{{ url_for('finance') }}" data-label="Finance" class="nav-item {% if request.endpoint in ('finance','add_transaction','edit_transaction') %}active{% endif %}">
@@ -480,6 +523,7 @@ function initBulk(submitUrl, confirmMsg) {
     </a>
   </div>
 
+  <div class="sidebar-divider"></div>
   <div class="nav-section">
     <div class="nav-label">Analytics</div>
     <a href="{{ url_for('reports') }}" data-label="Reports" class="nav-item {% if 'report' in request.endpoint %}active{% endif %}">
@@ -521,6 +565,7 @@ function initBulk(submitUrl, confirmMsg) {
     </button>
   </div>
 </div>
+<div id="navTooltip"></div>
 
 <div class="mob-overlay" id="mobOverlay"></div>
 
@@ -605,6 +650,7 @@ function toggleSidebar() {
   const collapsed = sidebar.classList.toggle('collapsed');
   main.classList.toggle('sidebar-collapsed', collapsed);
   if (bulkBar) bulkBar.classList.toggle('sidebar-collapsed', collapsed);
+  document.documentElement.classList.toggle('sidebar-collapsed-init', collapsed);
   localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
 }
 
@@ -618,6 +664,36 @@ function toggleSidebar() {
     main.classList.add('sidebar-collapsed');
     if (bulkBar) bulkBar.classList.add('sidebar-collapsed');
   }
+})();
+
+// Tooltip for collapsed-sidebar nav icons — a real element, shown/positioned
+// directly by JS (not a CSS ::after, which has no reliable way to read the
+// hovered item's position when using position:fixed).
+(function() {
+  const sidebar = document.getElementById('sidebar');
+  const tooltip = document.getElementById('navTooltip');
+  if (!sidebar || !tooltip) return;
+
+  sidebar.addEventListener('mouseover', function(e) {
+    if (!sidebar.classList.contains('collapsed')) return;
+    const item = e.target.closest('.nav-item');
+    if (!item || !sidebar.contains(item)) return;
+    const label = item.getAttribute('data-label');
+    if (!label) return;
+    const rect = item.getBoundingClientRect();
+    tooltip.textContent = label;
+    tooltip.style.left = (rect.right + 8) + 'px';
+    tooltip.style.top = (rect.top + rect.height / 2) + 'px';
+    tooltip.style.transform = 'translateY(-50%)';
+    tooltip.classList.add('show');
+  });
+
+  sidebar.addEventListener('mouseout', function(e) {
+    const item = e.target.closest('.nav-item');
+    if (!item) return;
+    if (item.contains(e.relatedTarget)) return;
+    tooltip.classList.remove('show');
+  });
 })();
 </script>
 <script>

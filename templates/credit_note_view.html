@@ -2,6 +2,7 @@
 {% block title %}{{ cn['num'] }}{% endblock %}
 {% block page_title %}{{ cn['num'] }}{% endblock %}
 {% block topbar_actions %}
+  <a href="{{ url_for('export_credit_note_pdf', cnid=cn['id']) }}" class="btn">↓ Export PDF</a>
   {% if session.get('role')=='admin' and cn['status']=='draft' %}
   <form method="POST" action="{{ url_for('apply_credit_note', cnid=cn['id']) }}"
         onsubmit="return confirm('Apply this credit note? Stock will be restored and customer balance updated.')">
@@ -64,6 +65,16 @@
         {% endfor %}
         </tbody>
         <tfoot>
+          {% if cn.get('tax_pct') %}
+          <tr style="border-top:2px solid #e2e8f0">
+            <td colspan="3" style="padding:8px 16px;text-align:right;color:#64748b;font-size:12.5px">Subtotal</td>
+            <td style="padding:8px 20px;text-align:right;color:#64748b;font-size:12.5px">£{{ "{:,.2f}".format(cn['total'] - cn['tax_amount']) }}</td>
+          </tr>
+          <tr>
+            <td colspan="3" style="padding:4px 16px 8px;text-align:right;color:#64748b;font-size:12.5px">VAT ({{ cn['tax_pct']|int }}%)</td>
+            <td style="padding:4px 20px 8px;text-align:right;color:#64748b;font-size:12.5px">£{{ "{:,.2f}".format(cn['tax_amount']) }}</td>
+          </tr>
+          {% endif %}
           <tr style="border-top:2px solid #e2e8f0">
             <td colspan="3" style="padding:14px 16px;text-align:right;font-weight:700;font-size:14px">Total Credit</td>
             <td style="padding:14px 20px;text-align:right;font-weight:800;font-size:16px;color:#dc2626">£{{ "{:,.2f}".format(cn['total']) }}</td>

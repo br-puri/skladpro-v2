@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Receipt {{ sale['num'] }}{% endblock %}
+{% block page_title %}Receipt{% endblock %}
+{% block content %}
+{% set CURRENCY_SYM = {'GBP': '£', 'USD': '$', 'EUR': '€', 'PLN': 'zł'} %}
+{% set sym = CURRENCY_SYM.get(sale['currency'], '£') %}
+
+<div class="receipt-actions no-print">
+  <a href="{{ url_for('pos') }}" class="btn btn-primary">New Sale</a>
+  <button type="button" class="btn" onclick="window.print()">Print Receipt</button>
+</div>
+
+<div class="receipt">
+  <div class="receipt-header">
+    {% if co.get('co_logo') %}
+    <img src="{{ url_for('static', filename='uploads/' + co['co_logo']) }}" class="receipt-logo">
+    {% endif %}
+    <div class="receipt-company">{{ co.get('co_company') or co.get('co_name','') }}</div>
+    {% if co.get('co_address') %}<div class="receipt-addr">{{ co['co_address'] }}</div>{% endif %}
+    {% if co.get('co_phone') %}<div class="receipt-addr">{{ co['co_phone'] }}</div>{% endif %}
+  </div>
+
+  <div class="receipt-meta">
+    <div><span>Receipt</span><span>{{ sale['num'] }}</span></div>
+    <div><span>Date</span><span>{{ sale['doc_date'] }}</span></div>
+    <div><span>Customer</span><span>{{ sale['customer'] }}</span></div>
+  </div>
+
+  <table class="receipt-items">
+    <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it['product_name'] }}</td>
+        <td>{{ it['qty']|int if it['qty'] == it['qty']|int else it['qty'] }}</td>
+        <td>{{ sym }}{{ "%.2f"|format(it['price']) }}</td>
+        <td>{{ sym }}{{ "%.2f"|format(it['qty'] * it['price']) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="receipt-totals">
+    <div><span>Subtotal</span><span>{{ sym }}{{ "%.2f"|format(sale['subtotal']) }}</span></div>
+    <div><span>Tax ({{ sale['tax_pct']|int }}%)</span><span>{{ sym }}{{ "%.2f"|format(sale['tax_amount']) }}</span></div>
+    <div class="receipt-total-row"><span>Total</span><span>{{ sym }}{{ "%.2f"|format(sale['total']) }}</span></div>
+  </div>
+
+  <div class="receipt-payments">
+    {% for p in payments %}
+    <div><span>Paid ({{ p['method']|capitalize }})</span><span>{{ sym }}{{ "%.2f"|format(p['amount']) }}</span></div>
+    {% endfor %}
+    {% if tendered > 0 %}
+    <div><span>Tendered</span><span>{{ sym }}{{ "%.2f"|format(tendered) }}</span></div>
+    <div><span>Change</span><span>{{ sym }}{{ "%.2f"|format(change) }}</span></div>
+    {% endif %}
+  </div>
+
+  <div class="receipt-footer">Thank you!</div>
+</div>
+
+<style>
+.receipt-actions { display:flex; gap:10px; margin-bottom:20px; max-width:380px; }
+.receipt { max-width:380px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:24px; font-size:13px; color:#1e293b; }
+.receipt-header { text-align:center; margin-bottom:16px; }
+.receipt-logo { max-height:50px; margin-bottom:8px; }
+.receipt-company { font-weight:700; font-size:15px; }
+.receipt-addr { color:#64748b; font-size:11px; }
+.receipt-meta { border-top:1px dashed #cbd5e1; border-bottom:1px dashed #cbd5e1; padding:10px 0; margin-bottom:10px; }
+.receipt-meta div, .receipt-totals div, .receipt-payments div { display:flex; justify-content:space-between; padding:2px 0; }
+.receipt-meta span:first-child { color:#64748b; }
+.receipt-items { width:100%; border-collapse:collapse; margin-bottom:10px; }
+.receipt-items th { text-align:left; font-size:11px; color:#64748b; border-bottom:1px solid #e2e8f0; padding-bottom:4px; }
+.receipt-items td { padding:4px 0; border-bottom:1px solid #f1f5f9; }
+.receipt-items th:not(:first-child), .receipt-items td:not(:first-child) { text-align:right; }
+.receipt-totals { border-top:1px dashed #cbd5e1; padding-top:8px; margin-bottom:10px; }
+.receipt-total-row { font-weight:800; font-size:15px; border-top:1px solid #e2e8f0; margin-top:4px; padding-top:6px; }
+.receipt-payments { color:#15803d; }
+.receipt-footer { text-align:center; margin-top:16px; color:#94a3b8; font-size:12px; }
+@media print {
+  .no-print, .sidebar, .topbar { display:none !important; }
+  body { background:#fff; }
+  .receipt { border:none; box-shadow:none; max-width:100%; }
+}
+</style>
+{% endblock %}

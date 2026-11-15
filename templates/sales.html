@@ -45,6 +45,7 @@
 
 <!-- Filter bar -->
 <form class="filter-bar sl-filter-bar" method="get">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search invoice #…" class="form-control" style="width:168px">
   <select name="customer_id" class="form-control" style="width:200px">
     <option value="">All customers</option>
     {% for c in customers %}
@@ -54,7 +55,7 @@
   <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:148px">
   <input type="date" name="date_till" value="{{ date_till }}" class="form-control" style="width:148px">
   <button type="submit" class="btn btn-primary">Filter</button>
-  {% if date_from or date_till or customer_id %}
+  {% if date_from or date_till or customer_id or q %}
   <a href="{{ url_for('sales') }}" class="btn">Clear</a>
   {% endif %}
 </form>

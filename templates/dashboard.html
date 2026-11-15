@@ -165,13 +165,14 @@
           <stop offset="0%" stop-color="#315b83" stop-opacity="0.28"/>
           <stop offset="100%" stop-color="#315b83" stop-opacity="0"/>
         </linearGradient></defs>
-        <line x1="40" y1="40"  x2="640" y2="40"  stroke="#eef1f6" stroke-width="1"/>
-        <line x1="40" y1="90"  x2="640" y2="90"  stroke="#eef1f6" stroke-width="1"/>
-        <line x1="40" y1="140" x2="640" y2="140" stroke="#eef1f6" stroke-width="1"/>
-        <line x1="40" y1="190" x2="640" y2="190" stroke="#eef1f6" stroke-width="1"/>
+        <line x1="60" y1="40"  x2="640" y2="40"  stroke="#eef1f6" stroke-width="1"/>
+        <line x1="60" y1="90"  x2="640" y2="90"  stroke="#eef1f6" stroke-width="1"/>
+        <line x1="60" y1="140" x2="640" y2="140" stroke="#eef1f6" stroke-width="1"/>
+        <line x1="60" y1="190" x2="640" y2="190" stroke="#eef1f6" stroke-width="1"/>
+        <g id="trendYLabels" fill="#98a4b4" font-size="10" text-anchor="end"></g>
         <path id="trendArea" d="" fill="url(#areaFill)"/>
         <polyline id="trendLine" points="" fill="none" stroke="#315b83" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle id="trendDot" cx="0" cy="0" r="5" fill="#fff" stroke="#315b83" stroke-width="3" style="display:none"/>
+        <g id="trendDots"></g>
         <g id="trendLabels" fill="#98a4b4" font-size="11" text-anchor="middle"></g>
       </svg>
       {% else %}
@@ -292,6 +293,8 @@
   // ── Sales trend (pure SVG) ──
   const monthly = {{ monthly_sales | tojson }};
   if (monthly && monthly.length) {
+    // monthly_sales is already oldest→newest (app.py reverses the DESC SQL
+    // result before passing it in) — take the last 6, i.e. the most recent.
     const pts = monthly.slice(-6);
     const vals = pts.map(m => parseFloat(m.total || 0));
     const max = Math.max(...vals, 1);
@@ -302,20 +305,30 @@
     const coords = vals.map((v, i) => [X(i), Y(v)]);
     const line = document.getElementById('trendLine');
     const area = document.getElementById('trendArea');
-    const dot  = document.getElementById('trendDot');
     if (line) line.setAttribute('points', coords.map(c => c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' '));
     if (area) {
       const first = coords[0], last = coords[coords.length - 1];
       area.setAttribute('d', 'M' + coords.map(c => c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' L') +
                              ' L' + last[0].toFixed(1) + ',' + yBot + ' L' + first[0].toFixed(1) + ',' + yBot + ' Z');
     }
-    if (dot) { const l = coords[coords.length - 1]; dot.setAttribute('cx', l[0]); dot.setAttribute('cy', l[1]); dot.style.display = ''; }
+    const fmtGBP = v => '£' + Math.round(v).toLocaleString('en-GB');
+    const dotsG = document.getElementById('trendDots');
+    if (dotsG) dotsG.innerHTML = coords.map((c, i) => {
+      const d = new Date(pts[i].month + '-01');
+      const lbl = isNaN(d) ? pts[i].month : d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      return '<circle cx="' + c[0].toFixed(1) + '" cy="' + c[1].toFixed(1) + '" r="4.5" fill="#fff" stroke="#315b83" stroke-width="2.5">'
+           + '<title>' + lbl + ': ' + fmtGBP(vals[i]) + '</title></circle>';
+    }).join('');
     const labs = document.getElementById('trendLabels');
     if (labs) labs.innerHTML = pts.map((m, i) => {
       const d = new Date(m.month + '-01');
       const lbl = isNaN(d) ? m.month : d.toLocaleString('default', { month: 'short' });
       return '<text x="' + X(i).toFixed(1) + '" y="212">' + lbl + '</text>';
     }).join('');
+    const yLabs = document.getElementById('trendYLabels');
+    if (yLabs) yLabs.innerHTML = [[yBot, 0], [140, max / 3], [90, max * 2 / 3], [yTop, max]].map(([y, v]) =>
+      '<text x="52" y="' + (y + 4) + '">' + fmtGBP(v) + '</text>'
+    ).join('');
   }
 
   // ── Order-status donut (pure SVG) ──

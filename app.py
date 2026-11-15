@@ -2,6 +2,7 @@ import random
 import re
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 import json
 import io
 import os
@@ -22,14 +23,14 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'skladpro-secret-2026')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+# Pooled so requests reuse an existing connection instead of paying a fresh
+# TCP+TLS+auth round trip to the database on every request.
+_db_pool = psycopg2.pool.ThreadedConnectionPool(
+    1, 20, DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor
+) if DATABASE_URL else None
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'products')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'}
 
-import cloudinary
-import cloudinary.uploader
-_CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
-if _CLOUDINARY_URL:
-    cloudinary.config(cloudinary_url=_CLOUDINARY_URL)
 CHROME_PATH = os.environ.get('CHROME_PATH', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
 
 # One-time tokens for headless catalog rendering (no auth needed for the renderer)
@@ -86,11 +87,20 @@ def write_audit(response):
     return response
 
 
+_default_wh_cache = {'id': None, 'ts': 0}
+
 @app.context_processor
 def inject_defaults():
-    with get_db() as db:
-        wh = db.execute("SELECT id FROM warehouses WHERE LOWER(name) LIKE %s LIMIT 1", ('%brent%',)).fetchone()
-    return {'default_wh_id': wh['id'] if wh else None}
+    # This runs on every single request. Querying it fresh each time means every
+    # page load pays a DB round trip for a value that almost never changes —
+    # cache it and only refresh every few minutes.
+    now = time.time()
+    if now - _default_wh_cache['ts'] > 300:
+        with get_db() as db:
+            wh = db.execute("SELECT id FROM warehouses WHERE LOWER(name) LIKE %s LIMIT 1", ('%brent%',)).fetchone()
+        _default_wh_cache['id'] = wh['id'] if wh else None
+        _default_wh_cache['ts'] = now
+    return {'default_wh_id': _default_wh_cache['id']}
 
 
 @app.context_processor
@@ -118,15 +128,32 @@ def allowed_file(filename):
 
 class _Db:
     def __init__(self):
-        self._conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        # Neon closes idle connections server-side, so a pooled connection can be
+        # dead by the time we check it out. Ping it and discard+retry if so,
+        # rather than failing the request with "connection already closed".
+        last_err = None
+        for _ in range(3):
+            conn = _db_pool.getconn()
+            try:
+                conn.cursor().execute("SELECT 1")
+                self._conn = conn
+                return
+            except psycopg2.Error as e:
+                last_err = e
+                _db_pool.putconn(conn, close=True)
+        raise last_err
     def __enter__(self):
         return self
     def __exit__(self, exc, *_):
-        if exc:
-            self._conn.rollback()
-        else:
-            self._conn.commit()
-        self._conn.close()
+        try:
+            if exc:
+                self._conn.rollback()
+            else:
+                self._conn.commit()
+        except psycopg2.Error:
+            _db_pool.putconn(self._conn, close=True)
+            return
+        _db_pool.putconn(self._conn)
     def execute(self, sql, params=None):
         cur = self._conn.cursor()
         cur.execute(sql, params or ())
@@ -395,6 +422,18 @@ def init_db():
             db.rollback()
         try:
             db.execute("ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS product_name_snap TEXT DEFAULT ''")
+        except Exception:
+            db.rollback()
+        try:
+            db.execute("ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS cost REAL DEFAULT 0")
+        except Exception:
+            db.rollback()
+        try:
+            db.execute("ALTER TABLE credit_notes ADD COLUMN IF NOT EXISTS tax_pct REAL DEFAULT 0")
+        except Exception:
+            db.rollback()
+        try:
+            db.execute("ALTER TABLE credit_notes ADD COLUMN IF NOT EXISTS tax_amount REAL DEFAULT 0")
         except Exception:
             db.rollback()
         for col in ["photo TEXT DEFAULT ''", 'length REAL DEFAULT 0', 'width REAL DEFAULT 0',
@@ -826,15 +865,17 @@ def settings_page():
 @app.route('/')
 def dashboard():
     with get_db() as db:
-        products = db.execute("SELECT * FROM products").fetchall()
+        products = db.execute("""
+            SELECT p.*, COALESCE(st.qty, 0) AS stock_qty
+            FROM products p
+            LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
+                   ON st.product_id = p.id
+        """).fetchall()
         warehouses = db.execute("SELECT * FROM warehouses").fetchall()
         sales = db.execute("SELECT * FROM sales ORDER BY doc_date DESC LIMIT 8").fetchall()
         transactions = db.execute("SELECT * FROM transactions").fetchall()
-        stock_totals = {r['product_id']: r['qty'] for r in db.execute(
-            "SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id").fetchall()}
+        stock_totals = {p['id']: p['stock_qty'] for p in products}
         stock_value = sum(stock_totals.get(p['id'], 0) * p['cost'] for p in products)
-        completed_revenue = db.execute("SELECT COALESCE(SUM(total),0) AS s FROM sales WHERE status='completed'").fetchone()['s']
-        pending_sales = db.execute("SELECT COUNT(*) AS n FROM sales WHERE status='pending'").fetchone()['n']
         low_stock = []
         for p in products:
             qty = stock_totals.get(p['id'], 0)
@@ -858,6 +899,8 @@ def dashboard():
             SELECT status, COUNT(*) as cnt, COALESCE(SUM(total),0) as total
             FROM sales GROUP BY status
         """).fetchall()
+        completed_revenue = next((r['total'] for r in status_counts if r['status'] == 'completed'), 0)
+        pending_sales = next((r['cnt'] for r in status_counts if r['status'] == 'pending'), 0)
         outstanding_row = db.execute("""
             SELECT COALESCE(SUM(GREATEST(s.total - COALESCE(ip.paid_sum,0), 0)),0) AS amt,
                    COUNT(*) AS cnt
@@ -1048,6 +1091,7 @@ def catalog_pdf_download():
     s_toc_name    = ps('tc_nm', fontSize=11, fontName='Helvetica-Bold', textColor=DARK, leading=14, letterSpacing=0.5)
 
     s_cat_banner  = ps('ct_b',  fontSize=24, fontName='Helvetica-Bold', textColor=DARK, leading=29, letterSpacing=1.2)
+    s_sub_banner  = ps('sb_b',  fontSize=12, fontName='Helvetica-Bold', textColor=SLATE, leading=15, letterSpacing=0.8)
     s_sub_head    = ps('sb_h',  fontSize=10, fontName='Helvetica-Bold', textColor=DARK, leading=13, keepWithNext=True, letterSpacing=0.6)
     s_subsub_head = ps('ss_h',  fontSize=8,  fontName='Helvetica-Bold', textColor=SLATE, leading=11, letterSpacing=0.8, leftIndent=0, keepWithNext=True)
     s_prod_name   = ps('pd_n',  fontSize=10, fontName='Helvetica-Bold', textColor=DARK, leading=12, letterSpacing=0.4)
@@ -1249,6 +1293,19 @@ def catalog_pdf_download():
         banner.keepWithNext = True
         return banner
 
+    def _subcategory_banner(sub_name):
+        """Thin secondary banner marking a subcategory change within a category."""
+        p = Paragraph(escape(sub_name), s_sub_banner)
+        banner = Table([[p]], colWidths=[UW])
+        banner.setStyle(TableStyle([
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 1*mm),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2*mm),
+            ('LINEBELOW', (0,0), (-1,-1), 0.75, LINE),
+        ]))
+        return banner
+
     def _product_card(p, name_height=None):
         """Vertical product card: image panel on top, name, then CODE / CARTON
         spec row. Fixed row heights keep every card the same size for a clean grid."""
@@ -1354,28 +1411,46 @@ def catalog_pdf_download():
                 ('TOPPADDING',   (0,0), (-1,-1), 0),
                 ('BOTTOMPADDING',(0,0), (-1,-1), 0),
             ]))
-            flows.append(KeepTogether([row]))
-            flows.append(Spacer(1, GUT))
+            flows.append(row)
         return flows
 
-    # Six products on every full product page, even across category boundaries.
-    # Card breadcrumbs retain the hierarchy without wasting half a page.
+    # Walk the (already category→subcategory sorted) product list, splitting
+    # it into contiguous (category, subcategory) groups. Each group gets its
+    # own rows; a page break is forced only at a category change — within a
+    # category, subcategory groups (and any row that doesn't fit) flow onto
+    # the next page naturally via ReportLab's own layout, so content never
+    # silently overflows off a fixed-size chunk the way manual pagination did.
     ordered = [p for cat in categories for p in products
                if (p.get('category') or 'Uncategorised') == cat]
+    groups = []
+    i = 0
+    while i < len(ordered):
+        cat = ordered[i].get('category') or 'Uncategorised'
+        sub = ordered[i].get('subcategory') or ''
+        items = []
+        while i < len(ordered) and (ordered[i].get('category') or 'Uncategorised') == cat \
+                and (ordered[i].get('subcategory') or '') == sub:
+            items.append(ordered[i])
+            i += 1
+        groups.append((cat, sub, items))
+
     seen_categories = set()
-    for offset in range(0, len(ordered), 6):
-        if offset:
-            story.append(PageBreak())
-        page_products = ordered[offset:offset + 6]
-        page_categories = list(dict.fromkeys(p.get('category') or 'Uncategorised' for p in page_products))
-        title = page_categories[0] if len(page_categories) == 1 else 'The collection'
-        banner = _category_banner(title)
-        banner._toc_entries = [escape(cat) for cat in page_categories if cat not in seen_categories]
-        seen_categories.update(page_categories)
-        story.append(banner)
-        story.append(Spacer(1, 4*mm))
-        for flowable in _grid(page_products):
-            story.append(flowable)
+    last_cat = None
+    for cat, sub, items in groups:
+        if cat != last_cat:
+            if last_cat is not None:
+                story.append(PageBreak())
+            banner = _category_banner(cat)
+            banner._toc_entries = [escape(cat)] if cat not in seen_categories else []
+            seen_categories.add(cat)
+            story.append(banner)
+            story.append(Spacer(1, 4*mm))
+            last_cat = cat
+        for idx, row in enumerate(_grid(items)):
+            # Bind the subcategory heading to its first row so it can't be stranded at a page bottom.
+            block = [_subcategory_banner(sub), row] if (idx == 0 and sub) else [row]
+            story.append(KeepTogether(block))
+            story.append(Spacer(1, GUT))
 
     # multiBuild does two passes so TOC page numbers resolve correctly
     doc.title = 'NEON Trade Catalogue' if b2b else 'NEON Product Catalogue'
@@ -1628,12 +1703,24 @@ def _encode_product_image(img):
     return buf, extension
 
 
+PRODUCT_IMAGE_MAX = 1200
+
+def _bound_product_image(img, max_size=PRODUCT_IMAGE_MAX):
+    """Bound the image to max_size on its longer side, keeping its natural
+    aspect ratio — no padding, no forced square. (Previously this padded
+    onto a white square canvas, but that baked permanent white bars into any
+    photo that wasn't already close to square, e.g. wide product lineups.)"""
+    fitted = img.copy()
+    if max(fitted.size) > max_size:
+        from PIL import Image
+        fitted.thumbnail((max_size, max_size), Image.LANCZOS)
+    return fitted
+
+
 def _encode_product_upload(img):
-    """Bound upload dimensions and keep the smallest transparency-safe encoding."""
-    from PIL import Image
-    img.thumbnail((1200, 1200), Image.LANCZOS)
+    """Bound to a max size preserving aspect ratio, then keep the smallest encoding."""
+    img = _bound_product_image(img)
     baseline, extension = _encode_product_image(img)
-    # WebP supports an alpha channel; do not flatten transparent cutouts.
     compact = io.BytesIO()
     img.save(compact, 'WEBP', quality=82, method=4)
     if compact.tell() < baseline.getbuffer().nbytes:
@@ -1647,10 +1734,6 @@ def _save_photo(file):
         from PIL import Image
         img = _prepare_product_image(Image.open(file.stream))
         buf, extension = _encode_product_upload(img)
-        if _CLOUDINARY_URL:
-            result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
-            return result['secure_url']
-        # local fallback (dev only — Render filesystem is ephemeral)
         filename = f"{uuid.uuid4().hex}.{extension}"
         with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
             f.write(buf.read())
@@ -1660,16 +1743,13 @@ def _save_photo(file):
 
 def _save_photo_bytes(data):
     """Save raw image bytes (e.g. an image embedded in a spreadsheet) as a product
-    photo. Returns a Cloudinary URL / local filename, or None on failure."""
+    photo. Returns the local filename, or None on failure."""
     if not data:
         return None
     try:
         from PIL import Image
         img = _prepare_product_image(Image.open(io.BytesIO(data)))
         buf, extension = _encode_product_upload(img)
-        if _CLOUDINARY_URL:
-            result = cloudinary.uploader.upload(buf, folder='skladpro/products', resource_type='image')
-            return result['secure_url']
         filename = f"{uuid.uuid4().hex}.{extension}"
         with open(os.path.join(UPLOAD_FOLDER, filename), 'wb') as f:
             f.write(buf.read())
@@ -2253,11 +2333,12 @@ def delete_inventory_count(cid):
 @app.route('/warehouses')
 def warehouses():
     with get_db() as db:
-        result = []
-        for w in db.execute("SELECT * FROM warehouses").fetchall():
-            val = db.execute("SELECT COALESCE(SUM(s.qty*p.cost),0) AS s FROM stock s JOIN products p ON p.id=s.product_id WHERE s.warehouse_id=%s", (w['id'],)).fetchone()['s']
-            count = db.execute("SELECT COUNT(*) AS n FROM stock WHERE warehouse_id=%s AND qty>0", (w['id'],)).fetchone()['n']
-            result.append({'wh': w, 'value': val, 'product_count': count})
+        whs = db.execute("SELECT * FROM warehouses").fetchall()
+        val_map = {r['warehouse_id']: r['s'] for r in db.execute(
+            "SELECT s.warehouse_id, COALESCE(SUM(s.qty*p.cost),0) AS s FROM stock s JOIN products p ON p.id=s.product_id GROUP BY s.warehouse_id").fetchall()}
+        count_map = {r['warehouse_id']: r['n'] for r in db.execute(
+            "SELECT warehouse_id, COUNT(*) AS n FROM stock WHERE qty>0 GROUP BY warehouse_id").fetchall()}
+        result = [{'wh': w, 'value': val_map.get(w['id'], 0), 'product_count': count_map.get(w['id'], 0)} for w in whs]
     return render_template('warehouses.html', warehouses=result)
 
 
@@ -2306,19 +2387,23 @@ def customers():
             base += " AND type=%s"
             params.append(ctype)
         contacts = db.execute(base + " ORDER BY name", params).fetchall()
+        outstanding_rows = db.execute(
+            """SELECT s.customer_id, s.customer,
+                      GREATEST(s.total - COALESCE(ip.paid_sum, 0), 0) AS amt
+               FROM sales s
+               LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
+                      ON ip.sale_id = s.id
+               WHERE s.paid=0 AND s.archived=0 AND s.status='completed'"""
+        ).fetchall()
+        by_id, by_name = {}, {}
+        for r in outstanding_rows:
+            if r['customer_id'] is not None:
+                by_id[r['customer_id']] = by_id.get(r['customer_id'], 0) + r['amt']
+            else:
+                by_name[r['customer']] = by_name.get(r['customer'], 0) + r['amt']
         rows = []
         for c in contacts:
-            outstanding = db.execute(
-                """SELECT COALESCE(SUM(
-                        GREATEST(s.total - COALESCE(ip.paid_sum, 0), 0)
-                   ),0) AS s
-                   FROM sales s
-                   LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
-                          ON ip.sale_id = s.id
-                   WHERE (s.customer_id=%s OR (s.customer_id IS NULL AND s.customer=%s))
-                     AND s.paid=0 AND s.archived=0 AND s.status='completed'""",
-                (c['id'], c['name'])
-            ).fetchone()['s']
+            outstanding = by_id.get(c['id'], 0) + by_name.get(c['name'], 0)
             rows.append({'contact': dict(c), 'outstanding': outstanding})
     return render_template('customers.html', customers=rows, q=q, ctype=ctype)
 
@@ -2483,8 +2568,14 @@ def delete_customer(cid):
     with get_db() as db:
         row = db.execute("SELECT type FROM contacts WHERE id=%s", (cid,)).fetchone()
         ctype = row['type'] if row else 'customer'
-        db.execute("DELETE FROM contacts WHERE id=%s", (cid,))
-        db.commit()
+        try:
+            db.execute("DELETE FROM contacts WHERE id=%s", (cid,))
+            db.commit()
+        except psycopg2.IntegrityError:
+            db.rollback()
+            label = 'Supplier' if ctype == 'supplier' else 'Customer'
+            flash(f'{label} cannot be deleted — they have sales, purchases, quotes or credit notes on record.', 'error')
+            return redirect(url_for('view_customer', cid=cid))
     if ctype == 'supplier':
         flash('Supplier deleted', 'success')
         return redirect(url_for('customers', type='supplier'))
@@ -3012,6 +3103,7 @@ def sales():
     date_till = request.args.get('date_till', '')
     customer_id = request.args.get('customer_id', '')
     status_filter = request.args.get('status', '')
+    q = request.args.get('q', '').strip()
     with get_db() as db:
         params = []
         where = "WHERE s.archived=0"
@@ -3027,6 +3119,9 @@ def sales():
         if status_filter:
             where += " AND s.status = %s"
             params.append(status_filter)
+        if q:
+            where += " AND s.num ILIKE %s"
+            params.append(f'%{q}%')
         rows = [dict(r) for r in db.execute(f"""
             SELECT s.*, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name) as customer,
                    COALESCE(ip.paid_sum, 0) AS paid_amount
@@ -3046,7 +3141,7 @@ def sales():
             "SELECT id, COALESCE(NULLIF(company,''), name) as label FROM contacts WHERE type='customer' ORDER BY label"
         ).fetchall()
     return render_template('sales.html', sales=rows, date_from=date_from, date_till=date_till,
-                           customer_id=customer_id, customers=customers, status_filter=status_filter)
+                           customer_id=customer_id, customers=customers, status_filter=status_filter, q=q)
 
 
 @app.route('/sales/archive')
@@ -3089,10 +3184,11 @@ def add_sale():
                  delivery_charge, delivery_method,
                  request.form.get('currency','GBP'), 'completed', request.form.get('notes','')))
             sale_id = cur.fetchone()['id']
+            cost_by_id = {p['id']: p.get('cost') or 0 for p in products}
             for pid, wid, qty, price, disc in zip(pids, wids, qtys, prices, disc_pcts):
                 if pid and float(qty) > 0:
-                    db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct) VALUES(%s,%s,%s,%s,%s,%s)",
-                        (sale_id, int(pid), int(wid), float(qty), float(price), float(disc)))
+                    db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct,cost) VALUES(%s,%s,%s,%s,%s,%s,%s)",
+                        (sale_id, int(pid), int(wid), float(qty), float(price), float(disc), cost_by_id.get(int(pid), 0)))
                     db.execute("UPDATE stock SET qty=qty-%s WHERE product_id=%s AND warehouse_id=%s", (float(qty), int(pid), int(wid)))
             if customer_id:
                 db.execute('INSERT INTO contact_history(contact_id,event_date,event_type,"desc") VALUES(%s,%s,\'sale\',%s)',
@@ -3101,6 +3197,122 @@ def add_sale():
             flash(f'Sale {num} created', 'success')
             return redirect(url_for('sales'))
     return render_template('sale_form.html', customers=customers, warehouses=warehouses, products=products, discounts=discounts, today=date.today().isoformat())
+
+
+# ── POS (quick checkout) ────────────────────────────────────────────────────
+
+@app.route('/pos')
+@admin_required
+def pos():
+    with get_db() as db:
+        products = db.execute("""
+            SELECT p.*, COALESCE(st.qty, 0) AS stock_qty
+            FROM products p
+            LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
+                   ON st.product_id = p.id
+            ORDER BY p.name
+        """).fetchall()
+        customers = db.execute("SELECT id, name, company, phone FROM contacts WHERE type='customer' ORDER BY name").fetchall()
+    return render_template('pos.html', products=[dict(p) for p in products], customers=customers)
+
+
+@app.route('/pos/checkout', methods=['POST'])
+@admin_required
+def pos_checkout():
+    pids = request.form.getlist('product_id[]')
+    qtys = request.form.getlist('qty[]')
+    prices = request.form.getlist('price[]')
+    if not pids:
+        flash('Cart is empty', 'error')
+        return redirect(url_for('pos'))
+
+    with get_db() as db:
+        wh_id = request.form.get('warehouse_id', type=int)
+        if not wh_id:
+            wh_row = db.execute("SELECT id FROM warehouses ORDER BY id LIMIT 1").fetchone()
+            if not wh_row:
+                flash('No warehouse configured', 'error')
+                return redirect(url_for('pos'))
+            wh_id = wh_row['id']
+
+        # Stock availability check — POS sales must not oversell.
+        insufficient = []
+        for pid, qty in zip(pids, qtys):
+            qty = float(qty)
+            avail = db.execute("SELECT COALESCE(SUM(qty),0) AS q FROM stock WHERE product_id=%s AND warehouse_id=%s",
+                                (int(pid), wh_id)).fetchone()['q']
+            if qty > avail:
+                p = db.execute("SELECT name FROM products WHERE id=%s", (int(pid),)).fetchone()
+                insufficient.append(f"{p['name'] if p else pid} (have {avail:g}, need {qty:g})")
+        if insufficient:
+            flash('Not enough stock: ' + '; '.join(insufficient), 'error')
+            return redirect(url_for('pos'))
+
+        subtotal = sum(float(q) * float(pr) for q, pr in zip(qtys, prices))
+        tax_pct = float(request.form.get('tax_pct') or 0)
+        tax_amount = subtotal * tax_pct / 100
+        total = subtotal + tax_amount
+        currency = request.form.get('currency', 'GBP')
+        customer_id = request.form.get('customer_id') or None
+        customer = request.form.get('customer') or 'Walk-in customer'
+        now = datetime.now().strftime('%Y-%m-%d')
+        num = next_num('INV', 'sales')
+
+        cur = db.execute(
+            "INSERT INTO sales(num,doc_date,customer,customer_id,subtotal,total,discount,tax_pct,tax_amount,currency,status,notes) "
+            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            (num, now, customer, customer_id, subtotal, total, 0, tax_pct, tax_amount, currency, 'completed', 'POS sale'))
+        sale_id = cur.fetchone()['id']
+
+        cost_by_id = {r['id']: r['cost'] or 0 for r in db.execute(
+            "SELECT id, cost FROM products WHERE id = ANY(%s)", ([int(pid) for pid in pids],)).fetchall()}
+        for pid, qty, price in zip(pids, qtys, prices):
+            db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct,cost) VALUES(%s,%s,%s,%s,%s,%s,%s)",
+                       (sale_id, int(pid), wh_id, float(qty), float(price), 0, cost_by_id.get(int(pid), 0)))
+            db.execute("UPDATE stock SET qty=qty-%s WHERE product_id=%s AND warehouse_id=%s", (float(qty), int(pid), wh_id))
+
+        cash_amount = float(request.form.get('cash_amount') or 0)
+        card_amount = float(request.form.get('card_amount') or 0)
+        for method, amt in (('cash', cash_amount), ('card', card_amount)):
+            if amt > 0:
+                db.execute(
+                    "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
+                    (sale_id, now, amt, method, 'POS sale', datetime.utcnow().isoformat()))
+                db.execute(
+                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                    (now, 'income', method, f'POS sale {num}', amt, currency, customer_id, customer, num))
+        paid_total = cash_amount + card_amount
+        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= total - 0.01 else 0, sale_id))
+
+        if customer_id:
+            db.execute('INSERT INTO contact_history(contact_id,event_date,event_type,"desc") VALUES(%s,%s,\'sale\',%s)',
+                       (customer_id, now, f'POS Sale {num} — £{total:,.2f}'))
+        db.commit()
+
+    tendered = float(request.form.get('amount_tendered') or 0)
+    change = max(0, tendered - total) if cash_amount > 0 and card_amount == 0 else 0
+    return redirect(url_for('pos_receipt', sid=sale_id, tendered=f'{tendered:.2f}', change=f'{change:.2f}'))
+
+
+@app.route('/pos/receipt/<int:sid>')
+@admin_required
+def pos_receipt(sid):
+    with get_db() as db:
+        sale = db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone()
+        if not sale:
+            flash('Sale not found', 'error')
+            return redirect(url_for('pos'))
+        items = db.execute("""
+            SELECT si.*, p.name AS product_name, p.unit
+            FROM sale_items si JOIN products p ON p.id = si.product_id
+            WHERE si.sale_id=%s
+        """, (sid,)).fetchall()
+        payments = db.execute("SELECT * FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchall()
+        co = get_settings()
+    tendered = request.args.get('tendered', type=float) or 0
+    change = request.args.get('change', type=float) or 0
+    return render_template('pos_receipt.html', sale=sale, items=items, payments=payments, co=co,
+                            tendered=tendered, change=change)
 
 
 @app.route('/customers/<int:cid>/last-prices')
@@ -3189,10 +3401,11 @@ def edit_sale(sid):
                  delivery_charge, delivery_method,
                  request.form.get('currency', 'GBP'), request.form.get('notes', ''), sid))
             db.execute("DELETE FROM sale_items WHERE sale_id=%s", (sid,))
+            cost_by_id = {p['id']: p.get('cost') or 0 for p in products}
             for pid, wid, qty, price, disc in zip(pids, wids, qtys, prices, disc_pcts):
                 if pid and float(qty) > 0:
-                    db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct) VALUES(%s,%s,%s,%s,%s,%s)",
-                        (sid, int(pid), int(wid), float(qty), float(price), float(disc)))
+                    db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct,cost) VALUES(%s,%s,%s,%s,%s,%s,%s)",
+                        (sid, int(pid), int(wid), float(qty), float(price), float(disc), cost_by_id.get(int(pid), 0)))
                     db.execute("UPDATE stock SET qty=qty-%s WHERE product_id=%s AND warehouse_id=%s", (float(qty), int(pid), int(wid)))
             db.commit()
             flash(f'Sale {sale["num"]} updated', 'success')
@@ -3882,9 +4095,12 @@ def convert_quote(qid):
             (num, date.today().isoformat(), q['customer'], q['customer_id'], q['subtotal'], q['total'],
              q['discount'], q['tax_pct'], q['tax_amount'], q['currency'], 'completed', f'Converted from {q["num"]}'))
         sale_id = cur.fetchone()['id']
+        cost_by_id = {r['id']: r['cost'] or 0 for r in db.execute(
+            "SELECT id, cost FROM products WHERE id = ANY(%s)", ([item['product_id'] for item in items],)).fetchall()}
         for item in items:
-            db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct) VALUES(%s,%s,%s,%s,%s,%s)",
-                (sale_id, item['product_id'], item['warehouse_id'], item['qty'], item['price'], item['discount_pct']))
+            db.execute("INSERT INTO sale_items(sale_id,product_id,warehouse_id,qty,price,discount_pct,cost) VALUES(%s,%s,%s,%s,%s,%s,%s)",
+                (sale_id, item['product_id'], item['warehouse_id'], item['qty'], item['price'], item['discount_pct'],
+                 cost_by_id.get(item['product_id'], 0)))
             db.execute("UPDATE stock SET qty=qty-%s WHERE product_id=%s AND warehouse_id=%s", (item['qty'], item['product_id'], item['warehouse_id']))
         db.execute("UPDATE quotes SET status='accepted' WHERE id=%s", (qid,))
         db.commit()
@@ -4153,7 +4369,7 @@ def report_sales():
     date_from, date_to = request.args.get('from', ''), request.args.get('to', '')
     with get_db() as db:
         q = """SELECT s.num, s.doc_date, s.customer, si.product_id, si.qty, si.price, si.discount_pct,
-               p.name as product_name, p.cost FROM sales s
+               p.name as product_name, COALESCE(NULLIF(si.cost,0),p.cost,0) as cost FROM sales s
                JOIN sale_items si ON si.sale_id=s.id JOIN products p ON p.id=si.product_id
                WHERE s.status='completed'"""
         params = []
@@ -4200,17 +4416,20 @@ def report_stock():
         else:
             products = db.execute("SELECT * FROM products ORDER BY category, name").fetchall()
         warehouses = db.execute("SELECT * FROM warehouses").fetchall()
+        stock_map = {(r['product_id'], r['warehouse_id']): r['qty']
+                     for r in db.execute("SELECT product_id, warehouse_id, qty FROM stock").fetchall()}
+        sold_map = {r['product_id']: r['s'] for r in db.execute(
+            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM sale_items GROUP BY product_id").fetchall()}
         rows, total_value = [], 0
         for p in products:
             stock_by_wh, total = {}, 0
             for w in warehouses:
-                r = db.execute("SELECT qty FROM stock WHERE product_id=%s AND warehouse_id=%s", (p['id'], w['id'])).fetchone()
-                q = r['qty'] if r else 0
+                q = stock_map.get((p['id'], w['id']), 0)
                 stock_by_wh[w['id']] = q
                 total += q
             value = total * (p['cost'] or 0)
             total_value += value
-            sold = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM sale_items WHERE product_id=%s", (p['id'],)).fetchone()['s']
+            sold = sold_map.get(p['id'], 0)
             rows.append({'product': p, 'stock': stock_by_wh, 'total': total, 'value': value, 'sold': sold})
     return render_template('report_stock.html', rows=rows, warehouses=warehouses,
                            total_value=total_value, categories=categories, cat_filter=cat_filter)
@@ -4221,6 +4440,8 @@ def report_stock_by_category():
     with get_db() as db:
         warehouses = db.execute("SELECT * FROM warehouses ORDER BY name").fetchall()
         products   = db.execute("SELECT * FROM products ORDER BY category, subcategory, name").fetchall()
+        stock_map = {(r['product_id'], r['warehouse_id']): r['qty']
+                     for r in db.execute("SELECT product_id, warehouse_id, qty FROM stock").fetchall()}
 
         categories = {}
         grand_qty, grand_value = 0, 0
@@ -4232,11 +4453,7 @@ def report_stock_by_category():
 
             stock_by_wh, total_qty = {}, 0
             for w in warehouses:
-                r = db.execute(
-                    "SELECT qty FROM stock WHERE product_id=%s AND warehouse_id=%s",
-                    (p['id'], w['id'])
-                ).fetchone()
-                q = r['qty'] if r else 0
+                q = stock_map.get((p['id'], w['id']), 0)
                 stock_by_wh[w['id']] = q
                 total_qty += q
 
@@ -4257,12 +4474,21 @@ def report_stock_by_category():
 @app.route('/reports/turnover')
 def report_turnover():
     with get_db() as db:
+        products = db.execute("SELECT * FROM products ORDER BY name").fetchall()
+        in_map = {r['product_id']: r['s'] for r in db.execute(
+            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM purchase_items GROUP BY product_id").fetchall()}
+        out_map = {r['product_id']: r['s'] for r in db.execute(
+            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM sale_items GROUP BY product_id").fetchall()}
+        wo_map = {r['product_id']: r['s'] for r in db.execute(
+            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM writeoff_items GROUP BY product_id").fetchall()}
+        curr_map = {r['product_id']: r['s'] for r in db.execute(
+            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM stock GROUP BY product_id").fetchall()}
         rows = []
-        for p in db.execute("SELECT * FROM products ORDER BY name").fetchall():
-            in_qty = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM purchase_items WHERE product_id=%s", (p['id'],)).fetchone()['s']
-            out_qty = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM sale_items WHERE product_id=%s", (p['id'],)).fetchone()['s']
-            wo_qty = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM writeoff_items WHERE product_id=%s", (p['id'],)).fetchone()['s']
-            curr = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM stock WHERE product_id=%s", (p['id'],)).fetchone()['s']
+        for p in products:
+            in_qty = in_map.get(p['id'], 0)
+            out_qty = out_map.get(p['id'], 0)
+            wo_qty = wo_map.get(p['id'], 0)
+            curr = curr_map.get(p['id'], 0)
             rows.append({'name': p['name'], 'sku': p['sku'], 'unit': p['unit'],
                          'in': in_qty, 'out': out_qty, 'writeoff': wo_qty, 'stock': curr,
                          'turnover': round(out_qty / max(curr, 1), 2)})
@@ -4280,7 +4506,7 @@ def report_profit():
         ).fetchall()]
         q = """SELECT s.doc_date, s.num, s.customer,
                COALESCE(SUM(si.qty*si.price*(1-COALESCE(si.discount_pct,0)/100)), 0) as revenue,
-               COALESCE(SUM(si.qty*COALESCE(p.cost,0)), 0) as cost
+               COALESCE(SUM(si.qty*COALESCE(NULLIF(si.cost,0),p.cost,0)), 0) as cost
                FROM sales s JOIN sale_items si ON si.sale_id=s.id
                JOIN products p ON p.id=si.product_id WHERE s.status='completed'"""
         params = []
@@ -4375,9 +4601,11 @@ def report_cashflow():
 def report_low_stock():
     with get_db() as db:
         products = db.execute("SELECT * FROM products WHERE min_stock > 0 ORDER BY name").fetchall()
+        stock_map = {r['product_id']: r['s'] for r in db.execute(
+            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM stock GROUP BY product_id").fetchall()}
         rows = []
         for p in products:
-            total = db.execute("SELECT COALESCE(SUM(qty),0) AS s FROM stock WHERE product_id=%s", (p['id'],)).fetchone()['s']
+            total = stock_map.get(p['id'], 0)
             if total <= p['min_stock']:
                 short = max(0, p['min_stock'] - total)
                 rows.append({'product': dict(p), 'stock': total, 'shortage': short})
@@ -4391,7 +4619,7 @@ def report_top_customers():
     with get_db() as db:
         q = """SELECT s.id, s.customer, s.total, s.paid,
                COALESCE(SUM(si.qty*si.price*(1-si.discount_pct/100)), 0) as gross_revenue,
-               COALESCE(SUM(si.qty*p.cost), 0) as cogs
+               COALESCE(SUM(si.qty*COALESCE(NULLIF(si.cost,0),p.cost,0)), 0) as cogs
                FROM sales s
                LEFT JOIN sale_items si ON si.sale_id=s.id
                LEFT JOIN products p ON p.id=si.product_id
@@ -4486,15 +4714,18 @@ def add_credit_note():
             qtys   = request.form.getlist('qty[]')
             prices = request.form.getlist('price[]')
             items_data = [(int(p), float(q), float(pr)) for p, q, pr in zip(pids, qtys, prices) if p and float(q) > 0]
-            total = sum(q * pr for _, q, pr in items_data)
+            subtotal = sum(q * pr for _, q, pr in items_data)
+            tax_pct = float(request.form.get('tax_pct') or 0)
+            tax_amount = subtotal * tax_pct / 100
+            total = subtotal + tax_amount
             num = next_num('CN', 'credit_notes')
             wid = request.form.get('warehouse_id') or None
             customer_id = request.form.get('customer_id') or None
             cur = db.execute(
-                "INSERT INTO credit_notes(num,doc_date,sale_id,customer,customer_id,warehouse_id,total,status,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s) RETURNING id",
+                "INSERT INTO credit_notes(num,doc_date,sale_id,customer,customer_id,warehouse_id,total,tax_pct,tax_amount,status,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s) RETURNING id",
                 (num, request.form['doc_date'],
                  request.form.get('sale_id') or None,
-                 request.form['customer'], customer_id, wid, total,
+                 request.form['customer'], customer_id, wid, total, tax_pct, tax_amount,
                  request.form.get('notes', ''),
                  datetime.utcnow().isoformat()))
             cn_id = cur.fetchone()['id']
@@ -4523,6 +4754,23 @@ def view_credit_note(cnid):
             LEFT JOIN products p ON p.id=cni.product_id
             WHERE cni.credit_note_id=%s""", (cnid,)).fetchall()
     return render_template('credit_note_view.html', cn=cn, items=items, co=get_settings())
+
+
+@app.route('/credit-notes/<int:cnid>/export/pdf')
+def export_credit_note_pdf(cnid):
+    with get_db() as db:
+        cn = dict(db.execute("SELECT * FROM credit_notes WHERE id=%s", (cnid,)).fetchone())
+        items = [dict(r) for r in db.execute(
+            "SELECT cni.*, p.unit FROM credit_note_items cni LEFT JOIN products p ON p.id=cni.product_id WHERE cni.credit_note_id=%s",
+            (cnid,)).fetchall()]
+        customer = None
+        if cn.get('customer_id'):
+            row = db.execute("SELECT * FROM contacts WHERE id=%s", (cn['customer_id'],)).fetchone()
+            if row:
+                customer = dict(row)
+    company = get_settings()
+    return send_file(io.BytesIO(generate_invoice_pdf(cn, items, customer, company, doc_title='CREDIT NOTE')),
+                      mimetype='application/pdf', download_name=f"CreditNote-{cn['num']}.pdf", as_attachment=True)
 
 
 @app.route('/credit-notes/<int:cnid>/apply', methods=['POST'])
@@ -4904,16 +5152,20 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         sale['doc_date'] = invoice_date.fromisoformat(str(sale.get('doc_date'))[:10]).strftime('%d %b %Y')
     except (TypeError, ValueError):
         pass
-    paid_badge = 'PAID' if sale.get('paid') else 'UNPAID'
-    paid_color = '#1a8a4a' if sale.get('paid') else '#c0392b'
+    if doc_title == 'CREDIT NOTE':
+        status_badge = str(sale.get('status') or 'draft').upper()
+        status_color = '#1a8a4a' if status_badge == 'APPLIED' else '#c0392b'
+    else:
+        status_badge = 'PAID' if sale.get('paid') else 'UNPAID'
+        status_color = '#1a8a4a' if sale.get('paid') else '#c0392b'
 
     meta_table = Table([
-        [Paragraph('<font color="#888888" size="7">INVOICE NUMBER</font>', label_s),
+        [Paragraph(f'<font color="#888888" size="7">{doc_title} NUMBER</font>', label_s),
          Paragraph(f"<b>{sale['num']}</b>", normal_r)],
         [Paragraph('<font color="#888888" size="7">DATE</font>', label_s),
          Paragraph(str(sale.get('doc_date') or ''), normal_r)],
         [Paragraph('<font color="#888888" size="7">STATUS</font>', label_s),
-         Paragraph(f"<font color='{paid_color}'><b>{paid_badge}</b></font>", normal_r)],
+         Paragraph(f"<font color='{status_color}'><b>{status_badge}</b></font>", normal_r)],
     ], colWidths=[30*mm, 40*mm])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
@@ -5018,7 +5270,7 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         data.append(total_row('Delivery', f"{sym}{sale['delivery_charge']:,.2f}"))
     if sale.get('tax_pct', 0):
         data.append(total_row(f"VAT ({sale['tax_pct']:g}%)", f"{sym}{sale['tax_amount']:,.2f}"))
-    data.append(total_row('QUOTE TOTAL' if doc_title == 'QUOTE' else 'INVOICE TOTAL', f"{sym}{sale['total']:,.2f}", bold=True))
+    data.append(total_row(f"{doc_title} TOTAL", f"{sym}{sale['total']:,.2f}", bold=True))
     if has_ctns:
         total_c = sum(i['qty'] / i['carton_qty'] for i in items if (i.get('carton_qty') or 0) > 0)
         data.append(total_row('Total CTNs', f"{total_c:g}"))
@@ -5050,17 +5302,19 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         elements.append(Paragraph(f"<b>Notes:</b> {sale['notes']}", small_m))
 
     # ── FOOTER: bank details + barcode ────────────────────────────────────────
+    # A credit note isn't a payment request, so it has no bank/payment-reference block.
     bank_parts = []
-    if co.get('co_bank_name'):      bank_parts.append(('Bank', co['co_bank_name']))
-    if co.get('co_sort_code'):      bank_parts.append(('Sort Code', co['co_sort_code']))
-    if co.get('co_account_number'): bank_parts.append(('Account No', co['co_account_number']))
+    if doc_title != 'CREDIT NOTE':
+        if co.get('co_bank_name'):      bank_parts.append(('Bank', co['co_bank_name']))
+        if co.get('co_sort_code'):      bank_parts.append(('Sort Code', co['co_sort_code']))
+        if co.get('co_account_number'): bank_parts.append(('Account No', co['co_account_number']))
 
     elements.append(Spacer(1, 8*mm))
     elements.append(HRFlowable(width='100%', thickness=0.5, color=ACCENT2))
     elements.append(Spacer(1, 3*mm))
 
     bc = code128.Code128(sale['num'], barHeight=10*mm, barWidth=0.85, humanReadable=True, fontSize=7)
-    bc_label = Paragraph('<font color="#888888" size="7">INVOICE REF</font>', label_s)
+    bc_label = Paragraph(f'<font color="#888888" size="7">{doc_title} REF</font>', label_s)
 
     if bank_parts:
         elements.append(Paragraph('BANK DETAILS', label_s))
@@ -6016,6 +6270,23 @@ def _payment_reminder_worker():
 
 if os.environ.get('ENABLE_PAYMENT_REMINDERS', '1') == '1':
     threading.Thread(target=_payment_reminder_worker, daemon=True).start()
+
+
+def _db_keepalive_worker():
+    """Background daemon thread — pings the DB pool periodically so Neon's
+    idle-connection close and compute auto-suspend never trigger during normal
+    use, keeping request latency off the connection-recovery path."""
+    while True:
+        time.sleep(180)
+        try:
+            with get_db() as db:
+                db.execute("SELECT 1")
+        except Exception as e:
+            app.logger.error(f'_db_keepalive_worker: {e}')
+
+
+if DATABASE_URL:
+    threading.Thread(target=_db_keepalive_worker, daemon=True).start()
 
 
 if __name__ == '__main__':
