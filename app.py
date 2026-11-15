@@ -14,6 +14,7 @@ import time
 import uuid
 from email.message import EmailMessage
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 import threading
 from functools import wraps
 from werkzeug.utils import secure_filename
@@ -126,24 +127,37 @@ def allowed_file(filename):
 
 # ── DB helpers ───────────────────────────────────────────────────────────────
 
+_CONN_LOST = (psycopg2.OperationalError, psycopg2.InterfaceError)
+_batch_type_cache = {}   # batch() SQL texts -> per-query {column: converter}
+
+
 class _Db:
+    """One request's database session.
+
+    Every round trip to Neon costs ~100ms, so this avoids the ones that do no
+    work: reads run in autocommit mode (no BEGIN/COMMIT trips), and the
+    connection is switched into a normal transaction at the first write, so
+    everything from the first write to commit stays atomic as before. Instead
+    of pinging a pooled connection up front, a connection that turns out to be
+    dead on the first statement is discarded and the statement retried on a
+    fresh one -- safe because nothing has run on it yet.
+    """
     def __init__(self):
-        # Neon closes idle connections server-side, so a pooled connection can be
-        # dead by the time we check it out. Ping it and discard+retry if so,
-        # rather than failing the request with "connection already closed".
-        last_err = None
-        for _ in range(3):
+        self._conn = self._checkout()
+        self._used = False
+
+    @staticmethod
+    def _checkout():
+        conn = _db_pool.getconn()
+        if conn.closed:
+            _db_pool.putconn(conn, close=True)
             conn = _db_pool.getconn()
-            try:
-                conn.cursor().execute("SELECT 1")
-                self._conn = conn
-                return
-            except psycopg2.Error as e:
-                last_err = e
-                _db_pool.putconn(conn, close=True)
-        raise last_err
+        conn.autocommit = True
+        return conn
+
     def __enter__(self):
         return self
+
     def __exit__(self, exc, *_):
         try:
             if exc:
@@ -154,12 +168,79 @@ class _Db:
             _db_pool.putconn(self._conn, close=True)
             return
         _db_pool.putconn(self._conn)
+
     def execute(self, sql, params=None):
-        cur = self._conn.cursor()
-        cur.execute(sql, params or ())
-        return cur
+        is_read = sql.lstrip()[:6].upper() == 'SELECT'
+        for attempt in range(3):
+            if not is_read and self._conn.autocommit:
+                self._conn.autocommit = False   # first write: open a transaction
+            try:
+                cur = self._conn.cursor()
+                cur.execute(sql, params or ())
+                self._used = True
+                return cur
+            except _CONN_LOST:
+                if self._used or not self._conn.closed or attempt == 2:
+                    raise
+                _db_pool.putconn(self._conn, close=True)
+                self._conn = self._checkout()
+
+    def batch(self, *queries):
+        """Run several read-only SELECTs in ONE round trip; returns one list of
+        row dicts per query, in order. Each query is either an SQL string or a
+        (sql, params) pair. Rows travel back as JSON; JSON writes a whole-number
+        REAL as 20 rather than 20.0, so the result column types are looked up
+        once per distinct batch (cached) and those values converted back, giving
+        exactly what separate execute() calls would return."""
+        parts = []
+        for q in queries:
+            sql, params = (q, None) if isinstance(q, str) else q
+            parts.append((sql, list(params or ())))
+        has_params = any(p for _, p in parts)
+        sqls, all_params = [], []
+        for sql, params in parts:
+            # literal % must be escaped once any query brings params
+            sqls.append(sql.replace('%', '%%') if has_params and not params else sql)
+            all_params += params
+        key = tuple(sqls)
+        convs = _batch_type_cache.get(key)
+        if convs is None:
+            convs = self._batch_column_types(sqls, all_params)
+            _batch_type_cache[key] = convs
+        cols = ", ".join(f"(SELECT COALESCE(json_agg(_q{i}), '[]'::json) FROM ({sql}) _q{i}) AS r{i}"
+                         for i, sql in enumerate(sqls))
+        row = self.execute("SELECT " + cols, all_params).fetchone()
+        out = []
+        for i, conv in enumerate(convs):
+            rows = row[f'r{i}']
+            if conv:
+                for r in rows:
+                    for name, fn in conv.items():
+                        v = r.get(name)
+                        if v is not None:
+                            r[name] = fn(v)
+            out.append(rows)
+        return out
+
+    def _batch_column_types(self, sqls, params):
+        """{column: converter} per query for float/numeric result columns.
+        LIMIT 0 means no subquery actually runs; only the column types come back."""
+        sel = ", ".join(f'NULL AS "__batch_sep_{i}", _q{i}.*' for i in range(len(sqls)))
+        frm = ", ".join(f"({sql}) _q{i}" for i, sql in enumerate(sqls))
+        cur = self.execute(f"SELECT {sel} FROM {frm} LIMIT 0", params)
+        convs = []
+        for col in cur.description:
+            if col.name.startswith('__batch_sep_'):
+                convs.append({})
+            elif col.type_code in (700, 701):          # real, double precision
+                convs[-1][col.name] = float
+            elif col.type_code == 1700:                # numeric
+                convs[-1][col.name] = lambda v: Decimal(str(v))
+        return convs
+
     def commit(self):
         self._conn.commit()
+
     def rollback(self):
         self._conn.rollback()
 
@@ -865,15 +946,35 @@ def settings_page():
 @app.route('/')
 def dashboard():
     with get_db() as db:
-        products = db.execute("""
-            SELECT p.*, COALESCE(st.qty, 0) AS stock_qty
-            FROM products p
-            LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
-                   ON st.product_id = p.id
-        """).fetchall()
-        warehouses = db.execute("SELECT * FROM warehouses").fetchall()
-        sales = db.execute("SELECT * FROM sales ORDER BY doc_date DESC LIMIT 8").fetchall()
-        transactions = db.execute("SELECT * FROM transactions").fetchall()
+        (products, warehouses, sales, cash, monthly, top_products,
+         status_counts, outstanding_rows) = db.batch(
+            """SELECT p.id, p.name, p.unit, p.cost, p.min_stock, COALESCE(st.qty, 0) AS stock_qty
+               FROM products p
+               LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
+                      ON st.product_id = p.id""",
+            "SELECT id FROM warehouses",
+            "SELECT * FROM sales ORDER BY doc_date DESC LIMIT 8",
+            """SELECT COALESCE(SUM(amount) FILTER (WHERE type='income'), 0)  AS income,
+                      COALESCE(SUM(amount) FILTER (WHERE type='expense'), 0) AS expenses
+               FROM transactions""",
+            """SELECT to_char(doc_date::date, 'YYYY-MM') as month,
+                      SUM(total) as total, COUNT(*) as count
+               FROM sales WHERE status='completed'
+               GROUP BY month ORDER BY month DESC LIMIT 12""",
+            """SELECT p.name, SUM(si.qty * si.price) as revenue, SUM(si.qty) as units
+               FROM sale_items si
+               JOIN products p ON p.id = si.product_id
+               JOIN sales s ON s.id = si.sale_id
+               WHERE s.status = 'completed'
+               GROUP BY si.product_id, p.name ORDER BY revenue DESC LIMIT 6""",
+            """SELECT status, COUNT(*) as cnt, COALESCE(SUM(total),0) as total
+               FROM sales GROUP BY status""",
+            """SELECT COALESCE(SUM(GREATEST(s.total - COALESCE(ip.paid_sum,0), 0)),0) AS amt,
+                      COUNT(*) AS cnt
+               FROM sales s
+               LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
+                      ON ip.sale_id = s.id
+               WHERE s.paid=0 AND s.archived=0 AND s.status='completed'""")
         stock_totals = {p['id']: p['stock_qty'] for p in products}
         stock_value = sum(stock_totals.get(p['id'], 0) * p['cost'] for p in products)
         low_stock = []
@@ -881,34 +982,10 @@ def dashboard():
             qty = stock_totals.get(p['id'], 0)
             if qty <= p['min_stock']:
                 low_stock.append({'name': p['name'], 'qty': qty, 'min_stock': p['min_stock'], 'unit': p['unit']})
-        income = sum(t['amount'] for t in transactions if t['type'] == 'income')
-        expenses = sum(t['amount'] for t in transactions if t['type'] == 'expense')
-        monthly = db.execute("""SELECT to_char(doc_date::date, 'YYYY-MM') as month,
-            SUM(total) as total, COUNT(*) as count
-            FROM sales WHERE status='completed'
-            GROUP BY month ORDER BY month DESC LIMIT 12""").fetchall()
-        top_products = db.execute("""
-            SELECT p.name, SUM(si.qty * si.price) as revenue, SUM(si.qty) as units
-            FROM sale_items si
-            JOIN products p ON p.id = si.product_id
-            JOIN sales s ON s.id = si.sale_id
-            WHERE s.status = 'completed'
-            GROUP BY si.product_id, p.name ORDER BY revenue DESC LIMIT 6
-        """).fetchall()
-        status_counts = db.execute("""
-            SELECT status, COUNT(*) as cnt, COALESCE(SUM(total),0) as total
-            FROM sales GROUP BY status
-        """).fetchall()
+        income, expenses = cash[0]['income'], cash[0]['expenses']
         completed_revenue = next((r['total'] for r in status_counts if r['status'] == 'completed'), 0)
         pending_sales = next((r['cnt'] for r in status_counts if r['status'] == 'pending'), 0)
-        outstanding_row = db.execute("""
-            SELECT COALESCE(SUM(GREATEST(s.total - COALESCE(ip.paid_sum,0), 0)),0) AS amt,
-                   COUNT(*) AS cnt
-            FROM sales s
-            LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
-                   ON ip.sale_id = s.id
-            WHERE s.paid=0 AND s.archived=0 AND s.status='completed'
-        """).fetchone()
+        outstanding_row = outstanding_rows[0]
         outstanding = outstanding_row['amt']
         unpaid_count = outstanding_row['cnt']
     return render_template('dashboard.html',
@@ -945,14 +1022,15 @@ def products():
         if subsubcat:
             base += " AND subsubcategory=%s"
             params.append(subsubcat)
-        rows = db.execute(base + " ORDER BY name", params).fetchall()
-        warehouses = db.execute("SELECT * FROM warehouses").fetchall()
-        categories = [dict(r) for r in db.execute("SELECT DISTINCT category FROM products WHERE category!='' ORDER BY category").fetchall()]
-        subcategories = [dict(r) for r in db.execute("SELECT DISTINCT category, subcategory FROM products WHERE subcategory!='' ORDER BY subcategory").fetchall()]
-        # Full category tree (all depths) for cascading Category → Sub → Sub-sub pickers
-        cat_tree = [dict(r) for r in db.execute("SELECT id, name, parent_id FROM categories ORDER BY name").fetchall()]
-        stock_lookup = {(r['product_id'], r['warehouse_id']): r['qty']
-                        for r in db.execute("SELECT product_id, warehouse_id, qty FROM stock").fetchall()}
+        # Full category tree (all depths) feeds the cascading Category → Sub → Sub-sub pickers
+        rows, warehouses, categories, subcategories, cat_tree, stock_rows = db.batch(
+            (base + " ORDER BY name", params),
+            "SELECT * FROM warehouses",
+            "SELECT DISTINCT category FROM products WHERE category!='' ORDER BY category",
+            "SELECT DISTINCT category, subcategory FROM products WHERE subcategory!='' ORDER BY subcategory",
+            "SELECT id, name, parent_id FROM categories ORDER BY name",
+            "SELECT product_id, warehouse_id, qty FROM stock")
+        stock_lookup = {(r['product_id'], r['warehouse_id']): r['qty'] for r in stock_rows}
         result = []
         for p in rows:
             stock_by_wh, total = {}, 0
@@ -973,15 +1051,19 @@ def product_catalog():
         if ids:
             id_list = [int(i) for i in ids.split(',') if i.strip().isdigit()]
             placeholders = ','.join(['%s'] * len(id_list))
-            rows = db.execute(f"SELECT * FROM products WHERE id IN ({placeholders})", id_list).fetchall()
+            prod_q = (f"SELECT * FROM products WHERE id IN ({placeholders})", id_list)
         else:
-            rows = db.execute("SELECT * FROM products WHERE in_catalog=1").fetchall()
-        # stock totals per product
-        stock_rows = db.execute("SELECT product_id, SUM(qty) AS total FROM stock GROUP BY product_id").fetchall()
+            prod_q = "SELECT * FROM products WHERE in_catalog=1"
+        rows, stock_rows, cat_rows, sub_rows, prod_rows = db.batch(
+            prod_q,
+            "SELECT product_id, SUM(qty) AS total FROM stock GROUP BY product_id",
+            "SELECT category, sort_order FROM catalog_category_order",
+            "SELECT category, subcategory, sort_order FROM catalog_subcategory_order",
+            "SELECT product_id, sort_order FROM catalog_product_order")
         stock_map = {r['product_id']: r['total'] for r in stock_rows}
-        cat_order = {r['category']: r['sort_order'] for r in db.execute("SELECT category, sort_order FROM catalog_category_order").fetchall()}
-        sub_order = {(r['category'], r['subcategory']): r['sort_order'] for r in db.execute("SELECT category, subcategory, sort_order FROM catalog_subcategory_order").fetchall()}
-        prod_order = {r['product_id']: r['sort_order'] for r in db.execute("SELECT product_id, sort_order FROM catalog_product_order").fetchall()}
+        cat_order = {r['category']: r['sort_order'] for r in cat_rows}
+        sub_order = {(r['category'], r['subcategory']): r['sort_order'] for r in sub_rows}
+        prod_order = {r['product_id']: r['sort_order'] for r in prod_rows}
     # Build flat products list, sort by category/subcategory/product custom order
     products = [dict(p) for p in rows]
     for p in products:
@@ -1007,11 +1089,15 @@ def product_catalog():
 def _catalog_data():
     """Shared helper: return products, categories, co, now for catalog."""
     with get_db() as db:
-        rows = db.execute("SELECT * FROM products WHERE in_catalog=1").fetchall()
-        stock_rows = db.execute("SELECT product_id, SUM(qty) AS total FROM stock GROUP BY product_id").fetchall()
-        cat_order = {r['category']: r['sort_order'] for r in db.execute("SELECT category, sort_order FROM catalog_category_order").fetchall()}
-        sub_order = {(r['category'], r['subcategory']): r['sort_order'] for r in db.execute("SELECT category, subcategory, sort_order FROM catalog_subcategory_order").fetchall()}
-        prod_order = {r['product_id']: r['sort_order'] for r in db.execute("SELECT product_id, sort_order FROM catalog_product_order").fetchall()}
+        rows, stock_rows, cat_rows, sub_rows, prod_rows = db.batch(
+            "SELECT * FROM products WHERE in_catalog=1",
+            "SELECT product_id, SUM(qty) AS total FROM stock GROUP BY product_id",
+            "SELECT category, sort_order FROM catalog_category_order",
+            "SELECT category, subcategory, sort_order FROM catalog_subcategory_order",
+            "SELECT product_id, sort_order FROM catalog_product_order")
+        cat_order = {r['category']: r['sort_order'] for r in cat_rows}
+        sub_order = {(r['category'], r['subcategory']): r['sort_order'] for r in sub_rows}
+        prod_order = {r['product_id']: r['sort_order'] for r in prod_rows}
     stock_map = {r['product_id']: r['total'] for r in stock_rows}
     products = [dict(p) for p in rows]
     for p in products:
@@ -2386,15 +2472,14 @@ def customers():
         if ctype:
             base += " AND type=%s"
             params.append(ctype)
-        contacts = db.execute(base + " ORDER BY name", params).fetchall()
-        outstanding_rows = db.execute(
+        contacts, outstanding_rows = db.batch(
+            (base + " ORDER BY name", params),
             """SELECT s.customer_id, s.customer,
                       GREATEST(s.total - COALESCE(ip.paid_sum, 0), 0) AS amt
                FROM sales s
                LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
                       ON ip.sale_id = s.id
-               WHERE s.paid=0 AND s.archived=0 AND s.status='completed'"""
-        ).fetchall()
+               WHERE s.paid=0 AND s.archived=0 AND s.status='completed'""")
         by_id, by_name = {}, {}
         for r in outstanding_rows:
             if r['customer_id'] is not None:
@@ -3122,24 +3207,21 @@ def sales():
         if q:
             where += " AND s.num ILIKE %s"
             params.append(f'%{q}%')
-        rows = [dict(r) for r in db.execute(f"""
-            SELECT s.*, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name) as customer,
-                   COALESCE(ip.paid_sum, 0) AS paid_amount
-            FROM sales s
-            LEFT JOIN contacts c ON c.id=s.customer_id
-            LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
-                   ON ip.sale_id = s.id
-            {where} ORDER BY s.doc_date DESC
-        """, params).fetchall()]
+        rows, customers = db.batch(
+            (f"""SELECT s.*, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name) as customer,
+                       COALESCE(ip.paid_sum, 0) AS paid_amount
+                FROM sales s
+                LEFT JOIN contacts c ON c.id=s.customer_id
+                LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
+                       ON ip.sale_id = s.id
+                {where} ORDER BY s.doc_date DESC""", params),
+            "SELECT id, COALESCE(NULLIF(company,''), name) as label FROM contacts WHERE type='customer' ORDER BY label")
         # Real outstanding per invoice: 0 if flagged paid, else total - payments received (floored at 0)
         for r in rows:
             if r.get('paid'):
                 r['outstanding'] = 0
             else:
                 r['outstanding'] = max(0, (r['total'] or 0) - (r['paid_amount'] or 0))
-        customers = db.execute(
-            "SELECT id, COALESCE(NULLIF(company,''), name) as label FROM contacts WHERE type='customer' ORDER BY label"
-        ).fetchall()
     return render_template('sales.html', sales=rows, date_from=date_from, date_till=date_till,
                            customer_id=customer_id, customers=customers, status_filter=status_filter, q=q)
 
@@ -3159,10 +3241,14 @@ def sales_archive():
 @admin_required
 def add_sale():
     with get_db() as db:
-        customers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY name").fetchall()]
-        warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
-        products = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
-        discounts = db.execute("SELECT * FROM discounts WHERE active=1").fetchall()
+        customers, warehouses, products, discounts = db.batch(
+            "SELECT * FROM contacts WHERE type='customer' ORDER BY name",
+            "SELECT * FROM warehouses",
+            """SELECT p.*, COALESCE(st.qty, 0) AS stock_total FROM products p
+               LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
+                      ON st.product_id = p.id
+               ORDER BY p.name""",
+            "SELECT * FROM discounts WHERE active=1")
         if request.method == 'POST':
             pids = request.form.getlist('product_id[]')
             wids = request.form.getlist('warehouse_id[]')
@@ -3205,15 +3291,14 @@ def add_sale():
 @admin_required
 def pos():
     with get_db() as db:
-        products = db.execute("""
-            SELECT p.*, COALESCE(st.qty, 0) AS stock_qty
-            FROM products p
-            LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
-                   ON st.product_id = p.id
-            ORDER BY p.name
-        """).fetchall()
-        customers = db.execute("SELECT id, name, company, phone FROM contacts WHERE type='customer' ORDER BY name").fetchall()
-    return render_template('pos.html', products=[dict(p) for p in products], customers=customers)
+        products, customers = db.batch(
+            """SELECT p.*, COALESCE(st.qty, 0) AS stock_qty
+               FROM products p
+               LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
+                      ON st.product_id = p.id
+               ORDER BY p.name""",
+            "SELECT id, name, company, phone FROM contacts WHERE type='customer' ORDER BY name")
+    return render_template('pos.html', products=products, customers=customers)
 
 
 @app.route('/pos/checkout', methods=['POST'])
@@ -4253,19 +4338,22 @@ def finance():
         if method:     base += " AND method=%s";    params.append(method)
         if date_from:  base += " AND doc_date>=%s"; params.append(date_from)
         if date_to:    base += " AND doc_date<=%s"; params.append(date_to)
-        rows = db.execute(base + " ORDER BY doc_date DESC", params).fetchall()
         # Summary metrics respect the same filters
-        sum_base = "SELECT COALESCE(SUM(amount),0) AS s FROM transactions WHERE 1=1"
-        sp = []
-        if method:    sum_base += " AND method=%s";    sp.append(method)
-        if date_from: sum_base += " AND doc_date>=%s"; sp.append(date_from)
-        if date_to:   sum_base += " AND doc_date<=%s"; sp.append(date_to)
-        income   = db.execute(sum_base + " AND type='income'",  sp).fetchone()['s']
-        expenses = db.execute(sum_base + " AND type='expense'", sp).fetchone()['s']
-        cash_in  = db.execute(sum_base + " AND type='income'  AND method='cash'", sp).fetchone()['s']
-        cash_out = db.execute(sum_base + " AND type='expense' AND method='cash'", sp).fetchone()['s']
-        bank_in  = db.execute(sum_base + " AND type='income'  AND method='bank'", sp).fetchone()['s']
-        bank_out = db.execute(sum_base + " AND type='expense' AND method='bank'", sp).fetchone()['s']
+        where = base[len("SELECT * FROM transactions"):]
+        rows, sums = db.batch(
+            (base + " ORDER BY doc_date DESC", params),
+            ("""SELECT
+                  COALESCE(SUM(amount) FILTER (WHERE type='income'), 0)                    AS income,
+                  COALESCE(SUM(amount) FILTER (WHERE type='expense'), 0)                   AS expenses,
+                  COALESCE(SUM(amount) FILTER (WHERE type='income'  AND method='cash'), 0) AS cash_in,
+                  COALESCE(SUM(amount) FILTER (WHERE type='expense' AND method='cash'), 0) AS cash_out,
+                  COALESCE(SUM(amount) FILTER (WHERE type='income'  AND method='bank'), 0) AS bank_in,
+                  COALESCE(SUM(amount) FILTER (WHERE type='expense' AND method='bank'), 0) AS bank_out
+                FROM transactions""" + where, params))
+        sums = sums[0]
+        income, expenses = sums['income'], sums['expenses']
+        cash_in, cash_out = sums['cash_in'], sums['cash_out']
+        bank_in, bank_out = sums['bank_in'], sums['bank_out']
     return render_template('finance.html', transactions=rows, income=income, expenses=expenses,
         net=income-expenses, cash_balance=cash_in-cash_out, bank_balance=bank_in-bank_out,
         method=method, date_from=date_from, date_to=date_to)
@@ -4408,18 +4496,17 @@ def report_sales():
 def report_stock():
     cat_filter = request.args.get('category', '')
     with get_db() as db:
-        categories = [r['category'] for r in db.execute(
-            "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category"
-        ).fetchall()]
-        if cat_filter:
-            products = db.execute("SELECT * FROM products WHERE category=%s ORDER BY name", (cat_filter,)).fetchall()
-        else:
-            products = db.execute("SELECT * FROM products ORDER BY category, name").fetchall()
-        warehouses = db.execute("SELECT * FROM warehouses").fetchall()
-        stock_map = {(r['product_id'], r['warehouse_id']): r['qty']
-                     for r in db.execute("SELECT product_id, warehouse_id, qty FROM stock").fetchall()}
-        sold_map = {r['product_id']: r['s'] for r in db.execute(
-            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM sale_items GROUP BY product_id").fetchall()}
+        prod_q = (("SELECT * FROM products WHERE category=%s ORDER BY name", (cat_filter,)) if cat_filter
+                  else "SELECT * FROM products ORDER BY category, name")
+        categories, products, warehouses, stock_rows, sold_rows = db.batch(
+            "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category",
+            prod_q,
+            "SELECT * FROM warehouses",
+            "SELECT product_id, warehouse_id, qty FROM stock",
+            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM sale_items GROUP BY product_id")
+        categories = [r['category'] for r in categories]
+        stock_map = {(r['product_id'], r['warehouse_id']): r['qty'] for r in stock_rows}
+        sold_map = {r['product_id']: r['s'] for r in sold_rows}
         rows, total_value = [], 0
         for p in products:
             stock_by_wh, total = {}, 0
