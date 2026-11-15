@@ -786,6 +786,7 @@ document.addEventListener('DOMContentLoaded', function() {
     activeIdx = idx;
     drop.querySelectorAll('.gs-item').forEach(function(el, i) {
       el.style.background = i === idx ? '#f0f7ff' : '';
+      if (i === idx) el.scrollIntoView({ block: 'nearest' });
     });
   }
 

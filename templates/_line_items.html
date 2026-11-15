@@ -402,10 +402,12 @@ barcodeInput.addEventListener('keydown', function(e) {
     e.preventDefault();
     const next = active ? (active.nextElementSibling || items[0]) : items[0];
     active?.classList.remove('active'); next?.classList.add('active');
+    next?.scrollIntoView({ block: 'nearest' });
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
     const prev = active ? (active.previousElementSibling || items[items.length-1]) : items[items.length-1];
     active?.classList.remove('active'); prev?.classList.add('active');
+    prev?.scrollIntoView({ block: 'nearest' });
   } else if (e.key === 'Enter') {
     e.preventDefault();
     const cmdEnter = e.metaKey || e.ctrlKey;
