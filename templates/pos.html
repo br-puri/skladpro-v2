@@ -38,7 +38,7 @@
       <div style="position:relative">
         <input type="text" id="posCustomerSearch" class="form-control" autocomplete="off"
                placeholder="Walk-in customer" value=""
-               oninput="posFilterCustomers()" onfocus="posFilterCustomers()">
+               oninput="posFilterCustomers()" onfocus="posFilterCustomers()" onkeydown="posCustomerKeydown(event)">
         <input type="hidden" id="posCustomerId" value="">
         <div id="posCustomerDropdown" class="pos-cust-dropdown" style="display:none"></div>
       </div>
@@ -102,6 +102,8 @@
 .pos-cust-dropdown { position:absolute; top:100%; left:0; right:0; z-index:50; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:220px; overflow-y:auto; margin-top:4px; }
 .pos-cust-opt { padding:9px 13px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
 .pos-cust-opt:hover { background:#f8fafc; }
+.pos-cust-opt.active { background:#f0f7ff; }
+.pos-card.kb-active { border-color:#1a6ef5; box-shadow:0 0 0 2px rgba(26,110,245,.35); }
 .pos-cust-name { font-size:13px; font-weight:600; color:#1e293b; }
 .pos-cust-sub { font-size:11.5px; color:#94a3b8; margin-top:1px; }
 .pos-pay-tabs { display:flex; gap:6px; margin-top:6px; }
@@ -150,6 +152,26 @@ function posFilterCustomers() {
       posPickCustomer(el.dataset.label, el.dataset.id);
     });
   });
+}
+
+function posCustomerKeydown(e) {
+  const items = posCustDropdown.querySelectorAll('.pos-cust-opt');
+  const active = posCustDropdown.querySelector('.pos-cust-opt.active');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (posCustDropdown.style.display === 'none') posFilterCustomers();
+    if (!items.length) return;
+    const next = e.key === 'ArrowDown'
+      ? (active ? (active.nextElementSibling || items[0]) : items[0])
+      : (active ? (active.previousElementSibling || items[items.length - 1]) : items[items.length - 1]);
+    active?.classList.remove('active'); next.classList.add('active');
+    next.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && active) {
+    e.preventDefault();
+    posPickCustomer(active.dataset.label, active.dataset.id);
+  } else if (e.key === 'Escape') {
+    posCustDropdown.style.display = 'none';
+  }
 }
 
 function posPickCustomer(label, id) {
@@ -259,12 +281,42 @@ function posSetMethod(m) {
   posRecalc();
 }
 
-document.getElementById('posSearch').addEventListener('input', function() {
+const posSearchEl = document.getElementById('posSearch');
+
+posSearchEl.addEventListener('input', function() {
   const q = this.value.trim().toLowerCase();
+  document.querySelector('.pos-card.kb-active')?.classList.remove('kb-active');
   document.querySelectorAll('.pos-card').forEach(card => {
     const match = card.dataset.name.includes(q) || card.dataset.sku.includes(q);
     card.style.display = match ? '' : 'none';
   });
+});
+
+// ↑/↓ move a highlight through the visible product cards; Enter adds the
+// highlighted card (or the only match) to the cart. ←/→ are left alone so
+// the cursor still moves inside the search text.
+posSearchEl.addEventListener('keydown', function(e) {
+  const visible = [...document.querySelectorAll('.pos-card')].filter(c => c.style.display !== 'none');
+  const active = document.querySelector('.pos-card.kb-active');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!visible.length) return;
+    const i = visible.indexOf(active);
+    const next = e.key === 'ArrowDown'
+      ? visible[i < 0 ? 0 : (i + 1) % visible.length]
+      : visible[i < 0 ? visible.length - 1 : (i - 1 + visible.length) % visible.length];
+    active?.classList.remove('kb-active'); next.classList.add('kb-active');
+    next.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    const target = active && visible.includes(active) ? active : (visible.length === 1 ? visible[0] : null);
+    if (!target) return;
+    e.preventDefault();
+    posAddToCart(target);
+    this.value = '';
+    this.dispatchEvent(new Event('input'));
+  } else if (e.key === 'Escape') {
+    active?.classList.remove('kb-active');
+  }
 });
 
 function posCheckout() {
