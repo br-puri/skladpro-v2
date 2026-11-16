@@ -540,13 +540,9 @@ function initBulk(submitUrl, confirmMsg) {
       <span class="nav-text">My Account</span>
     </a>
     {% if session.get('role') == 'admin' %}
-    <a href="{{ url_for('users_list') }}" data-label="Users" class="nav-item {% if request.endpoint in ('users_list','add_user','delete_user','reset_user_password','change_user_role') %}active{% endif %}">
-      <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="5" r="2.5"/><path d="M1 13c0-2.8 2.2-5 5-5s5 2.2 5 5"/><circle cx="12" cy="5" r="2"/><path d="M11 10.2c.3-.1.6-.2 1-.2 1.7 0 3 1.3 3 3"/></svg>
-      <span class="nav-text">Users</span>
-    </a>
-    <a href="{{ url_for('audit_log') }}" data-label="Audit Log" class="nav-item {% if request.endpoint == 'audit_log' %}active{% endif %}">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="1" width="12" height="14" rx="1.5"/><line x1="5" y1="5" x2="11" y2="5"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="11" x2="8" y2="11"/></svg>
-      <span class="nav-text">Audit Log</span>
+    <a href="{{ url_for('admin_panel') }}" data-label="Admin" class="nav-item {% if request.endpoint in ('admin_panel','users_list','audit_log','add_user','delete_user','reset_user_password','change_user_role') %}active{% endif %}">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1 2 3.5v4C2 11 4.6 14 8 15c3.4-1 6-4 6-7.5v-4L8 1zm0 2.1 4 1.7v2.7c0 2.5-1.7 4.8-4 5.6-2.3-.8-4-3.1-4-5.6V4.8l4-1.7z"/><circle cx="8" cy="6.6" r="1.6"/><path d="M5.3 11c.4-1.3 1.5-2.1 2.7-2.1s2.3.8 2.7 2.1c-.8.6-1.7 1-2.7 1.2-1-.2-1.9-.6-2.7-1.2z"/></svg>
+      <span class="nav-text">Admin</span>
     </a>
     <a href="{{ url_for('settings_page') }}" data-label="Settings" class="nav-item {% if request.endpoint == 'settings_page' %}active{% endif %}">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 10.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5zm5.4-1.4.9-.5a1 1 0 0 0 .4-1.3l-1-1.7a1 1 0 0 0-1.3-.4l-.9.5a5.4 5.4 0 0 0-1-.6V4.5a1 1 0 0 0-1-1H7.5a1 1 0 0 0-1 1v1.1a5.4 5.4 0 0 0-1 .6l-.9-.5a1 1 0 0 0-1.3.4l-1 1.7a1 1 0 0 0 .4 1.3l.9.5a5.5 5.5 0 0 0 0 1.2l-.9.5a1 1 0 0 0-.4 1.3l1 1.7a1 1 0 0 0 1.3.4l.9-.5c.3.2.6.4 1 .6v1.1a1 1 0 0 0 1 1H8.5a1 1 0 0 0 1-1v-1.1c.4-.2.7-.4 1-.6l.9.5a1 1 0 0 0 1.3-.4l1-1.7a1 1 0 0 0-.4-1.3l-.9-.5a5.5 5.5 0 0 0 0-1.2z"/></svg>
@@ -728,6 +724,8 @@ document.addEventListener('DOMContentLoaded', function() {
     {label:'Finance',      sub:'Transactions & cashflow',  url:'/finance'},
     {label:'Reports',      sub:'Analytics & reports',      url:'/reports'},
     {label:'Settings',     sub:'Company & preferences',    url:'/settings'},
+    {label:'Admin',        sub:'Team, activity & system',  url:'/admin'},
+    {label:'Activity Log', sub:'Who changed what',         url:'/audit-log'},
     {label:'Write-offs',   sub:'Stock write-offs',         url:'/writeoffs'},
     {label:'Categories',   sub:'Product categories',       url:'/categories'},
   ];

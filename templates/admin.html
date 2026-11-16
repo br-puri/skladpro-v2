@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+{% block title %}Admin{% endblock %}
+{% block page_title %}Admin{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('settings_page') }}" class="btn">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px"><path d="M8 10.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5zm5.4-1.4.9-.5a1 1 0 0 0 .4-1.3l-1-1.7a1 1 0 0 0-1.3-.4l-.9.5a5.4 5.4 0 0 0-1-.6V4.5a1 1 0 0 0-1-1H7.5a1 1 0 0 0-1 1v1.1a5.4 5.4 0 0 0-1 .6l-.9-.5a1 1 0 0 0-1.3.4l-1 1.7a1 1 0 0 0 .4 1.3l.9.5a5.5 5.5 0 0 0 0 1.2l-.9.5a1 1 0 0 0-.4 1.3l1 1.7a1 1 0 0 0 1.3.4l.9-.5c.3.2.6.4 1 .6v1.1a1 1 0 0 0 1 1H8.5a1 1 0 0 0 1-1v-1.1c.4-.2.7-.4 1-.6l.9.5a1 1 0 0 0 1.3-.4l1-1.7a1 1 0 0 0-.4-1.3l-.9-.5a5.5 5.5 0 0 0 0-1.2z"/></svg>
+    Settings
+  </a>
+  <button type="button" class="btn btn-primary" onclick="adminOpenAddUser()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="vertical-align:-2px"><path d="M12 5v14M5 12h14"/></svg>
+    Add user
+  </button>
+{% endblock %}
+{% block content %}
+<style>
+  .adm { max-width: 1500px; margin: 0 auto; color: #20324a; }
+  .adm-head { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin:4px 0 24px; }
+  .adm-eyebrow { font-size:10px; font-weight:700; letter-spacing:2px; color:#64748b; margin-bottom:8px; }
+  .adm-title { font-size:28px; font-weight:700; letter-spacing:-.02em; color:#16233a; margin:0; line-height:1.2; }
+  .adm-sub { font-size:13px; color:#64748b; margin-top:6px; }
+
+  .adm-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:18px; }
+  .adm-kc { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; box-shadow:0 3px 12px #20324a05; min-width:0; }
+  .adm-kc-label { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:#64748b; display:flex; align-items:center; justify-content:space-between; }
+  .adm-kc-val { font-size:30px; font-weight:700; color:#16233a; margin:10px 0 6px; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+  .adm-kc-val small { font-size:14px; font-weight:600; color:#64748b; letter-spacing:0; margin-left:4px; }
+  .adm-kc-sub { font-size:12px; color:#7c8798; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .adm-kc-hero { background:linear-gradient(150deg,#20324a 0%,#172438 100%); border-color:#20324a; color:#fff; position:relative; overflow:hidden; }
+  .adm-kc-hero .adm-kc-label { color:rgba(255,255,255,.6); }
+  .adm-kc-hero .adm-kc-val { color:#fff; }
+  .adm-kc-hero .adm-kc-val small, .adm-kc-hero .adm-kc-sub { color:rgba(255,255,255,.7); }
+  .adm-ic { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; background:#f5f1e7; color:#785a1e; }
+  .adm-kc-hero .adm-ic { background:rgba(255,255,255,.1); color:#f3c969; }
+
+  .rchip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:20px; }
+  .rchip i { width:6px; height:6px; border-radius:50%; display:inline-block; }
+  .r-admin  { background:#eef3fb; color:#1d4ed8; } .r-admin i  { background:#1d4ed8; }
+  .r-editor { background:#ecfdf5; color:#0f766e; } .r-editor i { background:#0f766e; }
+  .r-viewer { background:#f1f5f9; color:#475569; } .r-viewer i { background:#94a3b8; }
+
+  .spark { display:flex; align-items:flex-end; gap:3px; height:34px; margin-top:4px; }
+  .spark span { flex:1; background:#e7edf4; border-radius:3px 3px 1px 1px; min-height:3px; position:relative; }
+  .spark span.has { background:#d9a024; }
+  .spark span:hover { background:#20324a; }
+
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  .dot.ok { background:#16a34a; box-shadow:0 0 0 3px #dcfce7; }
+  .dot.warn { background:#d97706; box-shadow:0 0 0 3px #fef3c7; }
+  .dot.off { background:#cbd5e1; box-shadow:0 0 0 3px #f1f5f9; }
+
+  .adm-grid { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); gap:16px; margin-bottom:16px; align-items:start; }
+  .adm-panel { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; box-shadow:0 3px 12px #20324a04; }
+  .adm-ph { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 22px; border-bottom:1px solid #f0f2f5; }
+  .adm-ph h3 { margin:0; font-size:15px; font-weight:700; color:#16233a; }
+  .adm-ph p { margin:2px 0 0; font-size:12px; color:#8a96a8; }
+  .adm-ph a { font-size:12.5px; font-weight:600; color:#315b83; text-decoration:none; white-space:nowrap; }
+  .adm-ph a:hover { text-decoration:underline; }
+
+  /* Team */
+  .tm-row { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 140px 70px; gap:14px; align-items:center; padding:14px 22px; border-bottom:1px solid #f3f5f8; }
+  .tm-row:last-child { border-bottom:0; }
+  .tm-row:hover { background:#fafbfc; }
+  .tm-who { display:flex; align-items:center; gap:12px; min-width:0; }
+  .av { width:38px; height:38px; border-radius:11px; display:grid; place-items:center; font-weight:700; font-size:14px; color:#fff; flex-shrink:0; position:relative; }
+  .av .dot { position:absolute; right:-2px; bottom:-2px; border:2px solid #fff; box-shadow:none; width:11px; height:11px; }
+  .tm-name { font-weight:650; font-size:14px; color:#16233a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tm-meta { font-size:12px; color:#7c8798; margin-top:2px; }
+  .you { font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; background:#fff4d6; color:#8a6512; margin-left:6px; vertical-align:1px; }
+  .tm-act { font-size:12.5px; color:#475569; }
+  .tm-act b { color:#16233a; font-variant-numeric:tabular-nums; }
+  .tm-role select { font-size:12.5px; padding:6px 10px; width:100%; }
+  .tm-btns { display:flex; gap:6px; justify-content:flex-end; width:70px; }
+  .icon-btn { width:32px; height:32px; border-radius:8px; border:1px solid #e2e8f0; background:#fff; display:grid; place-items:center; cursor:pointer; color:#475569; padding:0; }
+  .icon-btn:hover { background:#f6f8fb; color:#16233a; }
+  .icon-btn.danger:hover { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+  .tm-pw { grid-column:1/-1; display:none; gap:8px; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+  .tm-pw.open { display:flex; }
+  .tm-pw input { max-width:220px; }
+
+  .add-user { display:none; padding:18px 22px; background:#fffbf0; border-bottom:1px solid #f5e6bf; }
+  .add-user.open { display:block; }
+  .add-user form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto; gap:10px; align-items:end; }
+  .add-user label { font-size:11.5px; font-weight:600; color:#64748b; display:block; margin-bottom:5px; }
+  .roles-help { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; border-top:1px solid #f0f2f5; background:#fafbfc; }
+  .roles-help div { padding:14px 22px; font-size:12px; color:#64748b; line-height:1.55; border-right:1px solid #f0f2f5; }
+  .roles-help div:last-child { border-right:0; }
+  .roles-help .rchip { margin-bottom:6px; }
+
+  /* Activity feed */
+  .feed { list-style:none; margin:0; padding:6px 0; }
+  .feed li { display:flex; gap:12px; padding:10px 22px; align-items:flex-start; }
+  .feed li:hover { background:#fafbfc; }
+  .fi { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; margin-top:1px; }
+  .k-create { background:#ecfdf5; color:#047857; } .k-edit { background:#eef3fb; color:#315b83; }
+  .k-delete { background:#fef2f2; color:#dc2626; } .k-money { background:#fff7e6; color:#a16207; }
+  .k-email { background:#f5f3ff; color:#6d28d9; } .k-signin { background:#f1f5f9; color:#64748b; }
+  .k-security { background:#fff1f2; color:#be123c; } .k-settings { background:#f5f1e7; color:#785a1e; }
+  .ft { font-size:13px; color:#334155; line-height:1.45; min-width:0; overflow-wrap:anywhere; }
+  .ft b { color:#16233a; font-weight:650; }
+  .ft a { color:#315b83; text-decoration:none; font-weight:600; }
+  .ft a:hover { text-decoration:underline; }
+  .fw { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+  .fail { font-size:10.5px; font-weight:700; color:#dc2626; background:#fef2f2; padding:1px 6px; border-radius:8px; margin-left:4px; }
+
+  /* Health + quick actions */
+  .adm-grid2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  .hl { list-style:none; margin:0; padding:4px 0; }
+  .hl li { display:flex; align-items:center; gap:12px; padding:12px 22px; border-bottom:1px solid #f3f5f8; font-size:13px; }
+  .hl li:last-child { border-bottom:0; }
+  .hl .k { color:#64748b; flex:1; display:flex; align-items:center; gap:10px; }
+  .hl .v { color:#16233a; font-weight:600; text-align:right; font-variant-numeric:tabular-nums; }
+  .hl .v a { color:#315b83; text-decoration:none; }
+  .bar { height:6px; background:#eef2f6; border-radius:4px; overflow:hidden; width:90px; display:inline-block; vertical-align:middle; margin-right:8px; }
+  .bar span { display:block; height:100%; background:#d9a024; border-radius:4px; }
+  .qa { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+  .qa a, .qa button.qa-item { display:flex; align-items:center; gap:12px; padding:16px 20px; text-decoration:none; color:#20324a; border:0; border-bottom:1px solid #f0f2f5; border-right:1px solid #f0f2f5; border-radius:0; background:#fff; font:inherit; text-align:left; cursor:pointer; width:100%; }
+  .qa > *:nth-child(2n) { border-right:0; }
+  .qa a:hover, .qa button.qa-item:hover { background:#fff9eb; }
+  .qa .qi { width:34px; height:34px; border-radius:10px; background:#f5f1e7; color:#785a1e; display:grid; place-items:center; flex-shrink:0; }
+  .qa strong { display:block; font-size:13px; font-weight:600; }
+  .qa small { display:block; font-size:11.5px; color:#64748b; margin-top:2px; }
+  .qa-test { grid-column:1/-1; padding:16px 20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .qa-test .form-control { flex:1; min-width:180px; }
+  #testMsg { font-size:12.5px; width:100%; }
+
+  .adm a:focus-visible, .adm button:focus-visible, .adm select:focus-visible { outline:3px solid #d9a024; outline-offset:1px; }
+
+  @media (max-width:1200px) { .adm-kpis { grid-template-columns:1fr 1fr; } .adm-grid { grid-template-columns:1fr; } }
+  @media (max-width:900px)  { .adm-grid2 { grid-template-columns:1fr; } .add-user form { grid-template-columns:1fr 1fr; } }
+  @media (max-width:700px)  {
+    .adm-head { flex-direction:column; align-items:flex-start; }
+    .adm-kpis { grid-template-columns:1fr; gap:12px; }
+    .tm-row { grid-template-columns:minmax(0,1fr) auto; }
+    .tm-row .tm-act { display:none; }
+    .tm-row .tm-role { grid-column:1/-1; order:3; }
+    .roles-help { grid-template-columns:1fr; } .roles-help div { border-right:0; border-bottom:1px solid #f0f2f5; }
+    .qa { grid-template-columns:1fr; } .qa > * { border-right:0 !important; }
+    .add-user form { grid-template-columns:1fr; }
+  }
+</style>
+
+<div class="adm">
+  <div class="adm-head">
+    <div>
+      <div class="adm-eyebrow">ADMINISTRATION</div>
+      <h2 class="adm-title">{{ co_name }} control centre</h2>
+      <div class="adm-sub">Your team, what they've been doing, and how the system is running.</div>
+    </div>
+  </div>
+
+  {# ── KPI cards ── #}
+  <div class="adm-kpis">
+    <div class="adm-kc adm-kc-hero">
+      <div class="adm-kc-label">Team
+        <span class="adm-ic"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="5" r="2.5"/><path d="M1 13c0-2.8 2.2-5 5-5s5 2.2 5 5"/><circle cx="12" cy="5" r="2"/><path d="M11 10.2c.3-.1.6-.2 1-.2 1.7 0 3 1.3 3 3"/></svg></span>
+      </div>
+      <div class="adm-kc-val">{{ team|length }}<small>user{{ 's' if team|length != 1 }}</small></div>
+      <div class="adm-kc-sub">
+        {{ role_counts.admin }} admin · {{ role_counts.editor }} editor · {{ role_counts.viewer }} viewer
+        {% set online = team|selectattr('online')|list|length %}
+        {% if online %}· <span style="color:#86efac">{{ online }} active now</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="adm-kc">
+      <div class="adm-kc-label">Changes · 14 days
+        <span class="adm-ic"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="10" width="3" height="5" rx=".5"/><rect x="6" y="6" width="3" height="9" rx=".5"/><rect x="11" y="2" width="3" height="13" rx=".5"/></svg></span>
+      </div>
+      <div class="adm-kc-val">{{ days|sum(attribute='n') }}</div>
+      <div class="spark" aria-label="Changes per day over the last 14 days">
+        {% for d in days %}<span class="{{ 'has' if d.n }}" style="height:{{ (d.n / peak * 100)|round(0, 'ceil') if d.n else 8 }}%" title="{{ d.label }}: {{ d.n }} change{{ 's' if d.n != 1 }}"></span>{% endfor %}
+      </div>
+    </div>
+
+    <div class="adm-kc">
+      <div class="adm-kc-label">Database
+        <span class="adm-ic"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="3.5" rx="5.5" ry="2"/><path d="M2.5 3.5v9c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-9M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/></svg></span>
+      </div>
+      <div class="adm-kc-val">{{ '%.0f'|format(health.db_ms) }}<small>ms</small></div>
+      <div class="adm-kc-sub">
+        <span class="dot {{ 'ok' if health.db_ms < 60 else 'warn' }}"></span>
+        {{ health.db_region }} · {{ '%.0f'|format(health.db_mb) }} MB
+      </div>
+    </div>
+
+    <div class="adm-kc">
+      <div class="adm-kc-label">Email
+        <span class="adm-ic"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"/><path d="m2 4 6 5 6-5"/></svg></span>
+      </div>
+      <div class="adm-kc-val" style="font-size:22px;margin:14px 0 10px">{{ 'Connected' if health.email_via else 'Not set up' }}</div>
+      <div class="adm-kc-sub">
+        <span class="dot {{ 'ok' if health.email_via else 'off' }}"></span>
+        {{ health.email_via or 'Invoices cannot be emailed yet' }}
+      </div>
+    </div>
+  </div>
+
+  {# ── Team + activity ── #}
+  <div class="adm-grid">
+    <section class="adm-panel" id="team">
+      <div class="adm-ph">
+        <div><h3>Team</h3><p>Who can sign in, and what they're allowed to do</p></div>
+        <button type="button" class="btn" onclick="adminOpenAddUser()" style="font-size:12.5px">+ Add user</button>
+      </div>
+
+      <div class="add-user" id="addUser">
+        <form method="POST" action="{{ url_for('add_user') }}" autocomplete="off">
+          <div><label for="nu-name">Username</label><input id="nu-name" name="username" class="form-control" required placeholder="e.g. john"></div>
+          <div><label for="nu-pw">Password</label><input id="nu-pw" name="password" type="password" class="form-control" required minlength="6" placeholder="At least 6 characters" autocomplete="new-password"></div>
+          <div><label for="nu-role">Role</label>
+            <select id="nu-role" name="role" class="form-control">
+              <option value="viewer">Viewer: read only</option>
+              <option value="editor">Editor: add &amp; edit</option>
+              <option value="admin">Admin: full access</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button type="submit" class="btn btn-primary">Create</button>
+            <button type="button" class="btn" onclick="adminOpenAddUser(false)">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      {% set palette = ['#20324a','#315b83','#0f766e','#a16207','#7e22ce','#be123c','#047857','#c2410c'] %}
+      {% for u in team %}
+      <div class="tm-row">
+        <div class="tm-who">
+          <div class="av" style="background:{{ palette[loop.index0 % palette|length] }}">
+            {{ u.username[:1]|upper }}
+            {% if u.online %}<span class="dot ok" title="Active in the last 15 minutes"></span>{% endif %}
+          </div>
+          <div style="min-width:0">
+            <div class="tm-name">{{ u.username }}{% if u.id == session.get('user_id') %}<span class="you">YOU</span>{% endif %}</div>
+            <div class="tm-meta">Last active {{ u.last_active }}</div>
+          </div>
+        </div>
+        <div class="tm-act"><b>{{ u.n30 }}</b> action{{ 's' if u.n30 != 1 }} in 30 days</div>
+        <div class="tm-role">
+          <form method="POST" action="{{ url_for('change_user_role', uid=u.id) }}">
+            <select name="role" class="form-control" aria-label="Role for {{ u.username }}"
+                    onchange="if (confirm('Change ' + {{ u.username|tojson }} + ' to ' + this.options[this.selectedIndex].text + '?')) this.form.submit(); else this.value = {{ u.role|tojson }};">
+              <option value="admin"  {{ 'selected' if u.role == 'admin' }}>Admin</option>
+              <option value="editor" {{ 'selected' if u.role == 'editor' }}>Editor</option>
+              <option value="viewer" {{ 'selected' if u.role == 'viewer' }}>Viewer</option>
+            </select>
+          </form>
+        </div>
+        <div class="tm-btns">
+          <button type="button" class="icon-btn" title="Reset password" aria-label="Reset password for {{ u.username }}" onclick="adminTogglePw({{ u.id }})">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>
+          </button>
+          {% if u.id != session.get('user_id') %}
+          <form method="POST" action="{{ url_for('delete_user', uid=u.id) }}" onsubmit="return confirm('Delete user ' + {{ u.username|tojson }} + '? They will no longer be able to sign in.')">
+            <button type="submit" class="icon-btn danger" title="Delete user" aria-label="Delete {{ u.username }}">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/></svg>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+        <form class="tm-pw" id="pw-{{ u.id }}" method="POST" action="{{ url_for('reset_user_password', uid=u.id) }}">
+          <span style="font-size:12.5px;color:#475569">New password for <b>{{ u.username }}</b></span>
+          <input name="password" type="password" class="form-control" required minlength="6" placeholder="At least 6 characters" autocomplete="new-password">
+          <button type="submit" class="btn btn-primary" style="font-size:12.5px">Save</button>
+          <button type="button" class="btn" style="font-size:12.5px" onclick="adminTogglePw({{ u.id }})">Cancel</button>
+        </form>
+      </div>
+      {% endfor %}
+
+      <div class="roles-help">
+        <div><span class="rchip r-admin"><i></i>Admin</span><br>Everything, including deleting records, Settings and this page.</div>
+        <div><span class="rchip r-editor"><i></i>Editor</span><br>Add and edit records. Can't delete, or open Settings and Admin.</div>
+        <div><span class="rchip r-viewer"><i></i>Viewer</span><br>Read-only: view pages and reports, export PDFs and Excel.</div>
+      </div>
+    </section>
+
+    <section class="adm-panel">
+      <div class="adm-ph">
+        <div><h3>Recent activity</h3><p>Latest changes across the app</p></div>
+        <a href="{{ url_for('audit_log') }}">Full log →</a>
+      </div>
+      <ul class="feed">
+        {% for a in activity %}
+        <li>
+          <span class="fi k-{{ a.kind }}" aria-hidden="true">{% include '_audit_icon.html' %}</span>
+          <div style="min-width:0">
+            <div class="ft"><b>{{ a.user }}</b> {% if a.link %}<a href="{{ a.link }}">{{ a.text }}</a>{% else %}{{ a.text }}{% endif %}{% if a.failed %}<span class="fail">FAILED</span>{% endif %}</div>
+            <div class="fw" title="{{ a.stamp }}">{{ a.when }}</div>
+          </div>
+        </li>
+        {% else %}
+        <li style="color:#94a3b8;font-size:13px;justify-content:center;padding:40px">No activity yet</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+
+  {# ── System health + quick actions ── #}
+  <div class="adm-grid2">
+    <section class="adm-panel">
+      <div class="adm-ph"><div><h3>System health</h3><p>Checked when this page loaded</p></div></div>
+      <ul class="hl">
+        <li><span class="k"><span class="dot {{ 'ok' if health.db_ms < 60 else 'warn' }}"></span>Database</span><span class="v">{{ health.db_region }} · {{ '%.0f'|format(health.db_ms) }} ms</span></li>
+        <li><span class="k"><span class="dot ok"></span>Database size</span><span class="v">{{ '%.1f'|format(health.db_mb) }} MB</span></li>
+        <li><span class="k"><span class="dot {{ 'ok' if health.disk_free_gb and health.disk_free_gb > 20 else 'warn' }}"></span>Product photos (on NAS)</span>
+            <span class="v">{{ health.photos }} files · {{ '%.0f'|format(health.photo_mb) }} MB{% if health.disk_free_gb %} · {{ '%.0f'|format(health.disk_free_gb) }} GB free{% endif %}</span></li>
+        <li><span class="k"><span class="dot {{ 'ok' if health.email_via else 'off' }}"></span>Email sending</span>
+            <span class="v">{% if health.email_via %}{{ health.email_via }}{% else %}<a href="{{ url_for('settings_page') }}">Set up →</a>{% endif %}</span></li>
+        <li><span class="k"><span class="dot {{ 'ok' if health.reminders_on else 'off' }}"></span>Weekly payment reminders</span>
+            <span class="v">{{ 'On' if health.reminders_on else 'Off' }}{% if health.reminders_30 %} · {{ health.reminders_30 }} sent in 30 days{% endif %}</span></li>
+        <li><span class="k"><span class="dot {{ 'ok' if health.company_done == health.company_total else 'warn' }}"></span>Company profile</span>
+            <span class="v"><span class="bar"><span style="width:{{ (health.company_done / health.company_total * 100)|round }}%"></span></span>
+              {% if health.company_done == health.company_total %}Complete{% else %}<a href="{{ url_for('settings_page') }}">{{ health.company_done }}/{{ health.company_total }} filled</a>{% endif %}</span></li>
+      </ul>
+    </section>
+
+    <section class="adm-panel">
+      <div class="adm-ph"><div><h3>Quick actions</h3><p>Shortcuts for common admin jobs</p></div></div>
+      <div class="qa">
+        <a href="{{ url_for('settings_page') }}"><span class="qi">⚙︎</span><span><strong>Company settings</strong><small>Details, bank, email, logo</small></span></a>
+        <a href="{{ url_for('catalog_manage') }}"><span class="qi">☰</span><span><strong>Catalogue order</strong><small>Arrange categories &amp; products</small></span></a>
+        <a href="{{ url_for('categories') }}"><span class="qi">◫</span><span><strong>Categories</strong><small>Add, rename, nest</small></span></a>
+        <a href="{{ url_for('warehouses') }}"><span class="qi">⌂</span><span><strong>Warehouses</strong><small>Stock locations</small></span></a>
+        <a href="{{ url_for('discounts') }}"><span class="qi">%</span><span><strong>Discounts</strong><small>Preset invoice discounts</small></span></a>
+        <form method="POST" action="{{ url_for('admin_send_reminders') }}" onsubmit="return confirm('Email payment reminders now to every customer with an invoice unpaid for 7+ days?')" style="display:contents">
+          <button type="submit" class="qa-item"><span class="qi">✉︎</span><span><strong>Send reminders now</strong><small>{% if health.reminder_last_run %}Last run {{ health.reminder_last_run[:16] }}{% else %}Overdue invoices (7+ days){% endif %}</small></span></button>
+        </form>
+        <div class="qa-test">
+          <input type="email" id="testTo" class="form-control" placeholder="Send a test email to…" aria-label="Test email recipient">
+          <button type="button" class="btn" onclick="adminTestEmail(this)" {{ 'disabled' if not health.email_via }}>Send test email</button>
+          <div id="testMsg" role="status"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+function adminOpenAddUser(open) {
+  var el = document.getElementById('addUser');
+  var show = open === undefined ? !el.classList.contains('open') : open;
+  el.classList.toggle('open', show);
+  if (show) {
+    document.getElementById('team').scrollIntoView({behavior: 'smooth', block: 'start'});
+    setTimeout(function () { document.getElementById('nu-name').focus(); }, 250);
+  }
+}
+function adminTogglePw(id) {
+  var el = document.getElementById('pw-' + id);
+  el.classList.toggle('open');
+  if (el.classList.contains('open')) el.querySelector('input').focus();
+}
+function adminTestEmail(btn) {
+  var to = document.getElementById('testTo').value.trim(), msg = document.getElementById('testMsg');
+  if (!to) { msg.style.color = '#dc2626'; msg.textContent = 'Enter an email address first.'; return; }
+  btn.disabled = true; msg.style.color = '#64748b'; msg.textContent = 'Sending…';
+  var body = new FormData(); body.append('to', to);
+  fetch('{{ url_for('settings_email_test') }}?ajax=1', {method: 'POST', body: body, headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    .then(function (r) { return r.json(); })
+    .then(function (j) { msg.style.color = j.ok ? '#16a34a' : '#dc2626'; msg.textContent = j.ok ? j.message : ('Failed: ' + j.error); })
+    .catch(function () { msg.style.color = '#dc2626'; msg.textContent = 'Could not reach the server.'; })
+    .finally(function () { btn.disabled = false; });
+}
+if (location.hash === '#team') setTimeout(function () { document.getElementById('team').scrollIntoView({block: 'start'}); }, 50);
+</script>
+{% endblock %}

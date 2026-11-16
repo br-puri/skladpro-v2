@@ -71,7 +71,7 @@ def superadmin_required(f):
 
 @app.after_request
 def write_audit(response):
-    if (request.method != 'GET'
+    if (request.method not in ('GET', 'HEAD', 'OPTIONS')
             and session.get('user_id')
             and request.endpoint not in (None, 'static', 'logout')
             and response.status_code < 500):
@@ -758,9 +758,7 @@ def my_account():
 @app.route('/users')
 @superadmin_required
 def users_list():
-    with get_db() as db:
-        users = db.execute("SELECT id, username, role FROM users ORDER BY username").fetchall()
-    return render_template('users.html', users=users)
+    return redirect(url_for('admin_panel') + '#team')
 
 
 @app.route('/users/add', methods=['POST'])
@@ -840,27 +838,267 @@ def change_user_role(uid):
     return redirect(url_for('users_list'))
 
 
+# ── Admin hub & activity log ─────────────────────────────────────────────────
+
+try:
+    from zoneinfo import ZoneInfo
+    _UK_TZ = ZoneInfo('Europe/London')
+except Exception:          # tz database missing: show UTC
+    _UK_TZ = None
+
+# First path segment -> (singular noun, lookup kind for the record's name)
+_AUDIT_ENTITIES = {
+    'sales': ('invoice', 'sale'), 'purchases': ('purchase', 'purchase'),
+    'products': ('product', 'product'), 'customers': ('contact', 'contact'),
+    'categories': ('category', None), 'credit-notes': ('credit note', None),
+    'debit-notes': ('debit note', None), 'quotes': ('quote', None),
+    'finance': ('transaction', None), 'warehouses': ('warehouse', None),
+    'users': ('user', None), 'transfers': ('transfer', None),
+    'writeoffs': ('write-off', None), 'inventory': ('stock count', None),
+    'supplier-orders': ('supplier order', None), 'exchange-rates': ('exchange rate', None),
+    'discounts': ('discount', None), 'ttns': ('delivery note', None), 'pos': ('POS sale', None),
+}
+# Action keyword in the path -> (verb, kind). kind drives the icon/colour.
+_AUDIT_ACTIONS = [
+    ('reset-password', 'reset the password for', 'security'),
+    ('role', 'changed the role of', 'security'),
+    ('toggle_paid', 'changed paid status of', 'money'),
+    ('toggle_received', 'changed received status of', 'edit'),
+    ('payment', 'recorded a payment on', 'money'),
+    ('email', 'emailed', 'email'),
+    ('cancel', 'cancelled', 'delete'),
+    ('archive', 'archived', 'edit'),
+    ('delete', 'deleted', 'delete'),
+    ('duplicate', 'duplicated', 'create'),
+    ('import', 'imported', 'create'),
+    ('bulk', 'bulk-edited', 'edit'),
+    ('rename', 'renamed', 'edit'),
+    ('manage', 'rearranged the catalogue', 'edit'),
+    ('checkout', 'completed a', 'money'),
+    ('from-invoice', 'created a purchase from an invoice', 'create'),
+    ('add', 'added', 'create'),
+    ('edit', 'edited', 'edit'),
+]
+
+
+def _uk_time(ts):
+    """'YYYY-mm-dd HH:MM:SS' UTC text -> aware UK datetime (or naive UTC)."""
+    try:
+        dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
+    except (TypeError, ValueError):
+        return None
+    if _UK_TZ:
+        from datetime import timezone
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(_UK_TZ)
+    return dt
+
+
+def _ago(dt, now):
+    if not dt:
+        return ''
+    secs = (now - dt).total_seconds()
+    if secs < 60:
+        return 'just now'
+    if secs < 3600:
+        return f'{int(secs // 60)} min ago'
+    if dt.date() == now.date():
+        return dt.strftime('%H:%M')
+    if (now.date() - dt.date()).days == 1:
+        return 'yesterday ' + dt.strftime('%H:%M')
+    if (now.date() - dt.date()).days < 7:
+        return dt.strftime('%a %H:%M')
+    return dt.strftime('%d %b %Y')
+
+
+def _describe_audit(db, rows):
+    """Turn raw audit rows (method + path) into readable sentences with links."""
+    parsed, want = [], {'sale': set(), 'purchase': set(), 'product': set(), 'contact': set()}
+    for r in rows:
+        parts = [x for x in (r['path'] or '').strip('/').split('/') if x]
+        ids = [int(x) for x in parts if x.isdigit()]
+        ent = _AUDIT_ENTITIES.get(parts[0]) if parts else None
+        rid = ids[0] if ids else None
+        if ent and ent[1] and rid:
+            want[ent[1]].add(rid)
+        parsed.append((r, parts, ent, rid))
+    names = {k: {} for k in want}
+    queries, kinds = [], []
+    for kind, sql in (('sale', "SELECT id, num AS n FROM sales WHERE id = ANY(%s)"),
+                      ('purchase', "SELECT id, num AS n FROM purchases WHERE id = ANY(%s)"),
+                      ('product', "SELECT id, name AS n FROM products WHERE id = ANY(%s)"),
+                      ('contact', "SELECT id, COALESCE(NULLIF(company,''), name) AS n FROM contacts WHERE id = ANY(%s)")):
+        if want[kind]:
+            queries.append((sql, [list(want[kind])])); kinds.append(kind)
+    if queries:
+        for kind, found in zip(kinds, db.batch(*queries)):
+            names[kind] = {x['id']: x['n'] for x in found}
+    links = {'sale': '/sales/{}', 'purchase': '/purchases/{}', 'product': '/products/edit/{}',
+             'contact': '/customers/{}'}
+    now = datetime.now(_UK_TZ) if _UK_TZ else datetime.utcnow()
+    out = []
+    for r, parts, ent, rid in parsed:
+        dt = _uk_time(r['ts'])
+        link = None
+        if parts[:1] == ['login']:
+            text, kind = 'signed in', 'signin'
+        elif parts[:1] == ['settings']:
+            text, kind = ('sent a test email' if 'test' in parts else 'updated company settings'), ('email' if 'test' in parts else 'settings')
+        elif parts[:2] == ['admin', 'send-reminders']:
+            text, kind = 'sent payment reminders', 'email'
+        else:
+            noun = ent[0] if ent else (parts[0].replace('-', ' ') if parts else 'page')
+            verb, kind = 'changed', 'edit'
+            if 'payment' in parts and 'delete' in parts:
+                verb, kind = 'deleted a payment on', 'delete'
+            for key, v, k in ([] if kind == 'delete' else _AUDIT_ACTIONS):
+                if any(key == seg or seg.startswith(key) for seg in parts[1:]) or (key == 'add' and parts[1:2] == ['add']):
+                    verb, kind = v, k
+                    break
+            if ent and ent[1] == 'contact' and parts[1:2] == ['add']:
+                noun = 'contact'
+            label = ''
+            if rid and ent and ent[1]:
+                label = names[ent[1]].get(rid) or ''
+                if label and kind != 'delete':
+                    link = links[ent[1]].format(rid)
+            if verb.endswith('catalogue') or verb.startswith('created a purchase'):
+                text = verb
+            elif verb == 'completed a':
+                text = f'completed a {noun}'
+            elif label:
+                text = f'{verb} {noun} {label}' if ent[1] in ('sale', 'purchase') else f'{verb} {noun} “{label}”'
+            elif rid:
+                text = f'{verb} {noun} #{rid}'
+            elif verb in ('added', 'imported', 'bulk-edited'):
+                text = f'{verb} {"a " if verb == "added" else ""}{noun}{"s" if verb != "added" else ""}'
+                if noun[0] in 'aeiou' and verb == 'added':
+                    text = f'added an {noun}'
+            else:
+                text = f'{verb} {noun}'
+        out.append({'id': r['id'], 'user': r['username'] or '—', 'text': text, 'kind': kind,
+                    'link': link, 'failed': (r['status'] or 0) >= 400,
+                    'when': _ago(dt, now), 'stamp': dt.strftime('%d %b %Y, %H:%M') if dt else r['ts'],
+                    'path': r['path'], 'method': r['method']})
+    return out
+
+
+_AUDIT_KIND_SQL = {   # no literal % here: batch() escapes % in param-less queries
+    'signin': "path = '/login'",
+    'delete': "(position('/delete' in path) > 0 OR position('/cancel' in path) > 0)",
+    'money':  "(position('/payment' in path) > 0 OR position('toggle_paid' in path) > 0)",
+    'change': "path <> '/login'",
+}
+
+
+@app.route('/admin')
+@superadmin_required
+def admin_panel():
+    import shutil
+    t0 = time.perf_counter()
+    with get_db() as db:
+        db.execute("SELECT 1").fetchone()
+        db_ms = (time.perf_counter() - t0) * 1000
+        (users, user_stats, recent, daily, settings_rows, db_size, reminders) = db.batch(
+            "SELECT id, username, role FROM users ORDER BY role, username",
+            """SELECT username, MAX(ts) AS last_ts,
+                      COUNT(*) FILTER (WHERE ts >= to_char(now() AT TIME ZONE 'UTC' - interval '30 days', 'YYYY-MM-DD')) AS n30,
+                      MAX(ts) FILTER (WHERE path = '/login') AS last_login
+               FROM audit_log WHERE method NOT IN ('HEAD','OPTIONS') GROUP BY username""",
+            "SELECT * FROM audit_log WHERE method NOT IN ('HEAD','OPTIONS') ORDER BY id DESC LIMIT 10",
+            """SELECT substr(ts, 1, 10) AS day, COUNT(*) AS n FROM audit_log
+               WHERE method NOT IN ('HEAD','OPTIONS') AND path <> '/login'
+                 AND ts >= to_char(now() AT TIME ZONE 'UTC' - interval '13 days', 'YYYY-MM-DD')
+               GROUP BY 1""",
+            "SELECT key, value FROM settings",
+            "SELECT pg_database_size(current_database()) AS b",
+            """SELECT COUNT(*) FILTER (WHERE sent_at >= to_char(now() - interval '30 days', 'YYYY-MM-DD')) AS n30,
+                      MAX(sent_at) AS last_sent FROM payment_reminders""")
+        activity = _describe_audit(db, recent)
+    st = {r['key']: r['value'] for r in settings_rows}
+    now = datetime.now(_UK_TZ) if _UK_TZ else datetime.utcnow()
+    stats = {r['username']: r for r in user_stats}
+    team = []
+    for u in users:
+        s_ = stats.get(u['username'], {})
+        last = _uk_time(s_.get('last_ts'))
+        team.append({'id': u['id'], 'username': u['username'], 'role': u['role'],
+                     'last_active': _ago(last, now) or 'never',
+                     'online': bool(last and (now - last).total_seconds() < 900),
+                     'n30': s_.get('n30') or 0})
+    role_counts = {r: sum(1 for u in users if u['role'] == r) for r in ('admin', 'editor', 'viewer')}
+    # 14-day activity sparkline (UTC days, oldest first)
+    by_day = {r['day']: r['n'] for r in daily}
+    today = datetime.utcnow().date()
+    days = []
+    for k in range(13, -1, -1):
+        d = today - timedelta(days=k)
+        days.append({'label': d.strftime('%a %d %b'), 'short': d.strftime('%a')[0], 'n': by_day.get(d.isoformat(), 0)})
+    peak = max([d['n'] for d in days] + [1])
+    # Photo storage on the NAS volume
+    n_photos, photo_bytes = 0, 0
+    try:
+        with os.scandir(UPLOAD_FOLDER) as it:
+            for e in it:
+                if e.is_file():
+                    n_photos += 1
+                    photo_bytes += e.stat().st_size
+        disk = shutil.disk_usage(UPLOAD_FOLDER)
+        disk_free_gb = disk.free / 1e9
+    except OSError:
+        disk_free_gb = None
+    host = (DATABASE_URL.split('@')[-1].split('/')[0]) if DATABASE_URL else ''
+    region = next((name for code, name in (('eu-west-2', 'London'), ('us-east-1', 'N. Virginia, US'),
+                   ('eu-central-1', 'Frankfurt'), ('us-east-2', 'Ohio, US')) if code in host), host or 'Not configured')
+    email_via = 'Resend' if st.get('resend_api_key') else ('SMTP · ' + st['smtp_host'] if st.get('smtp_host') else None)
+    company_fields = ['co_company', 'co_address', 'co_city', 'co_postcode', 'co_vat', 'co_email',
+                      'co_phone', 'co_bank_name', 'co_sort_code', 'co_account_number', 'co_logo']
+    company_missing = [f for f in company_fields if not (st.get(f) or '').strip()]
+    rem = reminders[0] if reminders else {}
+    health = {
+        'db_region': region, 'db_ms': db_ms, 'db_mb': (db_size[0]['b'] / 1e6) if db_size else 0,
+        'photos': n_photos, 'photo_mb': photo_bytes / 1e6, 'disk_free_gb': disk_free_gb,
+        'email_via': email_via, 'reminders_on': bool(st.get('reminder_enabled')),
+        'reminder_last_run': st.get('reminder_last_run', ''), 'reminders_30': rem.get('n30') or 0,
+        'company_done': len(company_fields) - len(company_missing), 'company_total': len(company_fields),
+    }
+    return render_template('admin.html', team=team, role_counts=role_counts, activity=activity,
+                           days=days, peak=peak, health=health, co_name=st.get('co_company') or 'NEON')
+
+
 @app.route('/audit-log')
 @admin_required
 def audit_log():
-    page = int(request.args.get('page', 1))
-    per_page = 100
-    offset = (page - 1) * per_page
+    page = max(int(request.args.get('page', 1) or 1), 1)
+    per_page = 50
     user_filter = request.args.get('user', '')
+    kind = request.args.get('kind', '')
+    day = request.args.get('day', '')
     with get_db() as db:
-        base = "FROM audit_log WHERE 1=1"
+        where = "WHERE method NOT IN ('HEAD','OPTIONS')"
         params = []
         if user_filter:
-            base += " AND username=%s"
-            params.append(user_filter)
-        total = db.execute(f"SELECT COUNT(*) AS n {base}", params).fetchone()['n']
-        rows = db.execute(
-            f"SELECT * {base} ORDER BY id DESC LIMIT %s OFFSET %s",
-            params + [per_page, offset]).fetchall()
-        users = db.execute("SELECT DISTINCT username FROM audit_log ORDER BY username").fetchall()
-    pages = (total + per_page - 1) // per_page
-    return render_template('audit_log.html', rows=rows, page=page, pages=pages,
-                           total=total, user_filter=user_filter, users=users)
+            where += " AND username=%s"; params.append(user_filter)
+        if kind in _AUDIT_KIND_SQL:
+            where += " AND " + _AUDIT_KIND_SQL[kind]
+        if re.fullmatch(r'\d{4}-\d{2}-\d{2}', day):
+            where += " AND substr(ts, 1, 10) = %s"; params.append(day)
+        total_rows, rows, users = db.batch(
+            (f"SELECT COUNT(*) AS n FROM audit_log {where}", params),
+            (f"SELECT * FROM audit_log {where} ORDER BY id DESC LIMIT %s OFFSET %s",
+             params + [per_page, (page - 1) * per_page]),
+            "SELECT DISTINCT username FROM audit_log WHERE username IS NOT NULL ORDER BY username")
+        entries = _describe_audit(db, rows)
+    total = total_rows[0]['n']
+    pages = max((total + per_page - 1) // per_page, 1)
+    # Group entries by UK calendar day for the timeline
+    groups = []
+    for e in entries:
+        d = e['stamp'][:11]
+        if not groups or groups[-1]['day'] != d:
+            groups.append({'day': d, 'items': []})
+        groups[-1]['items'].append(e)
+    return render_template('audit_log.html', groups=groups, page=page, pages=pages, total=total,
+                           user_filter=user_filter, kind=kind, day=day, users=users)
 
 
 @app.route('/api/address-lookup')

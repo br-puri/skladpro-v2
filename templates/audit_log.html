@@ -1,68 +1,80 @@
 {% extends 'base.html' %}
-{% block title %}Audit Log{% endblock %}
-{% block page_title %}Audit Log{% endblock %}
+{% block title %}Activity Log{% endblock %}
+{% block page_title %}Activity Log{% endblock %}
+{% block topbar_actions %}
+  {% if session.get('role') == 'admin' %}<a href="{{ url_for('admin_panel') }}" class="btn">← Admin</a>{% endif %}
+{% endblock %}
 {% block content %}
+<style>
+  .al { max-width:1100px; margin:0 auto; color:#20324a; }
+  .al-tabs { display:flex; gap:4px; flex-wrap:wrap; }
+  .al-tabs a { font-size:12.5px; font-weight:600; padding:6px 12px; border-radius:20px; text-decoration:none; color:#475569; border:1px solid #e2e8f0; background:#fff; }
+  .al-tabs a.on { background:#20324a; border-color:#20324a; color:#fff; }
+  .al-day { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#64748b; margin:22px 4px 8px; }
+  .al-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; box-shadow:0 3px 12px #20324a04; }
+  .al-row { display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:12px; align-items:center; padding:11px 18px; border-bottom:1px solid #f3f5f8; }
+  .al-row:last-child { border-bottom:0; }
+  .al-row:hover { background:#fafbfc; }
+  .fi { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; }
+  .k-create { background:#ecfdf5; color:#047857; } .k-edit { background:#eef3fb; color:#315b83; }
+  .k-delete { background:#fef2f2; color:#dc2626; } .k-money { background:#fff7e6; color:#a16207; }
+  .k-email { background:#f5f3ff; color:#6d28d9; } .k-signin { background:#f1f5f9; color:#64748b; }
+  .k-security { background:#fff1f2; color:#be123c; } .k-settings { background:#f5f1e7; color:#785a1e; }
+  .al-t { font-size:13.5px; color:#334155; overflow-wrap:anywhere; }
+  .al-t b { color:#16233a; font-weight:650; }
+  .al-t a { color:#315b83; font-weight:600; text-decoration:none; }
+  .al-t a:hover { text-decoration:underline; }
+  .al-path { font-family:ui-monospace,Menlo,monospace; font-size:11px; color:#a0aab8; margin-top:2px; }
+  .al-time { font-size:12px; color:#7c8798; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .fail { font-size:10.5px; font-weight:700; color:#dc2626; background:#fef2f2; padding:1px 6px; border-radius:8px; margin-left:4px; }
+  .al-pager { display:flex; gap:8px; justify-content:center; align-items:center; margin:22px 0 8px; font-size:12.5px; color:#64748b; }
+  .al-pager a { padding:6px 12px; border-radius:8px; border:1px solid #e2e8f0; background:#fff; color:#20324a; text-decoration:none; font-weight:600; }
+  .al-pager a:hover { background:#f6f8fb; }
+  @media (max-width:600px) { .al-row { grid-template-columns:30px minmax(0,1fr); } .al-time { grid-column:2; } .al-path { display:none; } }
+</style>
+{% set qs_user = ('&user=' ~ user_filter|urlencode) if user_filter else '' %}
+{% set qs_day = ('&day=' ~ day) if day else '' %}
+<div class="al">
+  <form class="filter-bar" method="GET">
+    <div class="al-tabs" role="tablist" aria-label="Activity type">
+      {% for key, label in [('', 'All'), ('change', 'Changes'), ('delete', 'Deletions'), ('money', 'Payments'), ('signin', 'Sign-ins')] %}
+      <a href="?kind={{ key }}{{ qs_user }}{{ qs_day }}" class="{{ 'on' if kind == key }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="kind" value="{{ kind }}">
+    <select name="user" class="form-control" style="width:160px;margin-left:auto" onchange="this.form.submit()" aria-label="Filter by user">
+      <option value="">All users</option>
+      {% for u in users %}<option value="{{ u['username'] }}" {{ 'selected' if u['username'] == user_filter }}>{{ u['username'] }}</option>{% endfor %}
+    </select>
+    <span style="display:inline-block;width:170px"><input type="date" name="day" value="{{ day }}" class="form-control" placeholder="Any day" onchange="this.form.submit()" aria-label="Filter by day"></span>
+    {% if user_filter or kind or day %}<a href="{{ url_for('audit_log') }}" class="btn">Clear</a>{% endif %}
+    <span style="font-size:12px;color:#94a3b8">{{ total }} entr{{ 'y' if total == 1 else 'ies' }}</span>
+  </form>
 
-<form class="filter-bar" method="GET">
-  <select name="user" class="form-control" style="width:160px" onchange="this.form.submit()">
-    <option value="">All users</option>
-    {% for u in users %}
-    <option value="{{ u['username'] }}" {% if u['username']==user_filter %}selected{% endif %}>{{ u['username'] }}</option>
+  {% for g in groups %}
+  <div class="al-day">{{ g.day }}</div>
+  <div class="al-card">
+    {% for a in g['items'] %}
+    <div class="al-row">
+      <span class="fi k-{{ a.kind }}" aria-hidden="true">{% include '_audit_icon.html' %}</span>
+      <div style="min-width:0">
+        <div class="al-t"><b>{{ a.user }}</b> {% if a.link %}<a href="{{ a.link }}">{{ a.text }}</a>{% else %}{{ a.text }}{% endif %}{% if a.failed %}<span class="fail">FAILED</span>{% endif %}</div>
+        <div class="al-path">{{ a.method }} {{ a.path }}</div>
+      </div>
+      <span class="al-time" title="{{ a.stamp }}">{{ a.stamp[-5:] }}</span>
+    </div>
     {% endfor %}
-  </select>
-  {% if user_filter %}<a href="{{ url_for('audit_log') }}" class="btn">Clear</a>{% endif %}
-  <div style="margin-left:auto;font-size:12px;color:#94a3b8;padding:0 4px">{{ total }} entries</div>
-</form>
-
-<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
-  <table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead>
-      <tr style="background:#f8f9fb;border-bottom:1px solid #eaecf0">
-        <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Time (UTC)</th>
-        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">User</th>
-        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Method</th>
-        <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Path</th>
-        <th style="padding:11px 20px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8">Status</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for r in rows %}
-    <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s"
-        onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
-      <td style="padding:11px 20px;font-family:monospace;font-size:12px;color:#64748b;white-space:nowrap">{{ r['ts'] }}</td>
-      <td style="padding:11px 16px;font-weight:600;color:#1e293b">{{ r['username'] or '—' }}</td>
-      <td style="padding:11px 16px">
-        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;
-          {{ 'background:#dbeafe;color:#1d4ed8' if r['method']=='POST' else 'background:#f0f2f5;color:#64748b' }}">
-          {{ r['method'] }}
-        </span>
-      </td>
-      <td style="padding:11px 16px;font-family:monospace;font-size:12px;color:#374151">{{ r['path'] }}</td>
-      <td style="padding:11px 20px">
-        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;
-          {{ 'background:#dcfce7;color:#16a34a' if r['status'] < 400 else 'background:#fee2e2;color:#dc2626' }}">
-          {{ r['status'] }}
-        </span>
-      </td>
-    </tr>
-    {% else %}
-    <tr>
-      <td colspan="5" style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:13px">No activity yet</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-{% if pages > 1 %}
-<div style="display:flex;gap:6px;justify-content:center;margin-top:16px">
-  {% for p in range(1, pages+1) %}
-  <a href="?page={{ p }}{% if user_filter %}&user={{ user_filter }}{% endif %}"
-     style="font-size:12px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;
-       {{ 'background:#0f172a;color:#fff;border:1px solid #0f172a' if p==page else 'background:#fff;border:1px solid #e2e8f0;color:#374151' }}">
-    {{ p }}
-  </a>
+  </div>
+  {% else %}
+  <div class="al-card" style="padding:60px 20px;text-align:center;color:#94a3b8;font-size:13px">No activity matches these filters</div>
   {% endfor %}
+
+  {% if pages > 1 %}
+  <div class="al-pager">
+    {% if page > 1 %}<a href="?page={{ page - 1 }}&kind={{ kind }}{{ qs_user }}{{ qs_day }}">← Newer</a>{% endif %}
+    <span>Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a href="?page={{ page + 1 }}&kind={{ kind }}{{ qs_user }}{{ qs_day }}">Older →</a>{% endif %}
+  </div>
+  {% endif %}
 </div>
-{% endif %}
 {% endblock %}

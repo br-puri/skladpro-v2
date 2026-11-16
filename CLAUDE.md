@@ -31,7 +31,8 @@ This is a single-file Flask application (`app.py`, ~4 600 lines) backed by Postg
 - PostgreSQL via **psycopg2**. Connection URL comes from `DATABASE_URL` env var (set automatically by Render from the linked `skladpro-db` database).
 - `get_db()` returns a `_Db` context-manager wrapper around a psycopg2 connection using `RealDictCursor` (rows are dicts). Commits on clean exit, rolls back on exception, closes the connection.
 - `init_db()` is called at module load. It issues individual `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements (no migration files).
-- Connections are not pooled — each request opens and closes its own connection.
+- Connections come from a `ThreadedConnectionPool`. `_Db` runs reads in autocommit mode (no BEGIN/COMMIT round trips) and switches to a transaction at the first non-SELECT statement, so writes stay atomic. Dead pooled connections are retried transparently on the first statement.
+- `db.batch(q1, q2, ...)` runs several read-only SELECTs in one round trip (rows come back via `json_agg`; REAL/numeric types are restored). Prefer it on pages that need several reads.
 - `next_num(prefix, table)` opens its own separate `get_db()` connection to check for number uniqueness — it does not share the caller's transaction.
 
 **Critical psycopg2 gotcha — `cursor.lastrowid` is always `None`:**  
@@ -146,8 +147,11 @@ container/image deletion needed (that was only required when driving the NAS's G
 screenshots, before SSH access was set up on 2026-10-18).
 
 **Database (Neon):**
-- Project: `skladpro-db`, database: `neondb`, user: `neondb_owner`
-- Pooler endpoint: `ep-jolly-sea-atoft6o9-pooler.c-9.us-east-1.aws.neon.tech`
+- **Live:** Neon project `skladpro-london` (AWS eu-west-2, London; Postgres 18), database `neondb`, user `neondb_owner`
+- Pooler endpoint: `ep-frosty-glitter-zaavb1ar-pooler.c-2.eu-west-2.aws.neon.tech` (~12ms round trip from the NAS)
+- Moved from the US project `skladpro` (`ep-jolly-sea-atoft6o9-pooler.c-9.us-east-1.aws.neon.tech`, ~100ms/round trip) on 2026-11-15. The US project is a frozen fallback copy; its URL is kept on the NAS in `docker-compose.yaml.us-backup`.
+- In `docker-compose.yaml` on the NAS, `SECRET_KEY` is currently set to the *old US* database URL — when editing, change only the `DATABASE_URL` line (changing `SECRET_KEY` logs everyone out).
+- Copy/verify tool used for the move: `/volume1/docker/neon/scripts/migrate_to_london.sh` (pg_dump/pg_restore via the `postgres:18` image).
 - Migration script: `migrate_sqlite_to_pg.py` — copies all tables from local `skladpro.db` to Neon in FK-safe order
 
 **DNS (Hostinger):**
