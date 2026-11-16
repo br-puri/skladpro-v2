@@ -1058,6 +1058,7 @@ def admin_panel():
         'db_region': region, 'db_ms': db_ms, 'db_mb': (db_size[0]['b'] / 1e6) if db_size else 0,
         'photos': n_photos, 'photo_mb': photo_bytes / 1e6, 'disk_free_gb': disk_free_gb,
         'email_via': email_via, 'reminders_on': bool(st.get('reminder_enabled')),
+        'reminders_server_off': not globals().get('REMINDER_WORKER_ENABLED', True),
         'reminder_last_run': st.get('reminder_last_run', ''), 'reminders_30': rem.get('n30') or 0,
         'company_done': len(company_fields) - len(company_missing), 'company_total': len(company_fields),
     }
@@ -4058,10 +4059,11 @@ def send_payment_reminders():
                        COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0) AS paid_amount
                 FROM sales s
                 LEFT JOIN contacts c ON c.id = s.customer_id
-                WHERE s.status='completed' AND s.archived=0
+                WHERE s.status='completed' AND s.archived=0 AND s.paid=0
                   AND (c.email IS NOT NULL AND c.email != '')
                   AND s.doc_date <= (CURRENT_DATE - INTERVAL '7 days')::TEXT
-                  AND s.total > COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0)
+                  -- ignore rounding leftovers: at least 1p must still be owed
+                  AND s.total - COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0) >= 0.01
                 ORDER BY c.email, s.doc_date
             """).fetchall()
 
@@ -5950,7 +5952,7 @@ def generate_statement_pdf(customer, invoices, company=None, payments=None, cred
     total_charged = total_credited = 0.0
     balance = 0.0
     for ev in events:
-        balance += ev['charge'] - ev['credit']
+        balance = round(balance + ev['charge'] - ev['credit'], 2)  # no £-0.00 from float dust
         total_charged += ev['charge']
         total_credited += ev['credit']
         charge_txt = f"£{ev['charge']:,.2f}" if ev['charge'] > 0 else ''
@@ -6593,7 +6595,8 @@ def _payment_reminder_worker():
         time.sleep(3600)  # Check every hour
 
 
-if os.environ.get('ENABLE_PAYMENT_REMINDERS', '1') == '1':
+REMINDER_WORKER_ENABLED = os.environ.get('ENABLE_PAYMENT_REMINDERS', '1') == '1'
+if REMINDER_WORKER_ENABLED:
     threading.Thread(target=_payment_reminder_worker, daemon=True).start()
 
 

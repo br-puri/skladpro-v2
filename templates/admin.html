@@ -305,8 +305,9 @@
             <span class="v">{{ health.photos }} files · {{ '%.0f'|format(health.photo_mb) }} MB{% if health.disk_free_gb %} · {{ '%.0f'|format(health.disk_free_gb) }} GB free{% endif %}</span></li>
         <li><span class="k"><span class="dot {{ 'ok' if health.email_via else 'off' }}"></span>Email sending</span>
             <span class="v">{% if health.email_via %}{{ health.email_via }}{% else %}<a href="{{ url_for('settings_page') }}">Set up →</a>{% endif %}</span></li>
-        <li><span class="k"><span class="dot {{ 'ok' if health.reminders_on else 'off' }}"></span>Weekly payment reminders</span>
-            <span class="v">{{ 'On' if health.reminders_on else 'Off' }}{% if health.reminders_30 %} · {{ health.reminders_30 }} sent in 30 days{% endif %}</span></li>
+        {% set rem_live = health.reminders_on and not health.reminders_server_off %}
+        <li><span class="k"><span class="dot {{ 'ok' if rem_live else ('warn' if health.reminders_on else 'off') }}"></span>Weekly payment reminders</span>
+            <span class="v">{% if rem_live %}On{% elif health.reminders_on %}Off on server{% else %}Off{% endif %}{% if health.reminders_30 %} · {{ health.reminders_30 }} sent in 30 days{% endif %}</span></li>
         <li><span class="k"><span class="dot {{ 'ok' if health.company_done == health.company_total else 'warn' }}"></span>Company profile</span>
             <span class="v"><span class="bar"><span style="width:{{ (health.company_done / health.company_total * 100)|round }}%"></span></span>
               {% if health.company_done == health.company_total %}Complete{% else %}<a href="{{ url_for('settings_page') }}">{{ health.company_done }}/{{ health.company_total }} filled</a>{% endif %}</span></li>
