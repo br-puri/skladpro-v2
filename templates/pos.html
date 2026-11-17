@@ -232,7 +232,7 @@ function posRenderCart() {
     container.innerHTML = ids.map(id => {
       const item = posCart[id];
       const lineTotal = (item.price * item.qty).toFixed(2);
-      return `<div class="pos-line">
+      return `<div class="pos-line" data-product-id="${id}">
         <span class="pos-line-name">${item.name}</span>
         <button type="button" class="pos-qty-btn" onclick="posChangeQty('${id}',-1)">−</button>
         <input type="number" class="pos-qty-input" value="${item.qty}" min="0" step="any"

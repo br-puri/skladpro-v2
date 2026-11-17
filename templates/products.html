@@ -175,7 +175,8 @@
   <tr class="product-row" data-href="{{ edit_url }}"
       style="border-bottom:1px solid #f3f5f8;cursor:pointer;transition:background .1s"
       onmouseover="this.style.background='#fafbfc'" onmouseout="this.style.background=''"
-      onclick="rowClick(event, '{{ edit_url }}')">
+      title="Click to select (F6 for sales history) · double-click to open"
+      ondblclick="rowClick(event, '{{ edit_url }}')">
 
     <td style="padding:13px 18px" onclick="event.stopPropagation()">
       <input type="checkbox" class="bulk-cb" value="{{ p['id'] }}">
@@ -448,10 +449,19 @@
 
 <script>
 // ── Row click → edit ──────────────────────────────────────────────
+// Single click selects a product (gold outline, F6 = sales history);
+// double-click — or Enter on the selected row — opens it.
 function rowClick(e, url) {
   if (e.target.closest('input,button,a,form,.row-menu')) return;
   window.location.href = url;
 }
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter') return;
+  const t = document.activeElement.tagName;
+  if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA' || t === 'BUTTON' || t === 'A') return;
+  const row = document.querySelector('.product-row.f6-selected');
+  if (row) { e.preventDefault(); window.location.href = row.dataset.href; }
+});
 
 // ── Keyboard shortcuts ────────────────────────────────────────────
 document.addEventListener('keydown', function(e) {

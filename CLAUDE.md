@@ -130,6 +130,7 @@ Trust → Networking → Tunnels, in the Cloudflare account that owns the `neond
 **NAS access — SSH (primary deploy method):**
 - Alias configured in `~/.ssh/config`: `Host skladpro-nas` → `192.168.0.37`, user `"Balram Puri"` (yes, the NAS account's Unix username has a literal space — always quote it), key `~/.ssh/skladpro_nas_ed25519`
 - Connect: `ssh skladpro-nas`
+- **Away from home:** `ssh skladpro-nas-remote` goes through the Cloudflare tunnel (`ssh.neondistro.co.uk` → `ssh://192.168.0.37:22`), protected by a Cloudflare Access app ("ssh", policy "Owner only", email one-time code, team `dawn-hall-9dfb`, Zero Trust Free). Needs a valid Access token first: the user runs `cloudflared access login https://ssh.neondistro.co.uk` and clicks **Approve** in the browser (token lasts 24 h). SSH must also be switched on in UGOS.
 - Project directory on the NAS: `/volume1/docker/neon` (this is the real filesystem path behind the Files-app's `Shared Folder/docker/neon`)
 - The **active** compose file is `docker-compose.yaml`, not `compose.yaml` (there's a stale duplicate — always target `docker-compose.yaml` explicitly)
 - The NAS's `rsync` binary is shadowed by a UGOS sync wrapper and does not work as plain rsync — use `scp -O` (legacy SCP protocol; the NAS's sshd doesn't support modern SFTP-based scp) instead

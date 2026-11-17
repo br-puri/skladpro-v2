@@ -1193,8 +1193,8 @@ def dashboard():
                       ON st.product_id = p.id""",
             "SELECT id FROM warehouses",
             "SELECT * FROM sales ORDER BY doc_date DESC LIMIT 8",
-            """SELECT COALESCE(SUM(amount) FILTER (WHERE type='income'), 0)  AS income,
-                      COALESCE(SUM(amount) FILTER (WHERE type='expense'), 0) AS expenses
+            """SELECT COALESCE(SUM(amount::float8) FILTER (WHERE type='income'), 0)  AS income,
+                      COALESCE(SUM(amount::float8) FILTER (WHERE type='expense'), 0) AS expenses
                FROM transactions""",
             """SELECT to_char(doc_date::date, 'YYYY-MM') as month,
                       SUM(total) as total, COUNT(*) as count
@@ -4583,12 +4583,12 @@ def finance():
         rows, sums = db.batch(
             (base + " ORDER BY doc_date DESC", params),
             ("""SELECT
-                  COALESCE(SUM(amount) FILTER (WHERE type='income'), 0)                    AS income,
-                  COALESCE(SUM(amount) FILTER (WHERE type='expense'), 0)                   AS expenses,
-                  COALESCE(SUM(amount) FILTER (WHERE type='income'  AND method='cash'), 0) AS cash_in,
-                  COALESCE(SUM(amount) FILTER (WHERE type='expense' AND method='cash'), 0) AS cash_out,
-                  COALESCE(SUM(amount) FILTER (WHERE type='income'  AND method='bank'), 0) AS bank_in,
-                  COALESCE(SUM(amount) FILTER (WHERE type='expense' AND method='bank'), 0) AS bank_out
+                  COALESCE(SUM(amount::float8) FILTER (WHERE type='income'), 0)                    AS income,
+                  COALESCE(SUM(amount::float8) FILTER (WHERE type='expense'), 0)                   AS expenses,
+                  COALESCE(SUM(amount::float8) FILTER (WHERE type='income'  AND method='cash'), 0) AS cash_in,
+                  COALESCE(SUM(amount::float8) FILTER (WHERE type='expense' AND method='cash'), 0) AS cash_out,
+                  COALESCE(SUM(amount::float8) FILTER (WHERE type='income'  AND method='bank'), 0) AS bank_in,
+                  COALESCE(SUM(amount::float8) FILTER (WHERE type='expense' AND method='bank'), 0) AS bank_out
                 FROM transactions""" + where, params))
         sums = sums[0]
         income, expenses = sums['income'], sums['expenses']
@@ -6505,6 +6505,56 @@ def api_product(pid):
         if not p: return jsonify({})
         stock = {str(r['warehouse_id']): r['qty'] for r in db.execute("SELECT warehouse_id,qty FROM stock WHERE product_id=%s", (pid,)).fetchall()}
     return jsonify({**dict(p), 'stock': stock})
+
+
+@app.route('/api/products/<int:pid>/sales-history')
+def api_product_sales_history(pid):
+    """F6 popup: who bought this product, when, how many and at what price."""
+    try:
+        cust_id = int(request.args.get('customer_id') or 0)
+    except ValueError:
+        cust_id = 0
+    with get_db() as db:
+        prod, stock, rows = db.batch(
+            ("SELECT id, name, sku, unit, price, cost, carton_qty FROM products WHERE id=%s", [pid]),
+            ("SELECT COALESCE(SUM(qty), 0) AS q FROM stock WHERE product_id=%s", [pid]),
+            ("""SELECT s.id AS sale_id, s.num, s.doc_date, s.status, s.discount AS sale_disc,
+                       s.customer_id, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name, '—') AS customer,
+                       si.qty, si.price, COALESCE(si.discount_pct, 0) AS line_disc
+                FROM sale_items si
+                JOIN sales s ON s.id = si.sale_id
+                LEFT JOIN contacts c ON c.id = s.customer_id
+                WHERE si.product_id = %s AND s.status <> 'cancelled' AND s.archived = 0
+                ORDER BY s.doc_date DESC, s.id DESC
+                LIMIT 300""", [pid]))
+    if not prod:
+        return jsonify({'error': 'Product not found'}), 404
+    p = prod[0]
+    out, total_qty, total_val, customers = [], 0.0, 0.0, set()
+    for r in rows:
+        qty = r['qty'] or 0
+        price = r['price'] or 0
+        net = price * (1 - (r['line_disc'] or 0) / 100) * (1 - (r['sale_disc'] or 0) / 100)
+        total_qty += qty
+        total_val += qty * net
+        customers.add(r['customer'])
+        out.append({'sale_id': r['sale_id'], 'num': r['num'], 'date': r['doc_date'], 'status': r['status'],
+                    'customer': r['customer'], 'customer_id': r['customer_id'],
+                    'qty': qty, 'price': price, 'net': round(net, 4), 'total': round(qty * net, 2),
+                    'mine': bool(cust_id and r['customer_id'] == cust_id)})
+    mine = [r for r in out if r['mine']]
+    return jsonify({
+        'product': {'id': p['id'], 'name': p['name'], 'sku': p['sku'] or '', 'unit': p['unit'] or 'pcs',
+                    'price': p['price'] or 0, 'cost': p['cost'] or 0, 'carton_qty': p['carton_qty'] or 0,
+                    'stock': stock[0]['q'] if stock else 0},
+        'rows': out,
+        'summary': {'times': len(out), 'qty': total_qty, 'customers': len(customers),
+                    'avg_price': (total_val / total_qty) if total_qty else 0,
+                    'last_date': out[0]['date'] if out else None, 'last_price': out[0]['net'] if out else None},
+        'customer': ({'times': len(mine), 'qty': sum(r['qty'] for r in mine),
+                      'last_date': mine[0]['date'], 'last_price': mine[0]['net'], 'name': mine[0]['customer']}
+                     if mine else ({'times': 0} if cust_id else None)),
+    })
 
 
 @app.route('/api/contact/<int:cid>')
