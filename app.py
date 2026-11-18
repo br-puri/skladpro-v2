@@ -2712,7 +2712,7 @@ def customers():
             base += " AND type=%s"
             params.append(ctype)
         contacts, outstanding_rows = db.batch(
-            (base + " ORDER BY name", params),
+            (base + " ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))", params),
             """SELECT s.customer_id, s.customer,
                       GREATEST(s.total - COALESCE(ip.paid_sum, 0), 0) AS amt
                FROM sales s
@@ -2941,7 +2941,7 @@ def import_purchase_invoice():
     from difflib import SequenceMatcher
 
     with get_db() as db:
-        suppliers  = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY name").fetchall()]
+        suppliers  = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products   = [dict(r) for r in db.execute("SELECT id, name, sku, barcode, cost, unit FROM products ORDER BY name").fetchall()]
 
@@ -3049,7 +3049,7 @@ def import_purchase_invoice():
 @admin_required
 def add_purchase():
     with get_db() as db:
-        suppliers  = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY name").fetchall()]
+        suppliers  = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products   = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
         if request.method == 'POST':
@@ -3094,7 +3094,7 @@ def add_purchase():
 def edit_purchase(pid):
     with get_db() as db:
         purchase   = dict(db.execute("SELECT * FROM purchases WHERE id=%s", (pid,)).fetchone())
-        suppliers  = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY name").fetchall()]
+        suppliers  = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products   = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
         items      = [dict(r) for r in db.execute("SELECT * FROM purchase_items WHERE purchase_id=%s", (pid,)).fetchall()]
@@ -3186,7 +3186,7 @@ def supplier_orders():
 @admin_required
 def add_supplier_order():
     with get_db() as db:
-        suppliers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY name").fetchall()]
+        suppliers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         products = [dict(r) for r in db.execute("SELECT id, name, sku, photo, cbm, carton_qty FROM products ORDER BY name").fetchall()]
         if request.method == 'POST':
             num = next_num('SO', 'supplier_orders')
@@ -3213,7 +3213,7 @@ def edit_supplier_order(oid):
             flash('Order not found', 'error')
             return redirect(url_for('supplier_orders'))
         order = dict(order)
-        suppliers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY name").fetchall()]
+        suppliers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         products = [dict(r) for r in db.execute("SELECT id, name, sku, photo, cbm, carton_qty FROM products ORDER BY name").fetchall()]
         items = [dict(r) for r in db.execute("SELECT * FROM supplier_order_items WHERE order_id=%s ORDER BY id", (oid,)).fetchall()]
         if request.method == 'POST':
@@ -3454,7 +3454,7 @@ def sales():
                 LEFT JOIN (SELECT sale_id, SUM(amount) AS paid_sum FROM invoice_payments GROUP BY sale_id) ip
                        ON ip.sale_id = s.id
                 {where} ORDER BY s.doc_date DESC""", params),
-            "SELECT id, COALESCE(NULLIF(company,''), name) as label FROM contacts WHERE type='customer' ORDER BY label")
+            "SELECT id, COALESCE(NULLIF(company,''), name) as label FROM contacts WHERE type='customer' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))")
         # Real outstanding per invoice: 0 if flagged paid, else total - payments received (floored at 0)
         for r in rows:
             if r.get('paid'):
@@ -3481,7 +3481,7 @@ def sales_archive():
 def add_sale():
     with get_db() as db:
         customers, warehouses, products, discounts = db.batch(
-            "SELECT * FROM contacts WHERE type='customer' ORDER BY name",
+            "SELECT * FROM contacts WHERE type='customer' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))",
             "SELECT * FROM warehouses",
             """SELECT p.*, COALESCE(st.qty, 0) AS stock_total FROM products p
                LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
@@ -3536,7 +3536,7 @@ def pos():
                LEFT JOIN (SELECT product_id, SUM(qty) AS qty FROM stock GROUP BY product_id) st
                       ON st.product_id = p.id
                ORDER BY p.name""",
-            "SELECT id, name, company, phone FROM contacts WHERE type='customer' ORDER BY name")
+            "SELECT id, name, company, phone FROM contacts WHERE type='customer' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))")
     return render_template('pos.html', products=products, customers=customers)
 
 
@@ -3696,7 +3696,7 @@ def edit_sale(sid):
         if not sale or sale['status'] == 'cancelled':
             flash('Sale cannot be edited', 'error')
             return redirect(url_for('sales'))
-        customers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY name").fetchall()]
+        customers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
         discounts = db.execute("SELECT * FROM discounts WHERE active=1").fetchall()
@@ -4296,7 +4296,7 @@ def quotes():
 @admin_required
 def add_quote():
     with get_db() as db:
-        customers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY name").fetchall()]
+        customers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
         discounts = db.execute("SELECT * FROM discounts WHERE active=1").fetchall()
@@ -4354,7 +4354,7 @@ def edit_quote(qid):
         if not quote:
             flash('Quote not found', 'error')
             return redirect(url_for('quotes'))
-        customers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY name").fetchall()]
+        customers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
         warehouses = [dict(r) for r in db.execute("SELECT * FROM warehouses").fetchall()]
         products = [dict(r) for r in db.execute("SELECT p.*, COALESCE((SELECT SUM(qty) FROM stock WHERE product_id=p.id), 0) as stock_total FROM products p ORDER BY p.name").fetchall()]
         discounts = db.execute("SELECT * FROM discounts WHERE active=1").fetchall()
@@ -4603,7 +4603,7 @@ def finance():
 @admin_required
 def add_transaction():
     with get_db() as db:
-        contacts = db.execute("SELECT id, name FROM contacts ORDER BY name").fetchall()
+        contacts = db.execute("SELECT id, name FROM contacts ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()
         if request.method == 'POST':
             contact_id = request.form.get('contact_id') or None
             contact_name = ''
@@ -4625,7 +4625,7 @@ def add_transaction():
 def edit_transaction(tid):
     with get_db() as db:
         t = db.execute("SELECT * FROM transactions WHERE id=%s", (tid,)).fetchone()
-        contacts = db.execute("SELECT id, name FROM contacts ORDER BY name").fetchall()
+        contacts = db.execute("SELECT id, name FROM contacts ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()
         if request.method == 'POST':
             contact_id = request.form.get('contact_id') or None
             contact_name = ''
@@ -5025,7 +5025,7 @@ def credit_notes():
 @admin_required
 def add_credit_note():
     with get_db() as db:
-        customers = db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY name").fetchall()
+        customers = db.execute("SELECT * FROM contacts WHERE type='customer' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()
         warehouses = db.execute("SELECT * FROM warehouses").fetchall()
         products = [dict(r) for r in db.execute("SELECT * FROM products ORDER BY name").fetchall()]
         sale_id = request.args.get('sale_id', type=int)
@@ -5154,7 +5154,7 @@ def debit_notes():
 @admin_required
 def add_debit_note():
     with get_db() as db:
-        suppliers = db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY name").fetchall()
+        suppliers = db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()
         warehouses = db.execute("SELECT * FROM warehouses").fetchall()
         products = [dict(r) for r in db.execute("SELECT * FROM products ORDER BY name").fetchall()]
         purchase_id = request.args.get('purchase_id', type=int)
