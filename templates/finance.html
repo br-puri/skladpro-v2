@@ -9,6 +9,28 @@
   .fl-chip { display:inline-block; margin-top:4px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .fl-on { background:#eef3fb; color:#315b83; }
   .fl-off { background:#fff7e6; color:#8a6512; }
+  .fc-chip { display:inline-block; margin-top:4px; margin-right:4px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; background:#f5f1e7; color:#785a1e; text-decoration:none; }
+  .fc-chip:hover { background:#efe5cc; }
+  .fc-form { display:inline-flex; gap:4px; margin-top:4px; align-items:center; }
+  .fc-form input { font-size:11.5px; padding:3px 8px; border:1px dashed #d6b86a; border-radius:8px; width:170px; background:#fffdf7; }
+  .fc-form button { font-size:11px; padding:3px 8px; border-radius:8px; border:1px solid #d6b86a; background:#fff7e6; color:#8a6512; cursor:pointer; font-weight:700; }
+  .wm { background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:18px; overflow:hidden; }
+  .wm-h { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 18px; border-bottom:1px solid #f0f2f5; }
+  .wm-h h3 { margin:0; font-size:15px; font-weight:700; color:#16233a; }
+  .wm-h small { color:#8a96a8; font-size:12px; }
+  .wm-per { display:flex; gap:4px; flex-wrap:wrap; }
+  .wm-per a { font-size:12px; font-weight:600; padding:5px 11px; border-radius:20px; border:1px solid #e2e8f0; color:#475569; text-decoration:none; background:#fff; }
+  .wm-per a.on { background:#20324a; border-color:#20324a; color:#fff; }
+  .wm-list { padding:8px 18px 14px; display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); column-gap:28px; }
+  .wm-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; padding:8px 0; border-bottom:1px solid #f3f5f8; text-decoration:none; color:#20324a; }
+  .wm-row:hover .wm-name { text-decoration:underline; }
+  .wm-row.on { background:#fffbf0; }
+  .wm-name { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wm-amt { font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; text-align:right; }
+  .wm-bar { grid-column:1/-1; height:6px; background:#eef2f6; border-radius:4px; overflow:hidden; }
+  .wm-bar span { display:block; height:100%; background:#d9a024; border-radius:4px; }
+  .wm-row.none .wm-bar span { background:#cbd5e1; }
+  .wm-sub { grid-column:1/-1; font-size:11px; color:#94a3b8; margin-top:-2px; }
 </style>
 <style>
 @media(max-width:768px){
@@ -46,10 +68,43 @@
   </div>
 </div>
 
+{% set qs_method = ('&method=' ~ method) if method else '' %}
+<section class="wm">
+  <div class="wm-h">
+    <div><h3>Where the money goes</h3>
+      <small>{% if date_from or date_to %}{{ date_from or '…' }} to {{ date_to or 'today' }}{% else %}All time{% endif %} · £{{ "{:,.2f}".format(exp_total) }} spent{% if method %} · {{ method }} only{% endif %}</small></div>
+    <div class="wm-per">
+      {% for label, f, t in periods %}
+      <a href="?date_from={{ f }}&date_to={{ t }}{{ qs_method }}{{ ('&cat=' ~ cat|urlencode) if cat }}" class="{{ 'on' if date_from == f and date_to == t }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% if breakdown %}
+  <div class="wm-list">
+    {% for b in breakdown %}
+    {% set key = b.category or '__none__' %}
+    <a class="wm-row {{ 'none' if not b.category }} {{ 'on' if cat == key }}" href="?cat={{ key|urlencode }}&date_from={{ date_from }}&date_to={{ date_to }}{{ qs_method }}" title="Show these expenses">
+      <span class="wm-name">{{ b.category or 'Not categorised yet' }}</span>
+      <span class="wm-amt">£{{ "{:,.2f}".format(b.total) }}</span>
+      <span class="wm-bar"><span style="width:{{ [b.pct, 1.5]|max }}%"></span></span>
+      <span class="wm-sub">{{ '%.1f'|format(b.pct) }}% · {{ b.n }} payment{{ 's' if b.n != 1 }}{% if not b.category %} · click to sort them{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="padding:28px;text-align:center;color:#94a3b8;font-size:13px">No expenses in this period.</div>
+  {% endif %}
+</section>
+
 <form class="filter-bar fi-filter-bar" method="get">
-  <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:150px">
+  <span style="display:inline-block;width:170px"><input type="date" name="date_from" value="{{ date_from }}" class="form-control" placeholder="From"></span>
   <span style="color:#94a3b8;font-size:13px">to</span>
-  <input type="date" name="date_to" value="{{ date_to }}" class="form-control" style="width:150px">
+  <span style="display:inline-block;width:170px"><input type="date" name="date_to" value="{{ date_to }}" class="form-control" placeholder="To"></span>
+  <select name="cat" class="form-control" style="width:190px" onchange="this.form.submit()" aria-label="Expense category">
+    <option value="">All entries</option>
+    <option value="__none__" {{ 'selected' if cat=='__none__' }}>Expenses not categorised</option>
+    {% for c in categories %}<option value="{{ c }}" {{ 'selected' if cat==c }}>{{ c }}</option>{% endfor %}
+  </select>
   <select name="method" class="form-control" style="width:130px" onchange="this.form.submit()">
     <option value="">All methods</option>
     <option value="cash" {{ 'selected' if method=='cash' }}>Cash</option>
@@ -59,6 +114,7 @@
   {% if date_from or date_to or method %}<a href="{{ url_for('finance') }}" class="btn">Clear</a>{% endif %}
 </form>
 
+<datalist id="fcCats">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
 <!-- Mobile card list -->
 <div class="fi-mob-list">
   {% if transactions %}
@@ -81,6 +137,15 @@
     </div>
     {% if t['contact'] %}
     <div class="fi-row"><span style="font-size:12px;color:#94a3b8">{{ t['contact'] }}</span></div>
+    {% endif %}
+    {% if t['type'] == 'expense' %}
+    <div class="fi-row">
+      {% if t.get('category') %}<span class="fc-chip">{{ t['category'] }}</span>
+      {% elif session.get('role') in ('admin','editor') %}
+      <form class="fc-form" method="post" action="{{ url_for('set_transaction_category', tid=t['id']) }}">
+        <input name="category" list="fcCats" placeholder="Add category…" required autocomplete="off"><input type="hidden" name="similar" value="1"><button>Save</button>
+      </form>{% endif %}
+    </div>
     {% endif %}
     {% if t['linked_to'] or t['can_link'] %}
     <div class="fi-row">
@@ -134,6 +199,16 @@
         <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t['desc'] or '—' }}</div>
         {% if t['linked_to'] %}<div class="fl-chip fl-on" title="Linked to {{ t['linked_to'] }}">↳ {{ t['linked_to'] }}{% if t['can_link'] %} · £{{ "{:,.2f}".format(t['free']) }} unlinked{% endif %}</div>
         {% elif t['can_link'] %}<div class="fl-chip fl-off">Not linked to {{ 'an invoice' if t['type']=='income' else 'a purchase' }}</div>{% endif %}
+        {% if t['type'] == 'expense' %}
+          {% if t.get('category') %}<a class="fc-chip" href="?cat={{ t['category']|urlencode }}&date_from={{ date_from }}&date_to={{ date_to }}" title="Show all {{ t['category'] }}">{{ t['category'] }}</a>
+          {% elif session.get('role') in ('admin','editor') %}
+          <form class="fc-form" method="post" action="{{ url_for('set_transaction_category', tid=t['id']) }}">
+            <input name="category" list="fcCats" placeholder="Add category…" required autocomplete="off">
+            <input type="hidden" name="similar" value="1">
+            <button title="Also applies to other uncategorised expenses with the same description">Save</button>
+          </form>
+          {% endif %}
+        {% endif %}
       </td>
       <td style="padding:13px 16px;color:#64748b">{{ t['contact'] or '—' }}</td>
       <td style="padding:13px 16px">

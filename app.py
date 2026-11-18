@@ -672,6 +672,18 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()
+        # Expense categories ("where the money goes")
+        try:
+            db.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category TEXT DEFAULT ''")
+            db.execute("""UPDATE transactions SET category='Stock purchases'
+                          WHERE type='expense' AND COALESCE(category,'')=''
+                            AND ref_doc IN (SELECT num FROM purchases)""")
+            db.execute("""UPDATE transactions SET category='Unrecorded costs (adjustment)'
+                          WHERE type='expense' AND COALESCE(category,'')=''
+                            AND "desc" LIKE 'Bank reconciliation adjustment%%'""")
+            db.commit()
+        except Exception:
+            db.rollback()
         try:
             db.execute("INSERT INTO settings(key,value) VALUES('reminder_enabled','1') ON CONFLICT(key) DO NOTHING")
             db.execute("INSERT INTO settings(key,value) VALUES('reminder_last_run','') ON CONFLICT(key) DO NOTHING")
@@ -3829,9 +3841,9 @@ def toggle_purchase_paid(pid):
             rest = float(p['total']) - already
             if rest > 0.005:   # only post what isn't already covered by linked bank entries
                 db.execute(
-                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc,category) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
                     (date.today().isoformat(), 'expense', 'bank', f"Paid (toggle) {p['num']}",
-                     rest, p.get('currency') or 'GBP', p.get('supplier_id'), p.get('supplier') or '', p['num']))
+                     rest, p.get('currency') or 'GBP', p.get('supplier_id'), p.get('supplier') or '', p['num'], 'Stock purchases'))
         else:
             db.execute("DELETE FROM transactions WHERE ref_doc=%s AND type='expense' AND \"desc\" LIKE 'Paid (toggle)%%'", (p['num'],))
         db.commit()
@@ -4611,16 +4623,22 @@ def finance():
     method   = request.args.get('method', '')
     date_from = request.args.get('date_from', '')
     date_to   = request.args.get('date_to', '')
+    cat       = request.args.get('cat', '')
     with get_db() as db:
         base = "SELECT * FROM transactions WHERE 1=1"
         params = []
         if method:     base += " AND method=%s";    params.append(method)
         if date_from:  base += " AND doc_date>=%s"; params.append(date_from)
         if date_to:    base += " AND doc_date<=%s"; params.append(date_to)
-        # Summary metrics respect the same filters
+        # Summary metrics and the category breakdown respect the same filters
         where = base[len("SELECT * FROM transactions"):]
-        rows, sums, allocs = db.batch(
-            (base + " ORDER BY doc_date DESC", params),
+        list_sql, list_params = base, list(params)
+        if cat == '__none__':
+            list_sql += " AND type='expense' AND COALESCE(category,'')=''"
+        elif cat:
+            list_sql += " AND type='expense' AND category=%s"; list_params.append(cat)
+        rows, sums, allocs, by_cat = db.batch(
+            (list_sql + " ORDER BY doc_date DESC", list_params),
             ("""SELECT
                   COALESCE(SUM(amount::float8) FILTER (WHERE type='income'), 0)                    AS income,
                   COALESCE(SUM(amount::float8) FILTER (WHERE type='expense'), 0)                   AS expenses,
@@ -4630,8 +4648,14 @@ def finance():
                   COALESCE(SUM(amount::float8) FILTER (WHERE type='expense' AND method='bank'), 0) AS bank_out
                 FROM transactions""" + where, params),
             """SELECT transaction_id AS tid, SUM(amount::float8) AS s FROM invoice_payments
-               WHERE transaction_id IS NOT NULL GROUP BY 1""")
+               WHERE transaction_id IS NOT NULL GROUP BY 1""",
+            ("""SELECT COALESCE(NULLIF(category,''), '') AS category, SUM(amount::float8) AS total, COUNT(*) AS n
+                FROM transactions""" + where + " AND type='expense' AND COALESCE(category,'') <> 'Unrecorded costs (adjustment)'"
+                " GROUP BY 1 ORDER BY total DESC", params))
         sums = sums[0]
+        exp_total = sum(c['total'] for c in by_cat) or 0
+        breakdown = [dict(c, pct=(c['total'] / exp_total * 100) if exp_total else 0) for c in by_cat]
+        categories = _expense_categories(db)
         # Link status per entry: what's attached to invoices / purchases, and what isn't yet
         alloc = {a['tid']: a['s'] for a in allocs}
         for r in rows:
@@ -4641,14 +4665,32 @@ def finance():
             if r['type'] == 'income':
                 r['free'] = round((r['amount'] or 0) - a, 2) if (a or not ref) else 0
             else:
-                r['free'] = 0 if ref or (r.get('desc') or '').startswith('Bank reconciliation adjustment') else (r['amount'] or 0)
+                # only stock-type spending is expected to match a purchase
+                not_stock = (r.get('category') or '') not in ('', 'Stock purchases')
+                r['free'] = 0 if ref or not_stock or (r.get('desc') or '').startswith('Bank reconciliation adjustment') else (r['amount'] or 0)
             r['can_link'] = r['free'] >= 0.01
         income, expenses = sums['income'], sums['expenses']
         cash_in, cash_out = sums['cash_in'], sums['cash_out']
         bank_in, bank_out = sums['bank_in'], sums['bank_out']
     return render_template('finance.html', transactions=rows, income=income, expenses=expenses,
         net=income-expenses, cash_balance=cash_in-cash_out, bank_balance=bank_in-bank_out,
-        method=method, date_from=date_from, date_to=date_to)
+        method=method, date_from=date_from, date_to=date_to, cat=cat,
+        breakdown=breakdown, exp_total=exp_total, categories=categories,
+        periods=_finance_periods())
+
+
+def _finance_periods():
+    """Quick date ranges for the Finance filters."""
+    t = date.today()
+    first = t.replace(day=1)
+    last_month_end = first - timedelta(days=1)
+    return [
+        ('This month', first.isoformat(), t.isoformat()),
+        ('Last month', last_month_end.replace(day=1).isoformat(), last_month_end.isoformat()),
+        ('Last 3 months', (first - timedelta(days=62)).replace(day=1).isoformat(), t.isoformat()),
+        ('This year', t.replace(month=1, day=1).isoformat(), t.isoformat()),
+        ('All time', '', ''),
+    ]
 
 
 @app.route('/finance/add', methods=['GET', 'POST'])
@@ -4662,14 +4704,16 @@ def add_transaction():
             if contact_id:
                 c = db.execute("SELECT name FROM contacts WHERE id=%s", (contact_id,)).fetchone()
                 contact_name = c['name'] if c else ''
-            db.execute('INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+            cat = _clean_category(request.form.get('category')) if request.form['type'] == 'expense' else ''
+            db.execute('INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc,category) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
                 (request.form['doc_date'], request.form['type'], request.form.get('method','cash'),
                  request.form['desc'], float(request.form.get('amount', 0)),
-                 request.form.get('currency','GBP'), contact_id, contact_name, request.form.get('ref_doc','')))
+                 request.form.get('currency','GBP'), contact_id, contact_name, request.form.get('ref_doc',''), cat))
             db.commit()
             flash('Transaction added', 'success')
             return redirect(url_for('finance'))
-    return render_template('transaction_form.html', contacts=contacts, today=date.today().isoformat())
+        categories = _expense_categories(db)
+    return render_template('transaction_form.html', contacts=contacts, categories=categories, today=date.today().isoformat())
 
 
 @app.route('/finance/edit/<int:tid>', methods=['GET', 'POST'])
@@ -4692,6 +4736,8 @@ def edit_transaction(tid):
                 request_ref = t['ref_doc']
             else:
                 request_ref = request.form.get('ref_doc', '')
+            cat = _clean_category(request.form.get('category')) if request.form['type'] == 'expense' else ''
+            db.execute('UPDATE transactions SET category=%s WHERE id=%s', (cat, tid))
             db.execute('UPDATE transactions SET doc_date=%s,type=%s,method=%s,"desc"=%s,amount=%s,currency=%s,contact_id=%s,contact=%s,ref_doc=%s WHERE id=%s',
                 (request.form['doc_date'], request.form['type'], request.form.get('method','cash'),
                  request.form['desc'], float(request.form.get('amount', 0)),
@@ -4699,7 +4745,8 @@ def edit_transaction(tid):
             db.commit()
             flash('Transaction updated', 'success')
             return redirect(url_for('finance'))
-    return render_template('transaction_form.html', transaction=t, contacts=contacts, today=date.today().isoformat())
+        categories = _expense_categories(db)
+    return render_template('transaction_form.html', transaction=t, contacts=contacts, categories=categories, today=date.today().isoformat())
 
 
 @app.route('/finance/delete/<int:tid>', methods=['POST'])
@@ -4717,6 +4764,47 @@ def delete_transaction(tid):
         db.commit()
     flash('Transaction deleted' + (f' and removed from {len(set(sale_ids))} invoice(s)' if sale_ids else ''), 'success')
     return redirect(url_for('finance'))
+
+
+# ── Expense categories ───────────────────────────────────────────────────────
+
+EXPENSE_CATEGORIES = [
+    'Stock purchases', 'Shipping & delivery', 'Import duty & customs', 'Rent & rates',
+    'Wages & salaries', 'VAT & HMRC', 'Utilities', 'Software & subscriptions',
+    'Bank & card fees', 'Fuel & travel', 'Marketing & advertising', 'Office & supplies',
+    'Insurance', 'Accountant & legal', 'Repairs & maintenance', 'Drawings (owner)', 'Other',
+]
+
+
+def _expense_categories(db):
+    """Preset categories first, then any the user has typed in."""
+    used = [r['category'] for r in db.execute(
+        "SELECT DISTINCT category FROM transactions WHERE type='expense' AND COALESCE(category,'')<>'' ORDER BY 1").fetchall()]
+    return EXPENSE_CATEGORIES + [c for c in used if c not in EXPENSE_CATEGORIES and c != 'Unrecorded costs (adjustment)']
+
+
+def _clean_category(v):
+    return ' '.join((v or '').split())[:60]
+
+
+@app.route('/finance/<int:tid>/category', methods=['POST'])
+@admin_required
+def set_transaction_category(tid):
+    cat = _clean_category(request.form.get('category'))
+    with get_db() as db:
+        t = db.execute('SELECT "desc", type FROM transactions WHERE id=%s', (tid,)).fetchone()
+        n = 0
+        if t and t['type'] == 'expense':
+            db.execute("UPDATE transactions SET category=%s WHERE id=%s", (cat, tid))
+            n = 1
+            if cat and request.form.get('similar') and (t['desc'] or '').strip():
+                n += len(db.execute("""UPDATE transactions SET category=%s
+                    WHERE type='expense' AND COALESCE(category,'')='' AND id<>%s
+                      AND LOWER(TRIM("desc"))=LOWER(TRIM(%s)) RETURNING id""", (cat, tid, t['desc'])).fetchall())
+            db.commit()
+    if n:
+        flash(f'Set {n} expense{"s" if n != 1 else ""} to “{cat}”' if cat else 'Category cleared', 'success')
+    return redirect(request.referrer or url_for('finance'))
 
 
 # ── Linking Finance entries to invoices / purchases ──────────────────────────
@@ -4851,7 +4939,7 @@ def link_transaction(tid):
                 if not p:
                     flash('Choose a purchase to link', 'error')
                     return redirect(url_for('link_transaction', tid=tid))
-                db.execute("UPDATE transactions SET ref_doc=%s WHERE id=%s", (p['num'], tid))
+                db.execute("UPDATE transactions SET ref_doc=%s, category=COALESCE(NULLIF(category,''),'Stock purchases') WHERE id=%s", (p['num'], tid))
                 if not t['contact_id'] and p['supplier_id']:
                     db.execute("UPDATE transactions SET contact_id=%s, contact=%s WHERE id=%s",
                                (p['supplier_id'], p['supplier'] or '', tid))
@@ -4919,7 +5007,7 @@ def link_purchase_transaction(pid):
         p = db.execute("SELECT num, supplier_id, supplier FROM purchases WHERE id=%s", (pid,)).fetchone()
         t = db.execute("SELECT * FROM transactions WHERE id=%s AND type='expense' AND COALESCE(ref_doc,'')=''", (tid,)).fetchone()
         if p and t:
-            db.execute("UPDATE transactions SET ref_doc=%s WHERE id=%s", (p['num'], tid))
+            db.execute("UPDATE transactions SET ref_doc=%s, category=COALESCE(NULLIF(category,''),'Stock purchases') WHERE id=%s", (p['num'], tid))
             if not t['contact_id'] and p['supplier_id']:
                 db.execute("UPDATE transactions SET contact_id=%s, contact=%s WHERE id=%s", (p['supplier_id'], p['supplier'] or '', tid))
             _purchase_recompute_paid(db, p['num'])
