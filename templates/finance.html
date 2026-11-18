@@ -6,6 +6,11 @@
 {% endblock %}
 {% block content %}
 <style>
+  .fl-chip { display:inline-block; margin-top:4px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fl-on { background:#eef3fb; color:#315b83; }
+  .fl-off { background:#fff7e6; color:#8a6512; }
+</style>
+<style>
 @media(max-width:768px){
   .fi-filter-bar{flex-wrap:wrap!important;gap:8px!important}
   .fi-filter-bar input,.fi-filter-bar select{width:100%!important;min-width:0!important}
@@ -77,6 +82,12 @@
     {% if t['contact'] %}
     <div class="fi-row"><span style="font-size:12px;color:#94a3b8">{{ t['contact'] }}</span></div>
     {% endif %}
+    {% if t['linked_to'] or t['can_link'] %}
+    <div class="fi-row">
+      {% if t['linked_to'] %}<span class="fl-chip fl-on">↳ {{ t['linked_to'] }}</span>{% else %}<span class="fl-chip fl-off">Not linked</span>{% endif %}
+      {% if t['can_link'] and session.get('role') in ('admin','editor') %}<a href="{{ url_for('link_transaction', tid=t['id']) }}" style="font-size:12px;font-weight:600;color:#8a6512;text-decoration:none">Link →</a>{% endif %}
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
   {% else %}
@@ -87,7 +98,13 @@
 <div class="fi-desk-wrap" style="background:#fff;border:1px solid #eaecf0;border-radius:10px;overflow:hidden">
   <div class="card-header">
     <span class="card-title">Transactions</span>
-    <span style="font-size:12px;color:#94a3b8">{{ transactions | length }} record{{ 's' if transactions | length != 1 }}</span>
+    {% set n_unlinked = transactions|selectattr('can_link')|list|length %}
+    <span style="display:flex;gap:12px;align-items:center;font-size:12px;color:#94a3b8">
+      {% if n_unlinked %}<label style="display:flex;gap:6px;align-items:center;cursor:pointer;color:#8a6512;font-weight:600">
+        <input type="checkbox" onchange="document.querySelectorAll('.fl-row').forEach(function(r){r.style.display=(this.checked && !r.classList.contains('fl-unlinked'))?'none':''}, this)">
+        Only {{ n_unlinked }} not linked</label>{% endif %}
+      {{ transactions | length }} record{{ 's' if transactions | length != 1 }}
+    </span>
   </div>
   {% if transactions %}
   <table style="width:100%;border-collapse:collapse;font-size:13.5px">
@@ -104,7 +121,7 @@
     </thead>
     <tbody>
     {% for t in transactions %}
-    <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s"
+    <tr class="fl-row{{ ' fl-unlinked' if t['can_link'] }}" style="border-bottom:1px solid #f0f2f5;transition:background .1s"
         onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
       <td style="padding:13px 16px;color:#64748b;white-space:nowrap">{{ t['doc_date'] }}</td>
       <td style="padding:13px 16px">
@@ -113,8 +130,10 @@
           {{ t['type'] | capitalize }}
         </span>
       </td>
-      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-        {{ t['desc'] or '—' }}
+      <td style="padding:13px 16px;font-weight:500;color:#1a1a1a;max-width:280px">
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t['desc'] or '—' }}</div>
+        {% if t['linked_to'] %}<div class="fl-chip fl-on" title="Linked to {{ t['linked_to'] }}">↳ {{ t['linked_to'] }}{% if t['can_link'] %} · £{{ "{:,.2f}".format(t['free']) }} unlinked{% endif %}</div>
+        {% elif t['can_link'] %}<div class="fl-chip fl-off">Not linked to {{ 'an invoice' if t['type']=='income' else 'a purchase' }}</div>{% endif %}
       </td>
       <td style="padding:13px 16px;color:#64748b">{{ t['contact'] or '—' }}</td>
       <td style="padding:13px 16px">
@@ -127,6 +146,10 @@
       </td>
       <td style="padding:13px 16px;text-align:right">
         <div style="display:flex;gap:5px;justify-content:flex-end">
+          {% if session.get('role') in ('admin','editor') and (t['can_link'] or t['linked_to']) %}
+          <a href="{{ url_for('link_transaction', tid=t['id']) }}"
+             style="font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;text-decoration:none;{{ 'background:#fff7e6;border:1px solid #f5d48a;color:#8a6512' if t['can_link'] else 'background:#fff;border:1px solid #e2e8f0;color:#374151' }}">{{ 'Link' if t['can_link'] else 'Links' }}</a>
+          {% endif %}
           <a href="{{ url_for('edit_transaction', tid=t['id']) }}"
              style="font-size:12px;font-weight:500;padding:5px 10px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#374151;text-decoration:none">Edit</a>
           <form method="post" action="{{ url_for('delete_transaction', tid=t['id']) }}" style="display:inline" onsubmit="return confirm('Delete this transaction?')">

@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% block title %}Link bank entry{% endblock %}
+{% block page_title %}Link bank entry{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('finance') }}" class="btn">← Finance</a>{% endblock %}
+{% block content %}
+<style>
+  .lk { max-width: 980px; margin: 0 auto; color: #20324a; }
+  .lk-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; margin-bottom:16px; box-shadow:0 3px 12px #20324a04; }
+  .lk-head { padding:18px 22px; display:flex; gap:18px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+  .lk-amt { font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .lk-meta { font-size:13px; color:#64748b; margin-top:4px; }
+  .lk-pills { display:flex; gap:10px; flex-wrap:wrap; }
+  .lk-pill { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:8px 14px; font-size:12px; color:#64748b; }
+  .lk-pill b { display:block; font-size:16px; color:#16233a; font-variant-numeric:tabular-nums; }
+  .lk-pill.free b { color:#a16207; }
+  .lk-h { padding:14px 22px; border-bottom:1px solid #f0f2f5; font-size:14px; font-weight:700; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .lk-h small { font-weight:500; color:#8a96a8; font-size:12px; }
+  .lk-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .lk-tbl th { text-align:left; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; padding:9px 14px; background:#fafbfc; border-bottom:1px solid #f0f2f5; }
+  .lk-tbl td { padding:10px 14px; border-bottom:1px solid #f3f5f8; }
+  .lk-tbl .n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .lk-tbl tr.mine td { background:#fffbf0; }
+  .lk-tbl tr.sep td { background:#f8fafc; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; padding:7px 14px; }
+  .lk-tbl input[type=number] { width:120px; text-align:right; padding:6px 8px; }
+  .lk-foot { padding:14px 22px; display:flex; gap:12px; align-items:center; justify-content:flex-end; flex-wrap:wrap; background:#fafbfc; border-top:1px solid #f0f2f5; }
+  .lk-sum { font-size:13px; color:#475569; margin-right:auto; }
+  .lk-sum b { font-variant-numeric:tabular-nums; }
+  .lk-warn { color:#dc2626 !important; }
+  .lk-empty { padding:36px; text-align:center; color:#94a3b8; font-size:13px; }
+  @media (max-width:640px) { .lk-tbl .hide-m { display:none; } .lk-tbl input[type=number] { width:90px; } }
+</style>
+
+<div class="lk">
+  <div class="lk-card">
+    <div class="lk-head">
+      <div>
+        <div class="lk-amt" style="color:{{ '#16a34a' if t['type']=='income' else '#dc2626' }}">{{ '+' if t['type']=='income' else '−' }}£{{ "{:,.2f}".format(t['amount']) }}</div>
+        <div class="lk-meta">{{ t['doc_date'] }} · {{ (t['method'] or '')|capitalize }} · {{ t['desc'] or '—' }}{% if t['contact'] %} · <b>{{ t['contact'] }}</b>{% endif %}</div>
+      </div>
+      {% if t['type'] == 'income' %}
+      <div class="lk-pills">
+        <div class="lk-pill">Linked<b>£{{ "{:,.2f}".format(t['amount'] - free) }}</b></div>
+        <div class="lk-pill free">Not linked yet<b>£{{ "{:,.2f}".format(free) }}</b></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if t['type'] == 'income' %}
+    {% if allocations %}
+    <div class="lk-card">
+      <div class="lk-h">Already linked to</div>
+      <table class="lk-tbl">
+        <tbody>
+        {% for a in allocations %}
+          <tr>
+            <td><a href="{{ url_for('view_sale', sid=a['sale_id']) }}" style="color:#315b83;font-weight:600;text-decoration:none">{{ a['num'] }}</a></td>
+            <td class="n">£{{ "{:,.2f}".format(a['amount']) }}</td>
+            <td class="n" style="width:1%">
+              <form method="post" action="{{ url_for('unlink_transaction', tid=t['id']) }}" onsubmit="return confirm('Unlink {{ a['num'] }}? The invoice goes back to unpaid for this amount; the bank entry stays in Finance.')">
+                <input type="hidden" name="payment_id" value="{{ a['id'] }}">
+                <button class="btn btn-sm">Unlink</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if free >= 0.01 %}
+    <form method="post" class="lk-card" id="lkForm">
+      <div class="lk-h">
+        <span>Which invoice(s) was this payment for? <small>One payment can cover several invoices</small></span>
+        <span style="display:flex;gap:8px;align-items:center">
+          <input type="text" class="form-control" placeholder="Find invoice or customer…" style="width:220px" oninput="lkFilter(this.value)">
+          <button type="button" class="btn btn-sm" onclick="lkAuto()" title="Fill oldest invoices first">Auto-fill</button>
+        </span>
+      </div>
+      {% if docs %}
+      <table class="lk-tbl">
+        <thead><tr><th>Invoice</th><th class="hide-m">Date</th><th>Customer</th><th class="n">Outstanding</th><th class="n">Link amount</th></tr></thead>
+        <tbody>
+        {% set ns = namespace(sep=false) %}
+        {% for d in docs %}
+          {% if not d.mine and not ns.sep and docs[0].mine %}{% set ns.sep = true %}<tr class="sep"><td colspan="5">Other customers</td></tr>{% endif %}
+          <tr class="lk-doc {{ 'mine' if d.mine }}" data-q="{{ (d.num ~ ' ' ~ d.who)|lower }}">
+            <td><a href="{{ url_for('view_sale', sid=d.id) }}" target="_blank" style="color:#315b83;font-weight:600;text-decoration:none">{{ d.num }}</a></td>
+            <td class="hide-m" style="color:#64748b">{{ d.doc_date }}</td>
+            <td>{{ d.who }}</td>
+            <td class="n">£{{ "{:,.2f}".format(d.owed) }}</td>
+            <td class="n"><input type="number" step="0.01" min="0" max="{{ '%.2f'|format(d.owed) }}" name="alloc_{{ d.id }}" class="form-control lk-in" data-owed="{{ '%.2f'|format(d.owed) }}" data-mine="{{ 1 if d.mine else 0 }}" placeholder="0.00" oninput="lkSum()"></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="lk-foot">
+        <span class="lk-sum" id="lkSum">Linking <b>£0.00</b> of <b>£{{ "{:,.2f}".format(free) }}</b></span>
+        <a href="{{ url_for('finance') }}" class="btn">Cancel</a>
+        <button type="submit" class="btn btn-primary" id="lkGo" disabled>Link</button>
+      </div>
+      {% else %}
+      <div class="lk-empty">There are no unpaid invoices to link this payment to.</div>
+      {% endif %}
+    </form>
+    {% endif %}
+
+  {% else %}
+    {% if t['ref_doc'] %}
+    <div class="lk-card">
+      <div class="lk-h">Linked to purchase <span style="color:#315b83">{{ t['ref_doc'] }}</span>
+        <form method="post" action="{{ url_for('unlink_transaction', tid=t['id']) }}" onsubmit="return confirm('Unlink from {{ t['ref_doc'] }}? The bank entry stays in Finance.')"><button class="btn btn-sm">Unlink</button></form>
+      </div>
+    </div>
+    {% else %}
+    <form method="post" class="lk-card">
+      <div class="lk-h"><span>Which purchase was this payment for?</span>
+        <input type="text" class="form-control" placeholder="Find purchase or supplier…" style="width:220px" oninput="lkFilter(this.value)"></div>
+      {% if docs %}
+      <table class="lk-tbl">
+        <thead><tr><th style="width:1%"></th><th>Purchase</th><th class="hide-m">Date</th><th>Supplier</th><th class="n">Still to pay</th></tr></thead>
+        <tbody>
+        {% for d in docs %}
+          <tr class="lk-doc {{ 'mine' if d.mine }}" data-q="{{ (d.num ~ ' ' ~ d.who)|lower }}">
+            <td><input type="radio" name="purchase_num" value="{{ d.num }}" required></td>
+            <td style="font-weight:600">{{ d.num }}</td>
+            <td class="hide-m" style="color:#64748b">{{ d.doc_date }}</td>
+            <td>{{ d.who }}</td>
+            <td class="n">£{{ "{:,.2f}".format(d.owed) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="lk-foot">
+        <span class="lk-sum">The purchase is marked paid once its linked payments cover the total.</span>
+        <a href="{{ url_for('finance') }}" class="btn">Cancel</a>
+        <button type="submit" class="btn btn-primary">Link</button>
+      </div>
+      {% else %}
+      <div class="lk-empty">There are no unpaid purchases to link this payment to.</div>
+      {% endif %}
+    </form>
+    {% endif %}
+  {% endif %}
+</div>
+
+<script>
+var LK_FREE = {{ '%.2f'|format(free) }};
+function lkFilter(q) {
+  q = q.trim().toLowerCase();
+  document.querySelectorAll('.lk-doc').forEach(function (r) { r.style.display = !q || r.dataset.q.indexOf(q) >= 0 ? '' : 'none'; });
+}
+function lkSum() {
+  var tot = 0, bad = false;
+  document.querySelectorAll('.lk-in').forEach(function (i) {
+    var v = parseFloat(i.value) || 0; tot += v;
+    if (v > parseFloat(i.dataset.owed) + 0.005) bad = true;
+  });
+  var over = tot > LK_FREE + 0.005, el = document.getElementById('lkSum');
+  if (!el) return;
+  el.innerHTML = 'Linking <b>£' + tot.toFixed(2) + '</b> of <b>£' + LK_FREE.toFixed(2) + '</b>' +
+    (over ? ' — <span class="lk-warn">more than this entry has left</span>' : bad ? ' — <span class="lk-warn">more than an invoice owes</span>' : '');
+  document.getElementById('lkGo').disabled = tot < 0.005 || over || bad;
+}
+function lkAuto() {   // fill this customer's oldest invoices first, then others
+  var left = LK_FREE, inputs = Array.from(document.querySelectorAll('.lk-in')).filter(function (i) { return i.closest('tr').style.display !== 'none'; });
+  inputs.sort(function (a, b) { return b.dataset.mine - a.dataset.mine; });
+  inputs.forEach(function (i) { i.value = ''; });
+  inputs.forEach(function (i) {
+    if (left < 0.005) return;
+    var take = Math.min(left, parseFloat(i.dataset.owed));
+    i.value = take.toFixed(2); left -= take;
+  });
+  lkSum();
+}
+</script>
+{% endblock %}

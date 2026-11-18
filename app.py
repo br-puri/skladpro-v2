@@ -651,6 +651,27 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()
+        # Invoice payment <-> Finance entry link. transaction_id is the bank/cash
+        # entry the money sits in; linked=1 means the entry existed first and was
+        # attached later (unlinking keeps it), linked=0 means the payment created it.
+        try:
+            db.execute("ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS transaction_id INTEGER")
+            db.execute("ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS linked INTEGER DEFAULT 0")
+            db.execute("""
+                UPDATE invoice_payments ip SET transaction_id = m.tid FROM (
+                    SELECT DISTINCT ON (ip2.id) ip2.id AS pid, t.id AS tid
+                    FROM invoice_payments ip2
+                    JOIN sales s ON s.id = ip2.sale_id
+                    JOIN transactions t ON t.ref_doc = s.num AND t.type = 'income'
+                                       AND t.doc_date = ip2.payment_date
+                                       AND ABS(t.amount - ip2.amount) < 0.005
+                    WHERE ip2.transaction_id IS NULL
+                      AND NOT EXISTS (SELECT 1 FROM invoice_payments x WHERE x.transaction_id = t.id)
+                    ORDER BY ip2.id, t.id) m
+                WHERE ip.id = m.pid""")
+            db.commit()
+        except Exception:
+            db.rollback()
         try:
             db.execute("INSERT INTO settings(key,value) VALUES('reminder_enabled','1') ON CONFLICT(key) DO NOTHING")
             db.execute("INSERT INTO settings(key,value) VALUES('reminder_last_run','') ON CONFLICT(key) DO NOTHING")
@@ -3144,7 +3165,16 @@ def view_purchase(pid):
         p = db.execute("SELECT pu.*, w.name as wh_name FROM purchases pu LEFT JOIN warehouses w ON w.id=pu.warehouse_id WHERE pu.id=%s", (pid,)).fetchone()
         items = db.execute("SELECT pi.*, pr.name as product_name, pr.unit FROM purchase_items pi JOIN products pr ON pr.id=pi.product_id WHERE pi.purchase_id=%s", (pid,)).fetchall()
         debit_notes_list = db.execute("SELECT * FROM debit_notes WHERE purchase_id=%s ORDER BY doc_date DESC", (pid,)).fetchall()
-    return render_template('purchase_view.html', purchase=p, items=items, debit_notes_list=debit_notes_list)
+        bank_entries, linked_entries = [], []
+        if p:
+            linked_entries = db.execute("""SELECT id, doc_date, "desc", amount, method FROM transactions
+                                           WHERE type='expense' AND ref_doc=%s ORDER BY doc_date""", (p['num'],)).fetchall()
+            if not p['paid'] and session.get('role') in ('admin', 'editor'):
+                bank_entries = db.execute("""SELECT id, doc_date, "desc", amount, method, contact, contact_id FROM transactions
+                    WHERE type='expense' AND COALESCE(ref_doc,'')='' AND "desc" NOT LIKE 'Bank reconciliation adjustment%%'
+                    ORDER BY (contact_id IS NOT DISTINCT FROM %s) DESC, doc_date DESC LIMIT 30""", (p['supplier_id'],)).fetchall()
+    return render_template('purchase_view.html', purchase=p, items=items, debit_notes_list=debit_notes_list,
+                           bank_entries=bank_entries, linked_entries=linked_entries)
 
 
 @app.route('/purchases/<int:pid>/export/pdf')
@@ -3599,12 +3629,12 @@ def pos_checkout():
         card_amount = float(request.form.get('card_amount') or 0)
         for method, amt in (('cash', cash_amount), ('card', card_amount)):
             if amt > 0:
+                tid = db.execute(
+                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
+                    (now, 'income', method, f'POS sale {num}', amt, currency, customer_id, customer, num)).fetchone()['id']
                 db.execute(
-                    "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
-                    (sale_id, now, amt, method, 'POS sale', datetime.utcnow().isoformat()))
-                db.execute(
-                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                    (now, 'income', method, f'POS sale {num}', amt, currency, customer_id, customer, num))
+                    "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at,transaction_id,linked) VALUES(%s,%s,%s,%s,%s,%s,%s,0)",
+                    (sale_id, now, amt, method, 'POS sale', datetime.utcnow().isoformat(), tid))
         paid_total = cash_amount + card_amount
         db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= total - 0.01 else 0, sale_id))
 
@@ -3674,6 +3704,10 @@ def view_sale(sid):
         paid_total = s['total'] if s.get('paid') else payments_total
         outstanding = max(0, s['total'] - paid_total)
         credit_notes_list = db.execute("SELECT * FROM credit_notes WHERE sale_id=%s ORDER BY doc_date DESC", (sid,)).fetchall()
+        owed_by_payments = round(s['total'] - payments_total, 2)
+        bank_entries = (_unlinked_income(db, s.get('customer_id'))
+                        if owed_by_payments >= 0.01 and s.get('status') != 'cancelled'
+                        and session.get('role') in ('admin', 'editor') else [])
         invoice_token = None
         if customer and customer.get('phone'):
             invoice_token = str(uuid.uuid4())
@@ -3685,6 +3719,7 @@ def view_sale(sid):
     return render_template('sale_view.html', sale=s, items=items, customer=customer, company=company,
                            payments=payments, paid_total=paid_total, outstanding=outstanding,
                            credit_notes_list=credit_notes_list, invoice_token=invoice_token,
+                           bank_entries=bank_entries, owed_by_payments=owed_by_payments,
                            today=date.today().isoformat())
 
 
@@ -3767,13 +3802,13 @@ def toggle_paid(sid):
             outstanding = max(0.0, float(s['total']) - float(paid_already))
             if outstanding > 0.005:
                 today = date.today().isoformat()
-                db.execute(
-                    "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
-                    (sid, today, outstanding, 'bank', '[toggle]', datetime.utcnow().isoformat()))
-                db.execute(
-                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                tid = db.execute(
+                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
                     (today, 'income', 'bank', f"Paid (toggle) {s['num']}",
-                     outstanding, s.get('currency') or 'GBP', s.get('customer_id'), s.get('customer') or '', s['num']))
+                     outstanding, s.get('currency') or 'GBP', s.get('customer_id'), s.get('customer') or '', s['num'])).fetchone()['id']
+                db.execute(
+                    "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at,transaction_id,linked) VALUES(%s,%s,%s,%s,%s,%s,%s,0)",
+                    (sid, today, outstanding, 'bank', '[toggle]', datetime.utcnow().isoformat(), tid))
         else:
             db.execute("DELETE FROM invoice_payments WHERE sale_id=%s AND notes='[toggle]'", (sid,))
             db.execute("DELETE FROM transactions WHERE ref_doc=%s AND type='income' AND \"desc\" LIKE 'Paid (toggle)%%'", (s['num'],))
@@ -3789,10 +3824,14 @@ def toggle_purchase_paid(pid):
         now_paid = 0 if p['paid'] else 1
         db.execute("UPDATE purchases SET paid=%s WHERE id=%s", (now_paid, pid))
         if now_paid:
-            db.execute(
-                'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                (date.today().isoformat(), 'expense', 'bank', f"Paid (toggle) {p['num']}",
-                 float(p['total']), p.get('currency') or 'GBP', p.get('supplier_id'), p.get('supplier') or '', p['num']))
+            already = db.execute("SELECT COALESCE(SUM(amount::float8),0) AS s FROM transactions WHERE type='expense' AND ref_doc=%s",
+                                 (p['num'],)).fetchone()['s']
+            rest = float(p['total']) - already
+            if rest > 0.005:   # only post what isn't already covered by linked bank entries
+                db.execute(
+                    'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                    (date.today().isoformat(), 'expense', 'bank', f"Paid (toggle) {p['num']}",
+                     rest, p.get('currency') or 'GBP', p.get('supplier_id'), p.get('supplier') or '', p['num']))
         else:
             db.execute("DELETE FROM transactions WHERE ref_doc=%s AND type='expense' AND \"desc\" LIKE 'Paid (toggle)%%'", (p['num'],))
         db.commit()
@@ -4580,7 +4619,7 @@ def finance():
         if date_to:    base += " AND doc_date<=%s"; params.append(date_to)
         # Summary metrics respect the same filters
         where = base[len("SELECT * FROM transactions"):]
-        rows, sums = db.batch(
+        rows, sums, allocs = db.batch(
             (base + " ORDER BY doc_date DESC", params),
             ("""SELECT
                   COALESCE(SUM(amount::float8) FILTER (WHERE type='income'), 0)                    AS income,
@@ -4589,8 +4628,21 @@ def finance():
                   COALESCE(SUM(amount::float8) FILTER (WHERE type='expense' AND method='cash'), 0) AS cash_out,
                   COALESCE(SUM(amount::float8) FILTER (WHERE type='income'  AND method='bank'), 0) AS bank_in,
                   COALESCE(SUM(amount::float8) FILTER (WHERE type='expense' AND method='bank'), 0) AS bank_out
-                FROM transactions""" + where, params))
+                FROM transactions""" + where, params),
+            """SELECT transaction_id AS tid, SUM(amount::float8) AS s FROM invoice_payments
+               WHERE transaction_id IS NOT NULL GROUP BY 1""")
         sums = sums[0]
+        # Link status per entry: what's attached to invoices / purchases, and what isn't yet
+        alloc = {a['tid']: a['s'] for a in allocs}
+        for r in rows:
+            a = alloc.get(r['id'], 0)
+            ref = (r.get('ref_doc') or '').strip()
+            r['linked_to'] = ref
+            if r['type'] == 'income':
+                r['free'] = round((r['amount'] or 0) - a, 2) if (a or not ref) else 0
+            else:
+                r['free'] = 0 if ref or (r.get('desc') or '').startswith('Bank reconciliation adjustment') else (r['amount'] or 0)
+            r['can_link'] = r['free'] >= 0.01
         income, expenses = sums['income'], sums['expenses']
         cash_in, cash_out = sums['cash_in'], sums['cash_out']
         bank_in, bank_out = sums['bank_in'], sums['bank_out']
@@ -4632,10 +4684,18 @@ def edit_transaction(tid):
             if contact_id:
                 c = db.execute("SELECT name FROM contacts WHERE id=%s", (contact_id,)).fetchone()
                 contact_name = c['name'] if c else ''
+            linked_amt = _tx_allocated(db, tid)
+            if linked_amt > 0.005 and (request.form['type'] != 'income' or float(request.form.get('amount', 0)) < linked_amt - 0.005):
+                flash(f'£{linked_amt:,.2f} of this entry is linked to invoices — unlink it first (Finance → Link) before lowering the amount or changing its type', 'error')
+                return redirect(url_for('edit_transaction', tid=tid))
+            if linked_amt > 0.005:   # keep the reference the links maintain
+                request_ref = t['ref_doc']
+            else:
+                request_ref = request.form.get('ref_doc', '')
             db.execute('UPDATE transactions SET doc_date=%s,type=%s,method=%s,"desc"=%s,amount=%s,currency=%s,contact_id=%s,contact=%s,ref_doc=%s WHERE id=%s',
                 (request.form['doc_date'], request.form['type'], request.form.get('method','cash'),
                  request.form['desc'], float(request.form.get('amount', 0)),
-                 request.form.get('currency','GBP'), contact_id, contact_name, request.form.get('ref_doc',''), tid))
+                 request.form.get('currency','GBP'), contact_id, contact_name, request_ref, tid))
             db.commit()
             flash('Transaction updated', 'success')
             return redirect(url_for('finance'))
@@ -4646,10 +4706,228 @@ def edit_transaction(tid):
 @superadmin_required
 def delete_transaction(tid):
     with get_db() as db:
+        t = db.execute("SELECT type, ref_doc FROM transactions WHERE id=%s", (tid,)).fetchone()
+        sale_ids = [r['sale_id'] for r in db.execute(
+            "DELETE FROM invoice_payments WHERE transaction_id=%s RETURNING sale_id", (tid,)).fetchall()]
         db.execute("DELETE FROM transactions WHERE id=%s", (tid,))
+        for sid in set(sale_ids):
+            _sale_recompute_paid(db, sid)
+        if t and t['type'] == 'expense' and t['ref_doc']:
+            _purchase_recompute_paid(db, t['ref_doc'])
         db.commit()
-    flash('Transaction deleted', 'success')
+    flash('Transaction deleted' + (f' and removed from {len(set(sale_ids))} invoice(s)' if sale_ids else ''), 'success')
     return redirect(url_for('finance'))
+
+
+# ── Linking Finance entries to invoices / purchases ──────────────────────────
+
+def _sale_recompute_paid(db, sid):
+    """paid = payments cover the invoice total (to the penny)."""
+    r = db.execute("""SELECT s.total, COALESCE((SELECT SUM(amount::float8) FROM invoice_payments WHERE sale_id=s.id),0) AS paid
+                      FROM sales s WHERE s.id=%s""", (sid,)).fetchone()
+    if r:
+        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if r['paid'] >= (r['total'] or 0) - 0.005 else 0, sid))
+
+
+def _purchase_recompute_paid(db, num):
+    r = db.execute("""SELECT p.id, p.total, COALESCE((SELECT SUM(amount::float8) FROM transactions t
+                      WHERE t.type='expense' AND t.ref_doc=p.num),0) AS paid FROM purchases p WHERE p.num=%s""", (num,)).fetchone()
+    if r:
+        db.execute("UPDATE purchases SET paid=%s WHERE id=%s", (1 if r['paid'] >= (r['total'] or 0) - 0.005 else 0, r['id']))
+
+
+def _tx_refresh_ref(db, tid):
+    """Keep an income entry's reference in step with the invoices it's linked to."""
+    nums = [r['num'] for r in db.execute("""SELECT DISTINCT s.num FROM invoice_payments ip JOIN sales s ON s.id=ip.sale_id
+                                             WHERE ip.transaction_id=%s ORDER BY s.num""", (tid,)).fetchall()]
+    db.execute("UPDATE transactions SET ref_doc=%s WHERE id=%s", (', '.join(nums)[:200], tid))
+
+
+def _tx_allocated(db, tid):
+    return db.execute("SELECT COALESCE(SUM(amount::float8),0) AS s FROM invoice_payments WHERE transaction_id=%s",
+                      (tid,)).fetchone()['s']
+
+
+def _link_income(db, t, sale_id, amount):
+    """Attach `amount` of Finance income entry `t` to an invoice. Returns error text or None."""
+    s = db.execute("""SELECT s.id, s.num, s.status, s.total, s.customer_id,
+                             COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name, '') AS who,
+                             COALESCE((SELECT SUM(amount::float8) FROM invoice_payments WHERE sale_id=s.id),0) AS paid
+                      FROM sales s LEFT JOIN contacts c ON c.id=s.customer_id WHERE s.id=%s""", (sale_id,)).fetchone()
+    if not s or s['status'] == 'cancelled':
+        return 'Invoice not found or cancelled'
+    owed = round((s['total'] or 0) - s['paid'], 2)
+    free = round(t['amount'] - _tx_allocated(db, t['id']), 2)
+    amount = round(amount, 2)
+    if amount <= 0:
+        return None
+    if amount > owed + 0.005:
+        return f"{s['num']} only has £{owed:,.2f} outstanding"
+    if amount > free + 0.005:
+        return f"This entry only has £{free:,.2f} left to link"
+    db.execute("""INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at,transaction_id,linked)
+                  VALUES(%s,%s,%s,%s,%s,%s,%s,1)""",
+               (s['id'], t['doc_date'], amount, t['method'] or 'bank', 'Linked from Finance',
+                datetime.utcnow().isoformat(), t['id']))
+    if not t['contact_id'] and s['customer_id']:
+        db.execute("UPDATE transactions SET contact_id=%s, contact=%s WHERE id=%s", (s['customer_id'], s['who'], t['id']))
+    _sale_recompute_paid(db, s['id'])
+    _tx_refresh_ref(db, t['id'])
+    return None
+
+
+def _open_invoices(db, contact_id=None):
+    rows = db.execute("""
+        SELECT s.id, s.num, s.doc_date, s.total, s.customer_id,
+               COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name, '—') AS who,
+               s.total - COALESCE((SELECT SUM(amount::float8) FROM invoice_payments WHERE sale_id=s.id),0) AS owed
+        FROM sales s LEFT JOIN contacts c ON c.id=s.customer_id
+        WHERE s.status='completed' AND s.archived=0
+          AND s.total - COALESCE((SELECT SUM(amount::float8) FROM invoice_payments WHERE sale_id=s.id),0) >= 0.01
+        ORDER BY (s.customer_id IS NOT DISTINCT FROM %s) DESC, s.doc_date, s.id""", (contact_id,)).fetchall()
+    return [dict(r, mine=bool(contact_id and r['customer_id'] == contact_id)) for r in rows]
+
+
+def _open_purchases(db, contact_id=None):
+    rows = db.execute("""
+        SELECT p.id, p.num, p.doc_date, p.total, p.supplier_id,
+               COALESCE(NULLIF(c.company,''), NULLIF(p.supplier,''), c.name, '—') AS who,
+               p.total - COALESCE((SELECT SUM(amount::float8) FROM transactions t WHERE t.type='expense' AND t.ref_doc=p.num),0) AS owed
+        FROM purchases p LEFT JOIN contacts c ON c.id=p.supplier_id
+        WHERE p.paid=0
+          AND p.total - COALESCE((SELECT SUM(amount::float8) FROM transactions t WHERE t.type='expense' AND t.ref_doc=p.num),0) >= 0.01
+        ORDER BY (p.supplier_id IS NOT DISTINCT FROM %s) DESC, p.doc_date, p.id""", (contact_id,)).fetchall()
+    return [dict(r, mine=bool(contact_id and r['supplier_id'] == contact_id)) for r in rows]
+
+
+def _unlinked_income(db, prefer_contact=None):
+    """Income entries with money not yet attached to any invoice."""
+    rows = db.execute("""
+        SELECT t.*, t.amount - COALESCE(a.s, 0) AS free
+        FROM transactions t
+        LEFT JOIN (SELECT transaction_id, SUM(amount::float8) AS s FROM invoice_payments
+                   WHERE transaction_id IS NOT NULL GROUP BY 1) a ON a.transaction_id = t.id
+        WHERE t.type='income'
+          AND t.amount - COALESCE(a.s, 0) >= 0.01
+          AND (COALESCE(t.ref_doc,'') = '' OR a.s IS NOT NULL)
+        ORDER BY (t.contact_id IS NOT DISTINCT FROM %s) DESC, t.doc_date DESC, t.id DESC
+        LIMIT 40""", (prefer_contact,)).fetchall()
+    return [dict(r, mine=bool(prefer_contact and r['contact_id'] == prefer_contact)) for r in rows]
+
+
+@app.route('/finance/<int:tid>/link', methods=['GET', 'POST'])
+@admin_required
+def link_transaction(tid):
+    with get_db() as db:
+        t = db.execute("SELECT * FROM transactions WHERE id=%s", (tid,)).fetchone()
+        if not t:
+            flash('Transaction not found', 'error')
+            return redirect(url_for('finance'))
+        if request.method == 'POST':
+            if t['type'] == 'income':
+                errors, done = [], []
+                for key, val in request.form.items():
+                    if not key.startswith('alloc_') or not val.strip():
+                        continue
+                    try:
+                        amt = float(val)
+                    except ValueError:
+                        continue
+                    err = _link_income(db, t, int(key[6:]), amt)
+                    if err:
+                        errors.append(err)
+                    elif amt > 0:
+                        done.append(amt)
+                if errors:
+                    db.rollback()
+                    flash('Nothing linked: ' + '; '.join(errors), 'error')
+                    return redirect(url_for('link_transaction', tid=tid))
+                db.commit()
+                flash(f'Linked £{sum(done):,.2f} to {len(done)} invoice(s) — no extra bank entry created' if done
+                      else 'Nothing to link', 'success' if done else 'error')
+            else:
+                pnum = request.form.get('purchase_num', '').strip()
+                p = db.execute("SELECT num, supplier_id, supplier FROM purchases WHERE num=%s", (pnum,)).fetchone()
+                if not p:
+                    flash('Choose a purchase to link', 'error')
+                    return redirect(url_for('link_transaction', tid=tid))
+                db.execute("UPDATE transactions SET ref_doc=%s WHERE id=%s", (p['num'], tid))
+                if not t['contact_id'] and p['supplier_id']:
+                    db.execute("UPDATE transactions SET contact_id=%s, contact=%s WHERE id=%s",
+                               (p['supplier_id'], p['supplier'] or '', tid))
+                _purchase_recompute_paid(db, p['num'])
+                db.commit()
+                flash(f"Linked to {p['num']}", 'success')
+            return redirect(url_for('finance'))
+        if t['type'] == 'income':
+            allocations = db.execute("""SELECT ip.id, ip.amount, s.id AS sale_id, s.num FROM invoice_payments ip
+                                        JOIN sales s ON s.id=ip.sale_id WHERE ip.transaction_id=%s ORDER BY ip.id""", (tid,)).fetchall()
+            free = round(t['amount'] - sum(a['amount'] for a in allocations), 2)
+            docs = _open_invoices(db, t['contact_id'])
+        else:
+            allocations = []
+            free = t['amount']
+            docs = _open_purchases(db, t['contact_id'])
+    return render_template('finance_link.html', t=t, docs=docs, allocations=allocations, free=free)
+
+
+@app.route('/finance/<int:tid>/unlink', methods=['POST'])
+@admin_required
+def unlink_transaction(tid):
+    with get_db() as db:
+        t = db.execute("SELECT * FROM transactions WHERE id=%s", (tid,)).fetchone()
+        if not t:
+            return redirect(url_for('finance'))
+        if t['type'] == 'income':
+            pid = request.form.get('payment_id', type=int)
+            row = db.execute("DELETE FROM invoice_payments WHERE id=%s AND transaction_id=%s RETURNING sale_id",
+                             (pid, tid)).fetchone()
+            if row:
+                _sale_recompute_paid(db, row['sale_id'])
+                _tx_refresh_ref(db, tid)
+        elif t['ref_doc']:
+            num = t['ref_doc']
+            db.execute("UPDATE transactions SET ref_doc='' WHERE id=%s", (tid,))
+            _purchase_recompute_paid(db, num)
+        db.commit()
+    flash('Unlinked — the bank entry stays in Finance', 'success')
+    return redirect(url_for('link_transaction', tid=tid))
+
+
+@app.route('/sales/<int:sid>/link-transaction', methods=['POST'])
+@admin_required
+def link_sale_transaction(sid):
+    tid = request.form.get('tid', type=int)
+    amount = request.form.get('amount', type=float) or 0
+    with get_db() as db:
+        t = db.execute("SELECT * FROM transactions WHERE id=%s AND type='income'", (tid,)).fetchone()
+        err = _link_income(db, t, sid, amount) if t else 'Bank entry not found'
+        if err:
+            db.rollback()
+            flash(err, 'error')
+        else:
+            db.commit()
+            flash(f'Linked £{amount:,.2f} from the bank entry of {t["doc_date"]} — no extra bank entry created', 'success')
+    return redirect(url_for('view_sale', sid=sid))
+
+
+@app.route('/purchases/<int:pid>/link-transaction', methods=['POST'])
+@admin_required
+def link_purchase_transaction(pid):
+    tid = request.form.get('tid', type=int)
+    with get_db() as db:
+        p = db.execute("SELECT num, supplier_id, supplier FROM purchases WHERE id=%s", (pid,)).fetchone()
+        t = db.execute("SELECT * FROM transactions WHERE id=%s AND type='expense' AND COALESCE(ref_doc,'')=''", (tid,)).fetchone()
+        if p and t:
+            db.execute("UPDATE transactions SET ref_doc=%s WHERE id=%s", (p['num'], tid))
+            if not t['contact_id'] and p['supplier_id']:
+                db.execute("UPDATE transactions SET contact_id=%s, contact=%s WHERE id=%s", (p['supplier_id'], p['supplier'] or '', tid))
+            _purchase_recompute_paid(db, p['num'])
+            db.commit()
+            flash(f"Linked the £{t['amount']:,.2f} bank entry to {p['num']}", 'success')
+        else:
+            flash('Bank entry not found or already linked', 'error')
+    return redirect(url_for('view_purchase', pid=pid))
 
 
 # ── Exchange Rates ────────────────────────────────────────────────────────────
@@ -5341,19 +5619,15 @@ def add_payment(sid):
         method = request.form.get('method', 'bank')
         payment_date = request.form['payment_date']
         notes = request.form.get('notes', '')
-        db.execute(
-            "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at) VALUES(%s,%s,%s,%s,%s,%s)",
-            (sid, payment_date, amount, method, notes, datetime.utcnow().isoformat()))
         sale = db.execute("SELECT num, total, currency, customer, customer_id FROM sales WHERE id=%s", (sid,)).fetchone()
-        # The payment was just inserted above, so SUM already includes it —
-        # do NOT add `amount` again (that double-counted and could flip a
-        # partial payment to fully 'paid').
-        paid_total = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s']
-        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= sale['total'] else 0, sid))
-        db.execute(
-            'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+        tid = db.execute(
+            'INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
             (payment_date, 'income', method, f"Payment {sale['num']}" + (f" — {notes}" if notes else ''),
-             amount, sale.get('currency') or 'GBP', sale.get('customer_id'), sale.get('customer') or '', sale['num']))
+             amount, sale.get('currency') or 'GBP', sale.get('customer_id'), sale.get('customer') or '', sale['num'])).fetchone()['id']
+        db.execute(
+            "INSERT INTO invoice_payments(sale_id,payment_date,amount,method,notes,created_at,transaction_id,linked) VALUES(%s,%s,%s,%s,%s,%s,%s,0)",
+            (sid, payment_date, amount, method, notes, datetime.utcnow().isoformat(), tid))
+        _sale_recompute_paid(db, sid)
         db.commit()
     flash(f'Payment recorded and posted to {method}', 'success')
     return redirect(url_for('view_sale', sid=sid))
@@ -5363,17 +5637,23 @@ def add_payment(sid):
 @superadmin_required
 def delete_payment(sid, pid):
     with get_db() as db:
-        pmt = db.execute("SELECT amount, payment_date FROM invoice_payments WHERE id=%s AND sale_id=%s", (pid, sid)).fetchone()
+        pmt = db.execute("SELECT amount, payment_date, transaction_id, linked FROM invoice_payments WHERE id=%s AND sale_id=%s", (pid, sid)).fetchone()
         sale = db.execute("SELECT num, total FROM sales WHERE id=%s", (sid,)).fetchone()
         db.execute("DELETE FROM invoice_payments WHERE id=%s AND sale_id=%s", (pid, sid))
-        if pmt and sale:
+        kept = False
+        if pmt and pmt['linked'] and pmt['transaction_id']:
+            # Entry was in Finance before it was linked: keep the money, drop the link
+            _tx_refresh_ref(db, pmt['transaction_id'])
+            kept = True
+        elif pmt and pmt['transaction_id']:
+            db.execute("DELETE FROM transactions WHERE id=%s", (pmt['transaction_id'],))
+        elif pmt and sale:
             db.execute(
                 'DELETE FROM transactions WHERE ref_doc=%s AND type=\'income\' AND doc_date=%s AND ABS(amount - %s) < 0.005',
                 (sale['num'], pmt['payment_date'], float(pmt['amount'])))
-        paid_total = db.execute("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE sale_id=%s", (sid,)).fetchone()['s']
-        db.execute("UPDATE sales SET paid=%s WHERE id=%s", (1 if paid_total >= sale['total'] else 0, sid))
+        _sale_recompute_paid(db, sid)
         db.commit()
-    flash('Payment removed', 'success')
+    flash('Payment unlinked — the bank entry stays in Finance' if kept else 'Payment removed', 'success')
     return redirect(url_for('view_sale', sid=sid))
 
 

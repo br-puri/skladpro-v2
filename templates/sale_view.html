@@ -256,7 +256,7 @@
           <td style="padding:11px 20px;text-align:right;font-weight:700;color:#15803d">{{ sym }}{{ "{:,.2f}".format(p['amount']) }}</td>
           {% if session.get('role')=='admin' %}
           <td style="padding:11px 16px">
-            <form method="post" action="{{ url_for('delete_payment', sid=sale['id'], pid=p['id']) }}" onsubmit="return confirm('Remove this payment?')">
+            <form method="post" action="{{ url_for('delete_payment', sid=sale['id'], pid=p['id']) }}" onsubmit="return confirm({{ ('Unlink this payment? The bank entry stays in Finance and can be linked again.' if p.get('linked') else 'Remove this payment? Its Finance entry is removed too.')|tojson }})">
               <button class="btn btn-sm btn-danger">×</button>
             </form>
           </td>
@@ -296,6 +296,39 @@
         </div>
         <button type="submit" class="btn btn-primary">Record Payment</button>
       </form>
+      <div style="font-size:11.5px;color:#94a3b8;margin-top:8px">Records the payment <b>and</b> adds it to Finance. If the money is already in Finance, use the list below instead.</div>
+    </div>
+    {% endif %}
+
+    {% if bank_entries %}
+    <div style="padding:16px 20px;border-top:1px solid #f0f2f5">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Use a payment already in Finance</div>
+        <div style="font-size:11.5px;color:#94a3b8">Links it to this invoice. No second bank entry is created.</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tbody>
+        {% for b in bank_entries[:8] %}
+        <tr style="border-top:1px solid #f3f5f8;{{ 'background:#fffbf0' if b.mine }}">
+          <td style="padding:9px 6px;color:#64748b;white-space:nowrap">{{ b['doc_date'] }}</td>
+          <td style="padding:9px 6px">{{ b['desc'] or '—' }}{% if b['contact'] %}<div style="font-size:11.5px;color:#94a3b8">{{ b['contact'] }}{% if b.mine %} · this customer{% endif %}</div>{% endif %}</td>
+          <td style="padding:9px 6px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">
+            £{{ "{:,.2f}".format(b['free']) }}{% if b['free'] < b['amount'] - 0.005 %}<div style="font-size:11px;color:#94a3b8">of £{{ "{:,.2f}".format(b['amount']) }}</div>{% endif %}
+          </td>
+          <td style="padding:9px 6px;text-align:right;white-space:nowrap">
+            {% set use = [b['free'], owed_by_payments]|min %}
+            <form method="post" action="{{ url_for('link_sale_transaction', sid=sale['id']) }}" style="display:inline-flex;gap:6px;align-items:center"
+                  onsubmit="return confirm('Link £' + this.amount.value + ' from this bank entry to {{ sale['num'] }}?')">
+              <input type="hidden" name="tid" value="{{ b['id'] }}">
+              <input type="number" name="amount" step="0.01" min="0.01" max="{{ '%.2f'|format(use) }}" value="{{ '%.2f'|format(use) }}" class="form-control" style="width:100px;padding:5px 8px;text-align:right">
+              <button class="btn btn-sm btn-primary">Link</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if bank_entries|length > 8 %}<div style="font-size:12px;color:#94a3b8;margin-top:8px">Showing 8 of {{ bank_entries|length }}. Use Finance → <b>Link</b> to see the rest.</div>{% endif %}
     </div>
     {% endif %}
   </div>
