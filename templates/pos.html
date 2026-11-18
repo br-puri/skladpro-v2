@@ -7,7 +7,7 @@
     <input id="posSearch" class="form-control" placeholder="Search products by name or SKU…" autofocus>
     <div class="pos-grid" id="posGrid">
       {% for p in products %}
-      <div class="pos-card" data-id="{{ p.id }}" data-name="{{ p.name|lower }}" data-sku="{{ (p.sku or '')|lower }}"
+      <div class="pos-card" data-id="{{ p.id }}" data-name="{{ p.name|lower }}" data-sku="{{ ((p.sku or '') ~ ' ' ~ (p.article or ''))|lower }}"
            data-price="{{ p.price }}" data-stock="{{ p.stock_qty }}" onclick="posAddToCart(this)">
         <div class="pos-card-name">{{ p.name }}</div>
         <div class="pos-card-meta">

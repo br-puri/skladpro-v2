@@ -190,8 +190,9 @@
         </div>
         <div style="min-width:0">
           <div style="font-size:13.5px;font-weight:600;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px">{{ p['name'] }}</div>
-          {% if p['sku'] or p['barcode'] %}
-          <div style="font-size:11px;color:#94a3b8;font-family:'SF Mono',ui-monospace,monospace;margin-top:2px">{{ p['sku'] }}{% if p['sku'] and p['barcode'] %} · {% endif %}{{ p['barcode'] }}</div>
+          {% set codes = [p['sku'], ('Art. ' ~ p['article']) if p['article'] else '', p['barcode']]|select|list %}
+          {% if codes %}
+          <div style="font-size:11px;color:#94a3b8;font-family:'SF Mono',ui-monospace,monospace;margin-top:2px">{{ codes|join(' · ') }}</div>
           {% endif %}
         </div>
       </div>
@@ -269,8 +270,8 @@
     <div class="mob-prod-body">
       <div class="mob-prod-name">{{ p['name'] }}</div>
       <div class="mob-prod-meta">
-        {% if p['sku'] %}{{ p['sku'] }}{% endif %}
-        {% if p['sku'] and p['category'] %} · {% endif %}
+        {% if p['sku'] %}{{ p['sku'] }}{% endif %}{% if p['article'] %}{{ ' · ' if p['sku'] }}Art. {{ p['article'] }}{% endif %}
+        {% if (p['sku'] or p['article']) and p['category'] %} · {% endif %}
         {% if p['category'] %}{{ p['category'] }}{% endif %}
         {% if p['subcategory'] %} / {{ p['subcategory'] }}{% endif %}
         {% if p['subsubcategory'] %} / {{ p['subsubcategory'] }}{% endif %}

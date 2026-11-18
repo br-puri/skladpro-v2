@@ -1082,7 +1082,7 @@ if ('serviceWorker' in navigator) {
         if (d.error) { box.innerHTML = '<div class="f6-empty">' + esc(d.error) + '</div>'; return; }
         var p = d.product, s = d.summary, c = d.customer;
         var html = '<div class="f6-head"><div style="min-width:0"><div class="f6-title">' + esc(p.name) + '</div>'
-          + '<div class="f6-meta">' + (p.sku ? '<span>SKU ' + esc(p.sku) + '</span>' : '')
+          + '<div class="f6-meta">' + (p.sku ? '<span>SKU ' + esc(p.sku) + '</span>' : '') + (p.article ? '<span>Article ' + esc(p.article) + '</span>' : '')
           + '<span>In stock <b>' + num(p.stock) + '</b> ' + esc(p.unit) + '</span>'
           + '<span>List price <b>' + money(p.price) + '</b></span>'
           + '<span class="f6-hide-m">Cost ' + money(p.cost) + '</span></div></div>'

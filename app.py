@@ -672,6 +672,12 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()
+        # Manufacturer / supplier article number, separate from our own SKU
+        try:
+            db.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS article TEXT DEFAULT ''")
+            db.commit()
+        except Exception:
+            db.rollback()
         # Expense categories ("where the money goes")
         try:
             db.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category TEXT DEFAULT ''")
@@ -1283,8 +1289,8 @@ def products():
         base = "SELECT * FROM products WHERE 1=1"
         params = []
         if q:
-            base += " AND (name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s)"
-            params += [f'%{q}%', f'%{q}%', f'%{q}%']
+            base += " AND (name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s OR article ILIKE %s)"
+            params += [f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%']
         if cat:
             base += " AND category=%s"
             params.append(cat)
@@ -2167,6 +2173,7 @@ def add_product():
                 fields + (photo or '',)
             )
             pid = cur.fetchone()['id']
+            db.execute("UPDATE products SET article=%s WHERE id=%s", (request.form.get('article', '').strip(), pid))
             for w in warehouses:
                 db.execute("INSERT INTO stock VALUES(%s,%s,%s)", (pid, w['id'], quantities[w['id']]))
             db.commit()
@@ -2194,6 +2201,7 @@ def edit_product(pid):
                 "UPDATE products SET sku=%s,barcode=%s,name=%s,category=%s,subcategory=%s,unit=%s,cost=%s,price=%s,min_stock=%s,description=%s,length=%s,width=%s,height=%s,weight=%s,cbm=%s,carton_qty=%s,ctn_price=%s,china_price=%s,china_currency=%s,subsubcategory=%s,photo=%s WHERE id=%s",
                 fields + (photo_val, pid)
             )
+            db.execute("UPDATE products SET article=%s WHERE id=%s", (request.form.get('article', '').strip(), pid))
             for w in warehouses:
                 db.execute("INSERT INTO stock VALUES(%s,%s,%s) ON CONFLICT (product_id, warehouse_id) DO UPDATE SET qty=EXCLUDED.qty", (pid, w['id'], float(request.form.get(f'stock_{w["id"]}') or 0)))
             db.commit()
@@ -2220,6 +2228,7 @@ def duplicate_product(pid):
              (dict(p).get('subsubcategory') or ''),
              p['photo']))
         new_id = cur.fetchone()['id']
+        db.execute("UPDATE products SET article=%s WHERE id=%s", (dict(p).get('article') or '', new_id))
         db.commit()
     flash('Product duplicated — update the name and SKU as needed', 'success')
     return redirect(url_for('edit_product', pid=new_id))
@@ -2329,10 +2338,10 @@ def product_labels():
 def export_products_xlsx():
     import openpyxl
     from openpyxl.styles import Font, PatternFill
-    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'subsubcategory', 'unit', 'cost', 'price', 'min_stock',
+    headers = ['id', 'name*', 'sku', 'article', 'barcode', 'category', 'subcategory', 'subsubcategory', 'unit', 'cost', 'price', 'min_stock',
                'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
     with get_db() as db:
-        rows = db.execute("""SELECT id, name, sku, barcode, category, subcategory, subsubcategory, unit,
+        rows = db.execute("""SELECT id, name, sku, article, barcode, category, subcategory, subsubcategory, unit,
                                     cost, price, min_stock, length, width, height, weight,
                                     carton_qty, description, photo
                              FROM products ORDER BY name""").fetchall()
@@ -2347,7 +2356,7 @@ def export_products_xlsx():
         img = r['photo'] or ''
         if img and not img.lower().startswith(('http://', 'https://')):
             img = ''  # local files can't round-trip through Excel
-        ws.append([r['id'], r['name'], r['sku'], r['barcode'], r['category'], r['subcategory'], r['subsubcategory'],
+        ws.append([r['id'], r['name'], r['sku'], r['article'] or '', r['barcode'], r['category'], r['subcategory'], r['subsubcategory'],
                    r['unit'], r['cost'], r['price'], r['min_stock'],
                    r['length'], r['width'], r['height'], r['weight'],
                    r['carton_qty'], r['description'], img])
@@ -2371,12 +2380,12 @@ def products_import_template():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Products'
-    headers = ['id', 'name*', 'sku', 'barcode', 'category', 'subcategory', 'subsubcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
+    headers = ['id', 'name*', 'sku', 'article', 'barcode', 'category', 'subcategory', 'subsubcategory', 'unit', 'cost', 'price', 'min_stock', 'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'carton_qty', 'description', 'image_url']
     ws.append(headers)
     for cell in ws[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill('solid', fgColor='D9E1F2')
-    ws.append(['', 'Example Product', 'SKU001', '1234567890123', categories[0] if categories else '', '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description', 'https://example.com/photo.jpg'])
+    ws.append(['', 'Example Product', 'SKU001', 'DK8581', '1234567890123', categories[0] if categories else '', '', '', 'pcs', 10.00, 15.00, 5, 30, 20, 10, 0.5, 12, 'Optional description', 'https://example.com/photo.jpg'])
     if categories:
         # Put category list on a hidden sheet and reference it for dropdown
         ref_ws = wb.create_sheet('_categories')
@@ -2532,6 +2541,9 @@ def import_products():
                         "cost=%s, price=%s, min_stock=%s, length=%s, width=%s, height=%s, weight=%s, cbm=%s, "
                         "carton_qty=%s, description=%s, photo=CASE WHEN %s='' THEN photo ELSE %s END WHERE id=%s",
                         base_fields + (img, img, existing['id']))
+                    if 'article' in col:
+                        db.execute("UPDATE products SET article=%s WHERE id=%s",
+                                   (str(get(row, 'article', '') or '').strip(), existing['id']))
                     updated += 1
                 else:
                     cur = db.execute(
@@ -2539,6 +2551,8 @@ def import_products():
                         "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                         base_fields + (img,))
                     pid = cur.fetchone()['id']
+                    if 'article' in col:
+                        db.execute("UPDATE products SET article=%s WHERE id=%s", (str(get(row, 'article', '') or '').strip(), pid))
                     for wh in warehouses:
                         db.execute("INSERT INTO stock(product_id,warehouse_id,qty) VALUES(%s,%s,0) ON CONFLICT DO NOTHING",
                                    (pid, wh['id']))
@@ -3953,7 +3967,7 @@ def bulk_sales():
 def export_sale_pdf(sid):
     with get_db() as db:
         s = dict(db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone())
-        items = [dict(r) for r in db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
+        items = [dict(r) for r in db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku, pr.article FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
             row = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
@@ -3987,7 +4001,7 @@ def invoice_pdf_public(token):
         sid = row['sale_id']
         s = dict(db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone())
         items = [dict(r) for r in db.execute(
-            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
+            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku, pr.article FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
             row2 = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
@@ -4005,7 +4019,7 @@ def export_delivery_note(sid):
     with get_db() as db:
         s = dict(db.execute("SELECT * FROM sales WHERE id=%s", (sid,)).fetchone())
         items = [dict(r) for r in db.execute(
-            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
+            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku, pr.article FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s", (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
             row = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
@@ -4250,7 +4264,7 @@ def email_invoice(sid):
             return redirect(url_for('sales'))
         s = dict(s_row)
         items = [dict(r) for r in db.execute(
-            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s",
+            "SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.barcode, pr.sku, pr.article FROM sale_items si JOIN products pr ON pr.id=si.product_id WHERE si.sale_id=%s",
             (sid,)).fetchall()]
         customer = None
         if s.get('customer_id'):
@@ -4519,7 +4533,7 @@ def export_quote_pdf(qid):
     with get_db() as db:
         q = dict(db.execute("SELECT * FROM quotes WHERE id=%s", (qid,)).fetchone())
         items = [dict(r) for r in db.execute(
-            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode, pr.sku FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
+            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode, pr.sku, pr.article FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
             (qid,)).fetchall()]
         customer = None
         if q.get('customer_id'):
@@ -4541,7 +4555,7 @@ def email_quote(qid):
             return redirect(url_for('quotes'))
         q = dict(q_row)
         items = [dict(r) for r in db.execute(
-            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode, pr.sku FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
+            "SELECT qi.*, pr.name as product_name, pr.unit, pr.barcode, pr.sku, pr.article FROM quote_items qi JOIN products pr ON pr.id=qi.product_id WHERE qi.quote_id=%s",
             (qid,)).fetchall()]
         customer = None
         if q.get('customer_id'):
@@ -5932,7 +5946,8 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     for i in items:
         ctn_qty = i.get('carton_qty') or 0
         line_total = i['qty'] * i['price'] * (1 - i.get('discount_pct', 0) / 100)
-        desc_cell = Paragraph(i['product_name'], normal)
+        art = (i.get('article') or '').strip()
+        desc_cell = Paragraph(i['product_name'] + (f"<br/><font size='7' color='#64748b'>Art. {art}</font>" if art else ''), normal)
         row = [desc_cell, f"{i['qty']:g}", i.get('unit', '')]
         if has_ctns:
             row.append(f"{int(ctn_qty)}" if ctn_qty > 0 else '—')
@@ -6163,7 +6178,7 @@ def generate_delivery_note_pdf(sale, items, customer=None, company=None):
     rows = [[para(h,white) for h in headers]]
     for index,item in enumerate(items,1):
         description = [para(item.get('product_name') or 'Product')]
-        if item.get('sku'): description.append(para('Article: '+str(item['sku']),small))
+        if item.get('article'): description.append(para('Article: '+str(item['article']),small))
         row = [para(index,small),description,para(format(float(item.get('qty') or 0),'g'),heading),para(item.get('unit') or '—')]
         if has_cartons:
             carton = float(item.get('carton_qty') or 0)
@@ -6788,9 +6803,9 @@ def global_search():
         like = f'%{q}%'
         with get_db() as db:
             results['products'] = db.execute(
-                "SELECT id, sku, name, category, unit FROM products "
-                "WHERE name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s ORDER BY name LIMIT 20",
-                (like, like, like)
+                "SELECT id, sku, article, name, category, unit FROM products "
+                "WHERE name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s OR article ILIKE %s ORDER BY name LIMIT 20",
+                (like, like, like, like)
             ).fetchall()
 
             results['contacts'] = db.execute(
@@ -6884,7 +6899,7 @@ def api_product_sales_history(pid):
         cust_id = 0
     with get_db() as db:
         prod, stock, rows = db.batch(
-            ("SELECT id, name, sku, unit, price, cost, carton_qty FROM products WHERE id=%s", [pid]),
+            ("SELECT id, name, sku, article, unit, price, cost, carton_qty FROM products WHERE id=%s", [pid]),
             ("SELECT COALESCE(SUM(qty), 0) AS q FROM stock WHERE product_id=%s", [pid]),
             ("""SELECT s.id AS sale_id, s.num, s.doc_date, s.status, s.discount AS sale_disc,
                        s.customer_id, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name, '—') AS customer,
@@ -6912,7 +6927,7 @@ def api_product_sales_history(pid):
                     'mine': bool(cust_id and r['customer_id'] == cust_id)})
     mine = [r for r in out if r['mine']]
     return jsonify({
-        'product': {'id': p['id'], 'name': p['name'], 'sku': p['sku'] or '', 'unit': p['unit'] or 'pcs',
+        'product': {'id': p['id'], 'name': p['name'], 'sku': p['sku'] or '', 'article': p.get('article') or '', 'unit': p['unit'] or 'pcs',
                     'price': p['price'] or 0, 'cost': p['cost'] or 0, 'carton_qty': p['carton_qty'] or 0,
                     'stock': stock[0]['q'] if stock else 0},
         'rows': out,
@@ -6941,10 +6956,10 @@ def api_search():
     out = []
     with get_db() as db:
         for r in db.execute(
-            "SELECT id, name, sku, category FROM products WHERE name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s ORDER BY name LIMIT 5",
-            (like, like, like)
+            "SELECT id, name, sku, article, category FROM products WHERE name ILIKE %s OR sku ILIKE %s OR barcode ILIKE %s OR article ILIKE %s ORDER BY name LIMIT 5",
+            (like, like, like, like)
         ).fetchall():
-            out.append({'type': 'Product', 'label': r['name'], 'sub': r['sku'] or r['category'] or '', 'url': url_for('edit_product', pid=r['id'])})
+            out.append({'type': 'Product', 'label': r['name'], 'sub': ' · '.join(x for x in (r['sku'], r['article']) if x) or r['category'] or '', 'url': url_for('edit_product', pid=r['id'])})
 
         for r in db.execute(
             "SELECT id, name, company, type FROM contacts WHERE name ILIKE %s OR company ILIKE %s OR phone ILIKE %s OR email ILIKE %s ORDER BY name LIMIT 5",

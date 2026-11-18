@@ -3,10 +3,12 @@
 {% block page_title %}{{ 'Edit' if product else 'Add' }} Product{% endblock %}
 {% block topbar_actions %}<a href="{{ next_url or url_for('products') }}" class="back-link">← Back</a>{% endblock %}
 {% block content %}
+<style>.form-row.codes-row{grid-template-columns:1fr 1fr 1fr}@media(max-width:768px){.form-row.codes-row{grid-template-columns:1fr}}</style>
 <form method="post" class="form-card" enctype="multipart/form-data">
   <input type="hidden" name="next" value="{{ next_url or '' }}">
-  <div class="form-row">
+  <div class="form-row codes-row">
     <div class="form-group"><label class="form-label">SKU</label><input name="sku" class="form-control" value="{{ product['sku'] if product else '' }}" placeholder="P001"></div>
+    <div class="form-group"><label class="form-label" title="Manufacturer / supplier code">Article</label><input name="article" class="form-control" value="{{ product['article'] if product and product['article'] else '' }}" placeholder="e.g. DK8581" title="Manufacturer / supplier code"></div>
     <div class="form-group"><label class="form-label">Barcode</label><input name="barcode" class="form-control" value="{{ product['barcode'] if product else '' }}" placeholder="4820000000011"></div>
   </div>
   <div class="form-group"><label class="form-label">Product Name *</label><input name="name" class="form-control" value="{{ product['name'] if product else '' }}" required></div>
