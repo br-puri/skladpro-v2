@@ -2313,24 +2313,43 @@ def bulk_products():
 
 @app.route('/products/labels')
 def product_labels():
-    ids_str = request.args.get('ids', '')
+    """Label picker: choose products and how many labels of each."""
+    pre = {int(x) for x in request.args.get('ids', '').split(',') if x.strip().isdigit()}
     with get_db() as db:
-        if ids_str:
-            ids = [int(i) for i in ids_str.split(',') if i.strip().isdigit()]
-            if not ids:
-                flash('No products selected', 'error')
-                return redirect(url_for('products'))
-            placeholders = ','.join(['%s'] * len(ids))
-            products = [dict(r) for r in db.execute(
-                f"SELECT id, name, sku, barcode FROM products WHERE id IN ({placeholders}) ORDER BY name", ids).fetchall()]
-        else:
-            products = [dict(r) for r in db.execute(
-                "SELECT id, name, sku, barcode FROM products ORDER BY name").fetchall()]
-    if not products:
-        flash('No products found', 'error')
-        return redirect(url_for('products'))
-    return send_file(io.BytesIO(generate_labels_pdf(products)),
-        mimetype='application/pdf', download_name='product-labels.pdf', as_attachment=True)
+        products = db.execute("""SELECT id, name, sku, article, barcode, price, category
+                                 FROM products ORDER BY LOWER(name)""").fetchall()
+    return render_template('labels_picker.html', products=products, pre=pre, per_sheet=44)
+
+
+@app.route('/products/labels/pdf', methods=['POST'])
+def product_labels_pdf():
+    code = request.form.get('code', 'barcode')
+    if code not in ('barcode', 'sku', 'article'):
+        code = 'barcode'
+    show_price = bool(request.form.get('show_price'))
+    borders = bool(request.form.get('borders'))
+    start = max(1, min(44, request.form.get('start', type=int) or 1))
+    counts = {}
+    for k, v in request.form.items():
+        if k.startswith('qty_') and k[4:].isdigit():
+            try:
+                n = int(float(v or 0))
+            except ValueError:
+                n = 0
+            if n > 0:
+                counts[int(k[4:])] = min(n, 2000)
+    if not counts:
+        flash('Choose at least one product and how many labels to print', 'error')
+        return redirect(url_for('product_labels'))
+    with get_db() as db:
+        rows = {r['id']: dict(r) for r in db.execute(
+            "SELECT id, name, sku, article, barcode, price FROM products WHERE id = ANY(%s)",
+            (list(counts),)).fetchall()}
+    labels = []
+    for pid in [k for k in counts if k in rows]:     # keep the order they were listed in
+        labels += [rows[pid]] * counts[pid]
+    pdf = generate_labels_pdf(labels, code=code, show_price=show_price, start=start, borders=borders)
+    return send_file(io.BytesIO(pdf), mimetype='application/pdf', download_name='product-labels.pdf')
 
 
 @app.route('/products/export.xlsx')
@@ -6406,7 +6425,11 @@ def generate_statement_pdf(customer, invoices, company=None, payments=None, cred
     return buf.getvalue()
 
 
-def generate_labels_pdf(products):
+def generate_labels_pdf(products, code='barcode', show_price=False, start=1, borders=False):
+    """A4 sheet of 44 labels: 4 across x 11 down, 48.5 x 25.4 mm, no gaps
+    (the standard '44 per sheet' label stock). `start` skips already-used
+    labels on a partly used sheet. `code` picks what the barcode encodes:
+    'barcode' (falls back to SKU), 'sku' or 'article'."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.units import mm
@@ -6414,51 +6437,63 @@ def generate_labels_pdf(products):
     from reportlab.platypus import Paragraph
     from reportlab.graphics.barcode import code128
     from reportlab.pdfgen import canvas as _canvas
+    from xml.sax.saxutils import escape as _esc
 
     buf = io.BytesIO()
     W, H = A4
-    COLS, ROWS = 3, 8
-    MARGIN_X, MARGIN_Y = 7*mm, 10*mm
-    GAP_X, GAP_Y = 3*mm, 2*mm
-    label_w = (W - 2*MARGIN_X - (COLS-1)*GAP_X) / COLS
-    label_h = (H - 2*MARGIN_Y - (ROWS-1)*GAP_Y) / ROWS
-
-    name_style = ParagraphStyle('ln', fontName='Helvetica-Bold', fontSize=7, leading=8, alignment=1)
-    sku_style  = ParagraphStyle('ls', fontName='Helvetica', fontSize=6, leading=7, alignment=1)
+    COLS, ROWS = 4, 11
+    label_w, label_h = 48.5*mm, 25.4*mm
+    MARGIN_X = (W - COLS * label_w) / 2          # 8.0 mm
+    MARGIN_Y = (H - ROWS * label_h) / 2          # 8.8 mm
+    PAD = 1.6*mm
+    name_style = ParagraphStyle('ln', fontName='Helvetica-Bold', fontSize=6.5, leading=7.4, alignment=1)
 
     c = _canvas.Canvas(buf, pagesize=A4)
+    c.setTitle('Product labels')
     per_page = COLS * ROWS
-
-    for idx, p in enumerate(products):
-        if idx > 0 and idx % per_page == 0:
+    for n, p in enumerate(products):
+        slot = n + (start - 1)
+        if slot > 0 and slot % per_page == 0:
             c.showPage()
-        col = idx % COLS
-        row = (idx % per_page) // COLS
-        x = MARGIN_X + col * (label_w + GAP_X)
-        y = H - MARGIN_Y - (row + 1) * label_h - row * GAP_Y
+        pos = slot % per_page
+        col, row = pos % COLS, pos // COLS
+        x = MARGIN_X + col * label_w
+        y = H - MARGIN_Y - (row + 1) * label_h
+        if borders:
+            c.setStrokeColor(colors.HexColor('#c8c8c8')); c.setLineWidth(0.3)
+            c.rect(x, y, label_w, label_h)
 
-        c.setStrokeColor(colors.HexColor('#d0d0d0'))
-        c.setLineWidth(0.3)
-        c.rect(x, y, label_w, label_h)
+        top = y + label_h - PAD
+        if show_price and p.get('price'):
+            c.setFont('Helvetica-Bold', 7.5); c.setFillColor(colors.black)
+            c.drawRightString(x + label_w - PAD, top - 7, f"£{float(p['price']):,.2f}")
+            name_w = label_w - 2*PAD - 13*mm
+        else:
+            name_w = label_w - 2*PAD
+        para = Paragraph(_esc(str(p.get('name') or '')), name_style)
+        nw, nh = para.wrap(name_w, 2 * 7.4 + 1)
+        if nh > 2 * 7.4 + 1:                          # keep to two lines
+            para = Paragraph(_esc(str(p.get('name') or ''))[:60] + '…', name_style)
+            nw, nh = para.wrap(name_w, 2 * 7.4 + 1)
+        para.drawOn(c, x + PAD, top - nh)
 
-        name = str(p.get('name', ''))
-        name_para = Paragraph(name, name_style)
-        nw, nh = name_para.wrap(label_w - 4*mm, label_h * 0.35)
-        name_para.drawOn(c, x + 2*mm, y + label_h - nh - 1.5*mm)
-
-        bc_val  = str(p.get('barcode') or '').strip()
-        sku_val = str(p.get('sku') or '').strip()
-        val = bc_val or sku_val
+        if code == 'sku':
+            val = str(p.get('sku') or '').strip()
+        elif code == 'article':
+            val = str(p.get('article') or '').strip()
+        else:
+            val = str(p.get('barcode') or '').strip() or str(p.get('sku') or '').strip()
         if val:
+            avail = label_w - 2*PAD
+            bar_h = 9.5*mm
             try:
-                bc = code128.Code128(val, barHeight=label_h * 0.38, barWidth=0.5, humanReadable=True, fontSize=5.5)
-                bc_x = x + (label_w - bc.width) / 2
-                bc.drawOn(c, bc_x, y + 1.5*mm)
+                bc = code128.Code128(val, barHeight=bar_h, barWidth=0.6, humanReadable=True, fontSize=6)
+                if bc.width > avail:                  # squeeze long codes to fit
+                    bc = code128.Code128(val, barHeight=bar_h, barWidth=0.6 * avail / bc.width, humanReadable=True, fontSize=6)
+                bc.drawOn(c, x + (label_w - bc.width) / 2, y + PAD + 1)
             except Exception:
-                c.setFont('Helvetica', 7)
-                c.setFillColor(colors.black)
-                c.drawCentredString(x + label_w/2, y + label_h/2 - 3*mm, val)
-
+                c.setFont('Helvetica', 7); c.setFillColor(colors.black)
+                c.drawCentredString(x + label_w / 2, y + label_h / 2 - 3*mm, val)
     c.save()
     return buf.getvalue()
 

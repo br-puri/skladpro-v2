@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Print Labels{% endblock %}
+{% block page_title %}Print Labels{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('products') }}" class="btn">← Products</a>{% endblock %}
+{% block content %}
+<style>
+  .lb { max-width: 1100px; margin: 0 auto; color: #20324a; }
+  .lb-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:14px; box-shadow:0 3px 12px #20324a04; }
+  .lb-opts { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:14px 18px; padding:16px 20px; align-items:end; }
+  .lb-opts label.t { display:block; font-size:11.5px; font-weight:600; color:#64748b; margin-bottom:5px; }
+  .lb-chk { display:flex; gap:8px; align-items:center; font-size:13px; color:#334155; cursor:pointer; padding:8px 0; }
+  .lb-chk input { width:16px; height:16px; accent-color:#d9a024; }
+  .lb-note { grid-column:1/-1; font-size:12px; color:#8a96a8; margin-top:-4px; }
+  .lb-tools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid #f0f2f5; }
+  .lb-tools input[type=text] { flex:1; min-width:200px; }
+  .lb-list { max-height:62vh; overflow:auto; }
+  .lb-row { display:grid; grid-template-columns:minmax(0,1fr) 190px 150px; gap:12px; align-items:center; padding:9px 20px; border-bottom:1px solid #f3f5f8; }
+  .lb-row.sel { background:#fffbf0; }
+  .lb-name { font-size:13.5px; font-weight:600; color:#16233a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-codes { font-size:11px; color:#94a3b8; font-family:ui-monospace,Menlo,monospace; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-will { font-size:12px; font-family:ui-monospace,Menlo,monospace; color:#334155; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-will.none { color:#dc2626; font-family:inherit; }
+  .lb-qty { display:flex; gap:4px; align-items:center; justify-content:flex-end; }
+  .lb-qty button { width:30px; height:30px; border-radius:8px; border:1px solid #e2e8f0; background:#fff; cursor:pointer; font-size:15px; color:#475569; }
+  .lb-qty button:hover { background:#f6f8fb; }
+  .lb-qty input { width:58px; text-align:center; padding:5px 4px; }
+  .lb-bar { position:sticky; bottom:0; z-index:5; background:#fff; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 -6px 20px #20324a10; }
+  .lb-bar-in { padding:12px 20px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .lb-sum { margin-right:auto; font-size:13.5px; color:#475569; }
+  .lb-sum b { color:#16233a; font-variant-numeric:tabular-nums; }
+  .lb-warn { color:#dc2626; font-size:12px; }
+  @media (max-width: 760px) { .lb-opts { grid-template-columns:1fr 1fr; } .lb-row { grid-template-columns:minmax(0,1fr) auto; } .lb-will { display:none; } }
+</style>
+
+<form class="lb" method="post" action="{{ url_for('product_labels_pdf') }}" target="_blank" id="lbForm">
+  <div class="lb-card">
+    <div class="lb-opts">
+      <div>
+        <label class="t" for="lbCode">Barcode shows</label>
+        <select name="code" id="lbCode" class="form-control" onchange="lbRefresh()">
+          <option value="barcode">Barcode (SKU if none)</option>
+          <option value="sku">SKU</option>
+          <option value="article">Article</option>
+        </select>
+      </div>
+      <div>
+        <label class="t" for="lbStart">Start at label no.</label>
+        <input type="number" name="start" id="lbStart" class="form-control" min="1" max="{{ per_sheet }}" value="1" oninput="lbSum()">
+      </div>
+      <label class="lb-chk"><input type="checkbox" name="show_price" value="1"> Print price on label</label>
+      <label class="lb-chk" title="Draws each label's edge, handy for a test print on plain paper"><input type="checkbox" name="borders" value="1"> Print outlines</label>
+      <div class="lb-note">Sheet: A4, <b>{{ per_sheet }} labels</b> (4 across × 11 down, 48.5 × 25.4 mm). On a partly used sheet, set “Start at” to the first empty label, counting left to right, top to bottom. When printing, choose <b>Actual size / 100%</b> (not “Fit to page”) so the labels line up.</div>
+    </div>
+  </div>
+
+  <div class="lb-card">
+    <div class="lb-tools">
+      <input type="text" class="form-control" id="lbFind" placeholder="Find product by name, SKU, article or barcode…" oninput="lbFilter()" autocomplete="off">
+      <label class="lb-chk" style="padding:0"><input type="checkbox" id="lbOnlySel" onchange="lbFilter()"> Only chosen</label>
+      <button type="button" class="btn btn-sm" onclick="lbClear()">Clear all</button>
+    </div>
+    <div class="lb-list" id="lbList">
+      {% for p in products %}
+      {% set q = pre and p.id in pre %}
+      <div class="lb-row{{ ' sel' if q }}" data-q="{{ (p.name ~ ' ' ~ (p.sku or '') ~ ' ' ~ (p.article or '') ~ ' ' ~ (p.barcode or ''))|lower }}"
+           data-bc="{{ p.barcode or '' }}" data-sku="{{ p.sku or '' }}" data-art="{{ p.article or '' }}">
+        <div style="min-width:0">
+          <div class="lb-name" title="{{ p.name }}">{{ p.name }}</div>
+          <div class="lb-codes">{{ [p.sku, ('Art. ' ~ p.article) if p.article else '', p.barcode]|select|join(' · ') or 'No codes' }}</div>
+        </div>
+        <div class="lb-will"></div>
+        <div class="lb-qty">
+          <button type="button" onclick="lbStep(this,-1)" aria-label="One less">−</button>
+          <input type="number" min="0" max="2000" name="qty_{{ p.id }}" value="{{ 1 if q else '' }}" placeholder="0" class="form-control" oninput="lbChanged(this)" aria-label="Labels for {{ p.name }}">
+          <button type="button" onclick="lbStep(this,1)" aria-label="One more">+</button>
+          <button type="button" onclick="lbFill(this)" title="Fill the rest of the sheet with this product" style="width:auto;padding:0 8px;font-size:11.5px;font-weight:600">Sheet</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="lb-bar"><div class="lb-bar-in">
+    <span class="lb-sum" id="lbSum"></span>
+    <button type="submit" class="btn btn-primary" id="lbGo">Print labels</button>
+  </div></div>
+</form>
+
+<script>
+var PER = {{ per_sheet }};
+var rows = Array.prototype.slice.call(document.querySelectorAll('.lb-row'));
+function codeFor(r) {
+  var mode = document.getElementById('lbCode').value;
+  if (mode === 'sku') return r.dataset.sku;
+  if (mode === 'article') return r.dataset.art;
+  return r.dataset.bc || r.dataset.sku;
+}
+function lbRefresh() {
+  rows.forEach(function (r) {
+    var v = codeFor(r), el = r.querySelector('.lb-will');
+    el.textContent = v ? '▮▯▮ ' + v : 'No code: name only';
+    el.classList.toggle('none', !v);
+  });
+  lbSum();
+}
+function qtyOf(r) { return parseInt(r.querySelector('input').value, 10) || 0; }
+function lbSum() {
+  var total = 0, products = 0, missing = 0;
+  rows.forEach(function (r) { var q = qtyOf(r); if (q > 0) { total += q; products++; if (!codeFor(r)) missing++; } });
+  var start = Math.max(1, Math.min(PER, parseInt(document.getElementById('lbStart').value, 10) || 1));
+  var sheets = total ? Math.ceil((total + start - 1) / PER) : 0;
+  document.getElementById('lbSum').innerHTML = total
+    ? '<b>' + total + '</b> label' + (total > 1 ? 's' : '') + ' for <b>' + products + '</b> product' + (products > 1 ? 's' : '') +
+      ' · <b>' + sheets + '</b> sheet' + (sheets > 1 ? 's' : '') +
+      (missing ? ' <span class="lb-warn">· ' + missing + ' without a code (name only)</span>' : '')
+    : 'Choose products and how many labels of each.';
+  document.getElementById('lbGo').disabled = !total;
+}
+function lbChanged(inp) { inp.closest('.lb-row').classList.toggle('sel', (parseInt(inp.value, 10) || 0) > 0); lbSum(); }
+function lbStep(btn, d) {
+  var inp = btn.parentNode.querySelector('input');
+  inp.value = Math.max(0, (parseInt(inp.value, 10) || 0) + d) || '';
+  lbChanged(inp);
+}
+function lbFill(btn) {   // top this product up so the current sheet ends full
+  var inp = btn.parentNode.querySelector('input');
+  var start = Math.max(1, parseInt(document.getElementById('lbStart').value, 10) || 1);
+  var others = 0;
+  rows.forEach(function (r) { var i = r.querySelector('input'); if (i !== inp) others += parseInt(i.value, 10) || 0; });
+  var used = (others + start - 1) % PER;
+  var free = PER - used;
+  inp.value = free; lbChanged(inp);
+}
+function lbFilter() {
+  var q = document.getElementById('lbFind').value.trim().toLowerCase();
+  var only = document.getElementById('lbOnlySel').checked;
+  rows.forEach(function (r) {
+    r.style.display = ((!q || r.dataset.q.indexOf(q) >= 0) && (!only || qtyOf(r) > 0)) ? '' : 'none';
+  });
+}
+function lbClear() { rows.forEach(function (r) { r.querySelector('input').value = ''; r.classList.remove('sel'); }); lbSum(); lbFilter(); }
+document.getElementById('lbFind').addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+lbRefresh();
+{% if pre %}document.getElementById('lbOnlySel').checked = true; lbFilter();{% endif %}
+</script>
+{% endblock %}
