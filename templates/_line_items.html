@@ -24,7 +24,7 @@
 <div style="position:relative;margin-bottom:12px;background:#f0f7ff;border:1px solid #c3d9f5;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
   <span style="font-size:18px">&#x1F4F7;</span>
   <div style="position:relative;flex:1;max-width:420px">
-    <input type="text" id="barcodeInput" placeholder="Scan barcode or search by name / SKU…"
+    <input type="text" id="barcodeInput" placeholder="Scan barcode or search by name / SKU…  (⌘F)"
       class="form-control" autocomplete="off" autocorrect="off" spellcheck="false">
     <div class="scan-dropdown" id="scanDropdown"></div>
   </div>
@@ -311,7 +311,8 @@ function showFeedback(msg, ok) {
   setTimeout(() => { scanFeedback.textContent = ''; }, 2500);
 }
 
-function addProductById(id, qty) {
+// pick = chosen from the list (go to its quantity); otherwise it was scanned (stay in search)
+function addProductById(id, qty, pick) {
   qty = qty || 1;
   const p = products.find(x => x.id == id);
   if (!p) return;
@@ -322,7 +323,9 @@ function addProductById(id, qty) {
       qtyIn.value = (parseFloat(qtyIn.value) || 0) + qty;
       qtyIn.dispatchEvent(new Event('input'));
       showFeedback(`+${qty} × ${p.name}`, true);
-      closeScanDropdown(); barcodeInput.value = ''; return;
+      closeScanDropdown(); barcodeInput.value = '';
+      if (pick) focusQty(row);
+      return;
     }
   }
   let targetRow = null;
@@ -335,8 +338,33 @@ function addProductById(id, qty) {
   targetRow.querySelector('[name="qty[]"]').value = qty;
   targetRow.querySelector('[name="qty[]"]').dispatchEvent(new Event('input'));
   showFeedback(`✓ ${p.name}`, true);
-  closeScanDropdown(); barcodeInput.value = ''; barcodeInput.focus();
+  closeScanDropdown(); barcodeInput.value = '';
+  if (pick) focusQty(targetRow); else barcodeInput.focus();
 }
+
+function focusQty(row) {
+  const q = row && row.querySelector('[name="qty[]"]');
+  if (!q) { barcodeInput.focus(); return; }
+  q.focus(); q.select();
+  row.scrollIntoView({ block: 'nearest' });
+}
+
+// Enter in a quantity box: back to product search for the next item (and don't submit the form)
+document.getElementById('itemsBody').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && e.target.matches('[name="qty[]"]')) {
+    e.preventDefault();
+    barcodeInput.focus(); barcodeInput.select();
+  }
+});
+
+// ⌘F / Ctrl+F: jump to the product search on this form instead of the browser's Find
+document.addEventListener('keydown', function(e) {
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    barcodeInput.focus(); barcodeInput.select();
+    barcodeInput.scrollIntoView({ block: 'center' });
+  }
+});
 
 function renderScanDropdown(matches) {
   if (!matches.length) { closeScanDropdown(); return; }
@@ -371,7 +399,7 @@ scanDropdown.addEventListener('mousedown', function(e) {
   const item = e.target.closest('.sd-item');
   if (!item) return;
   e.preventDefault();
-  addProductById(item.dataset.id, 1);
+  addProductById(item.dataset.id, 1, true);
 });
 
 barcodeInput.addEventListener('input', function() {
@@ -412,9 +440,9 @@ barcodeInput.addEventListener('keydown', function(e) {
   } else if (e.key === 'Enter') {
     e.preventDefault();
     const cmdEnter = e.metaKey || e.ctrlKey;
-    if (active) { addProductById(active.dataset.id, 1); }
+    if (active) { addProductById(active.dataset.id, 1, true); }
     else if (items.length === 1 || cmdEnter) {
-      if (items.length >= 1) { addProductById(items[0].dataset.id, 1); }
+      if (items.length >= 1) { addProductById(items[0].dataset.id, 1, true); }
     } else {
       const code = this.value.trim();
       if (!code) return;
