@@ -34,6 +34,17 @@
     {% if not transaction %}<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px;color:#334155;cursor:pointer">
       <input type="checkbox" name="repeat_monthly" value="1" style="width:16px;height:16px;accent-color:#d9a024">
       Repeat monthly <span style="color:#94a3b8">(adds this expense automatically on the same day each month; manage under Finance → Recurring)</span></label>{% endif %}</div>
+  {% set tv = transaction.get('vat_rate') if transaction else none %}
+  {% set tx_excl = transaction.get('vat_exclude') if transaction else 0 %}
+  <div class="form-group"><label class="form-label" id="vatLabel">VAT</label>
+    <select name="vat" id="txVat" class="form-control">
+      <option value="" {{ 'selected' if tv is none and not tx_excl }} id="vatDefaultOpt">Default</option>
+      <option value="20" {{ 'selected' if tv == 20 and not tx_excl }}>20% VAT included</option>
+      <option value="5" {{ 'selected' if tv == 5 and not tx_excl }}>5% VAT included</option>
+      <option value="0" {{ 'selected' if tv == 0 and not tx_excl }}>0% (zero-rated / no VAT charged)</option>
+      <option value="none" {{ 'selected' if tx_excl }} id="vatNoneOpt">Not a sale (loan, transfer, refund…)</option>
+    </select>
+    <div id="vatHint" style="font-size:11.5px;color:#94a3b8;margin-top:4px"></div></div>
   <div class="form-group"><label class="form-label">Amount</label>
     <input name="amount" type="number" min="0" step="0.01" class="form-control" value="{{ transaction['amount'] if transaction else '0' }}"></div>
   <div class="form-group"><label class="form-label">Contact</label>
@@ -49,9 +60,31 @@
   </div>
 </form>
 <script>
+var CAT_VAT = {{ cat_vat|tojson }}, OUT_OF_SCOPE = {{ out_of_scope|tojson }};
 function txTypeChanged() {
-  document.getElementById('txCatGroup').style.display = document.getElementById('txType').value === 'expense' ? '' : 'none';
+  var exp = document.getElementById('txType').value === 'expense';
+  document.getElementById('txCatGroup').style.display = exp ? '' : 'none';
+  vatHint();
 }
+function vatHint() {
+  var exp = document.getElementById('txType').value === 'expense';
+  var cat = (document.querySelector('[name="category"]').value || '').trim();
+  var def = document.getElementById('vatDefaultOpt'), none = document.getElementById('vatNoneOpt');
+  document.getElementById('vatLabel').textContent = exp ? 'VAT included in this expense' : 'VAT on this income';
+  none.textContent = exp ? 'Outside VAT (wages, HMRC payments, drawings…)' : 'Not a sale (loan, transfer, refund…)';
+  if (!exp) {
+    def.textContent = 'Default: sale with 20% VAT included';
+    document.getElementById('vatHint').textContent = 'Income linked to an invoice is never counted twice: the invoice already carries its VAT.';
+  } else if (OUT_OF_SCOPE.indexOf(cat) >= 0) {
+    def.textContent = 'Default: outside VAT (' + cat + ')';
+    document.getElementById('vatHint').textContent = 'Left off the VAT return.';
+  } else {
+    var r = CAT_VAT[cat] || 0;
+    def.textContent = 'Default: ' + r + '% for ' + (cat || 'uncategorised');
+    document.getElementById('vatHint').textContent = r ? 'Reclaimed in box 4 of the VAT return. Pick 0% if the receipt shows no VAT.' : 'No VAT reclaimed unless you pick a rate. Check the receipt.';
+  }
+}
+document.querySelector('[name="category"]').addEventListener('input', vatHint);
 txTypeChanged();
 </script>
 {% endblock %}

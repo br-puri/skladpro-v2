@@ -51,20 +51,47 @@
   <div class="vr-card">
     <div class="vr-h"><div><h3>VAT return: {{ date_from }} to {{ date_to }}</h3>
       <small>The 9 boxes as they appear on HMRC's VAT return. Copy these figures into your MTD software or HMRC account.</small></div></div>
-    <div class="vr-box"><span class="vr-n">1</span><div>VAT due on sales and other outputs<div class="vr-sub">VAT on invoices, minus VAT on credit notes</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[1]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">1</span><div>VAT due on sales and other outputs<div class="vr-sub">VAT on invoices and on sales recorded in Finance without an invoice, minus credit notes</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[1]) }}</span></div>
     <div class="vr-box"><span class="vr-n">2</span><div>VAT due on acquisitions from the EU<div class="vr-sub">Northern Ireland goods only, otherwise 0</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[2]) }}</span></div>
     <div class="vr-box"><span class="vr-n">3</span><div>Total VAT due (box 1 + box 2)</div><span class="vr-v">£{{ "{:,.2f}".format(boxes[3]) }}</span></div>
-    <div class="vr-box"><span class="vr-n">4</span><div>VAT reclaimed on purchases<div class="vr-sub">VAT recorded on purchases. Add import VAT from your C79 certificates and VAT on expenses yourself (see below)</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[4]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">4</span><div>VAT reclaimed on purchases<div class="vr-sub">VAT on purchases and on Finance expenses. Add import VAT from your C79 certificates yourself (see below)</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[4]) }}</span></div>
     <div class="vr-box key"><span class="vr-n">5</span><div><b>{{ 'Net VAT to pay HMRC' if boxes[5] >= 0 else 'Net VAT HMRC owes you' }}</b><div class="vr-sub">Box 3 minus box 4</div></div><span class="vr-v" style="color:{{ '#b91c1c' if boxes[5] >= 0 else '#15803d' }}">£{{ "{:,.2f}".format(boxes[5]|abs) }}</span></div>
     <div class="vr-box"><span class="vr-n">6</span><div>Total sales excluding VAT<div class="vr-sub">Whole pounds</div></div><span class="vr-v">£{{ "{:,}".format(boxes[6]) }}</span></div>
-    <div class="vr-box"><span class="vr-n">7</span><div>Total purchases excluding VAT<div class="vr-sub">Whole pounds, stock purchases recorded in the app</div></div><span class="vr-v">£{{ "{:,}".format(boxes[7]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">7</span><div>Total purchases excluding VAT<div class="vr-sub">Whole pounds: purchases plus Finance expenses (wages, HMRC payments and drawings are left out)</div></div><span class="vr-v">£{{ "{:,}".format(boxes[7]) }}</span></div>
     <div class="vr-box"><span class="vr-n">8</span><div>Goods supplied to the EU (excl. VAT)<div class="vr-sub">Northern Ireland only, otherwise 0</div></div><span class="vr-v">£{{ boxes[8] }}</span></div>
     <div class="vr-box"><span class="vr-n">9</span><div>Goods acquired from the EU (excl. VAT)<div class="vr-sub">Northern Ireland only, otherwise 0</div></div><span class="vr-v">£{{ boxes[9] }}</span></div>
     <div class="vr-note">
-      <b>Before you submit, check:</b> imported stock usually has <b>import VAT</b> shown on your monthly C79 certificate (or postponed VAT statement). Add it to boxes 4 and 7 if you reclaim it. VAT on business expenses (rent, software, fuel…) isn't recorded in the app, so add any reclaimable amounts too. Debit notes don't carry VAT in the app and aren't included.
+      <b>Before you submit, check:</b> imported stock usually has <b>import VAT</b> shown on your monthly C79 certificate (or postponed VAT statement). Add it to boxes 4 and 7 if you reclaim it. VAT on Finance expenses uses each entry's rate, so check it matches your receipts. Debit notes don't carry VAT in the app and aren't included.
       {% if foreign %}<br><b style="color:#b91c1c">{{ foreign|length }} purchase(s) in a foreign currency</b> are counted at their face value; convert them to GBP before filing.{% endif %}
     </div>
   </div>
+
+  {% if fin_sales %}
+  <div class="vr-card" style="border-color:#f5d48a">
+    <details {{ 'open' if fin_sales|length <= 12 }}>
+      <summary>Sales recorded in Finance without an invoice ({{ fin_sales|length }}): £{{ "{:,.2f}".format(fin_sales|sum(attribute='gross')) }}, VAT £{{ "{:,.2f}".format(fin_sales|sum(attribute='vat')) }}</summary>
+      <div class="vr-note" style="padding-top:0;color:#8a6512">Counted as sales with VAT included. If any of these is really a <b>customer paying an invoice</b>, link it in Finance (Link button) and it drops out automatically. Mark loans, transfers and refunds as <b>Not a sale</b> (Edit the entry).</div>
+      <table class="vr-tbl"><thead><tr><th>Date</th><th>Description</th><th>From</th><th class="n">VAT rate</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Gross</th><th></th></tr></thead><tbody>
+      {% for t in fin_sales %}<tr><td>{{ t.doc_date }}</td><td>{{ t['desc'] }}</td><td>{{ t.contact or '—' }}</td><td class="n">{{ '%g'|format(t.rate) }}%</td>
+        <td class="n">£{{ "{:,.2f}".format(t.gross - t.vat) }}</td><td class="n">£{{ "{:,.2f}".format(t.vat) }}</td><td class="n">£{{ "{:,.2f}".format(t.gross) }}</td>
+        <td class="n no-print"><a href="{{ url_for('link_transaction', tid=t.id) }}" style="color:#315b83;font-size:12px">Link</a> · <a href="{{ url_for('edit_transaction', tid=t.id) }}" style="color:#315b83;font-size:12px">Edit</a></td></tr>{% endfor %}
+      </tbody></table>
+    </details>
+  </div>
+  {% endif %}
+  {% if fin_costs %}
+  <div class="vr-card">
+    <details>
+      <summary>Expenses from Finance ({{ fin_costs|length }}): VAT reclaimed £{{ "{:,.2f}".format(fin_costs|sum(attribute='vat')) }}</summary>
+      <div class="vr-note" style="padding-top:0">VAT rate comes from each entry (or its category's default). Only reclaim VAT you have a VAT receipt for; change the rate with Edit.</div>
+      <table class="vr-tbl"><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="n">VAT rate</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Gross</th><th></th></tr></thead><tbody>
+      {% for t in fin_costs %}<tr><td>{{ t.doc_date }}</td><td>{{ t['desc'] }}</td><td>{{ t.category or '—' }}</td><td class="n">{{ '%g'|format(t.rate) }}%</td>
+        <td class="n">£{{ "{:,.2f}".format(t.gross - t.vat) }}</td><td class="n">£{{ "{:,.2f}".format(t.vat) }}</td><td class="n">£{{ "{:,.2f}".format(t.gross) }}</td>
+        <td class="n no-print"><a href="{{ url_for('edit_transaction', tid=t.id) }}" style="color:#315b83;font-size:12px">Edit</a></td></tr>{% endfor %}
+      </tbody></table>
+    </details>
+  </div>
+  {% endif %}
 
   <div class="vr-card">
     <details>

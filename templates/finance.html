@@ -200,6 +200,7 @@
         <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t['desc'] or '—' }}</div>
         {% if t['linked_to'] %}<div class="fl-chip fl-on" title="Linked to {{ t['linked_to'] }}">↳ {{ t['linked_to'] }}{% if t['can_link'] %} · £{{ "{:,.2f}".format(t['free']) }} unlinked{% endif %}</div>
         {% elif t['can_link'] %}<div class="fl-chip fl-off">Not linked to {{ 'an invoice' if t['type']=='income' else 'a purchase' }}</div>{% endif %}
+        {% if t.get('vat_label') %}<span class="fl-chip" style="background:#f1f5f9;color:#475569" title="How this entry counts on the VAT return">{{ t['vat_label'] }}</span>{% endif %}
         {% if t['type'] == 'expense' %}
           {% if t.get('category') %}<a class="fc-chip" href="?cat={{ t['category']|urlencode }}&date_from={{ date_from }}&date_to={{ date_to }}" title="Show all {{ t['category'] }}">{{ t['category'] }}</a>
           {% elif session.get('role') in ('admin','editor') %}

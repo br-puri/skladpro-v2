@@ -672,6 +672,14 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()
+        # VAT on Finance entries: vat_rate NULL = default (20% for income, by category for
+        # expenses); vat_exclude=1 = not a sale / outside VAT (loan, transfer, refund…)
+        try:
+            db.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS vat_rate REAL")
+            db.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS vat_exclude INTEGER DEFAULT 0")
+            db.commit()
+        except Exception:
+            db.rollback()
         # Recurring monthly expenses (rent, subscriptions…) posted into Finance automatically
         try:
             db.execute("""CREATE TABLE IF NOT EXISTS recurring_expenses (
@@ -4809,6 +4817,12 @@ def finance():
                 not_stock = (r.get('category') or '') not in ('', 'Stock purchases')
                 r['free'] = 0 if ref or not_stock or (r.get('desc') or '').startswith('Bank reconciliation adjustment') else (r['amount'] or 0)
             r['can_link'] = r['free'] >= 0.01
+            rate = _tx_vat_rate(r)
+            if r['type'] == 'income':
+                r['vat_label'] = ('Not a sale' if r.get('vat_exclude') else
+                                  (f"Sale · {rate:g}% VAT" if r['can_link'] else ''))
+            else:
+                r['vat_label'] = (f"VAT {rate:g}%" if (rate and not ref) else '')
         income, expenses = sums['income'], sums['expenses']
         cash_in, cash_out = sums['cash_in'], sums['cash_out']
         bank_in, bank_out = sums['bank_in'], sums['bank_out']
@@ -4849,6 +4863,7 @@ def add_transaction():
                 (request.form['doc_date'], request.form['type'], request.form.get('method','cash'),
                  request.form['desc'], float(request.form.get('amount', 0)),
                  request.form.get('currency','GBP'), contact_id, contact_name, request.form.get('ref_doc',''), cat)).fetchone()['id']
+            db.execute("UPDATE transactions SET vat_rate=%s, vat_exclude=%s WHERE id=%s", _vat_choice_to_db(request.form.get('vat')) + (tid,))
             if request.form['type'] == 'expense' and request.form.get('repeat_monthly'):
                 d0 = (request.form['doc_date'] or date.today().isoformat())[:10]
                 rid = db.execute("""INSERT INTO recurring_expenses("desc",amount,category,method,contact_id,contact,day_of_month,start_date,last_posted)
@@ -4860,7 +4875,8 @@ def add_transaction():
             flash('Transaction added' + (' and set to repeat monthly' if request.form['type'] == 'expense' and request.form.get('repeat_monthly') else ''), 'success')
             return redirect(url_for('finance'))
         categories = _expense_categories(db)
-    return render_template('transaction_form.html', contacts=contacts, categories=categories, today=date.today().isoformat())
+    return render_template('transaction_form.html', contacts=contacts, categories=categories, today=date.today().isoformat(),
+                           cat_vat=CATEGORY_VAT_DEFAULT, out_of_scope=sorted(VAT_OUT_OF_SCOPE))
 
 
 @app.route('/finance/edit/<int:tid>', methods=['GET', 'POST'])
@@ -4885,6 +4901,7 @@ def edit_transaction(tid):
                 request_ref = request.form.get('ref_doc', '')
             cat = _clean_category(request.form.get('category')) if request.form['type'] == 'expense' else ''
             db.execute('UPDATE transactions SET category=%s WHERE id=%s', (cat, tid))
+            db.execute("UPDATE transactions SET vat_rate=%s, vat_exclude=%s WHERE id=%s", _vat_choice_to_db(request.form.get('vat')) + (tid,))
             db.execute('UPDATE transactions SET doc_date=%s,type=%s,method=%s,"desc"=%s,amount=%s,currency=%s,contact_id=%s,contact=%s,ref_doc=%s WHERE id=%s',
                 (request.form['doc_date'], request.form['type'], request.form.get('method','cash'),
                  request.form['desc'], float(request.form.get('amount', 0)),
@@ -4893,7 +4910,8 @@ def edit_transaction(tid):
             flash('Transaction updated', 'success')
             return redirect(url_for('finance'))
         categories = _expense_categories(db)
-    return render_template('transaction_form.html', transaction=t, contacts=contacts, categories=categories, today=date.today().isoformat())
+    return render_template('transaction_form.html', transaction=t, contacts=contacts, categories=categories, today=date.today().isoformat(),
+                           cat_vat=CATEGORY_VAT_DEFAULT, out_of_scope=sorted(VAT_OUT_OF_SCOPE))
 
 
 @app.route('/finance/delete/<int:tid>', methods=['POST'])
@@ -4958,6 +4976,43 @@ EXPENSE_CATEGORIES = [
     'Bank & card fees', 'Fuel & travel', 'Marketing & advertising', 'Office & supplies',
     'Insurance', 'Accountant & legal', 'Repairs & maintenance', 'Drawings (owner)', 'Other',
 ]
+
+
+# Default VAT included in an expense, by category. Deliberately cautious: where
+# VAT often isn't charged (or can't be reclaimed) the default is 0, so nothing is
+# over-claimed; change it on the entry when a receipt shows VAT.
+CATEGORY_VAT_DEFAULT = {
+    'Shipping & delivery': 20, 'Utilities': 20, 'Software & subscriptions': 20,
+    'Fuel & travel': 20, 'Marketing & advertising': 20, 'Office & supplies': 20,
+    'Accountant & legal': 20, 'Repairs & maintenance': 20,
+}
+# Outside the scope of VAT entirely: left out of box 7 as HMRC asks
+VAT_OUT_OF_SCOPE = {'Wages & salaries', 'VAT & HMRC', 'Drawings (owner)', 'Import duty & customs',
+                    'Unrecorded costs (adjustment)'}
+
+
+def _vat_choice_to_db(v):
+    """Form value -> (vat_rate, vat_exclude). '' = default, 'none' = not a sale / no VAT."""
+    v = (v or '').strip()
+    if v == 'none':
+        return None, 1
+    try:
+        return float(v), 0
+    except ValueError:
+        return None, 0
+
+
+def _tx_vat_rate(t):
+    """Effective VAT % included in a Finance entry, or None when it's outside VAT."""
+    if t.get('vat_exclude'):
+        return None
+    if t.get('vat_rate') is not None:
+        return float(t['vat_rate'])
+    if t.get('type') == 'income':
+        return 20.0
+    if (t.get('category') or '') in VAT_OUT_OF_SCOPE:
+        return None
+    return float(CATEGORY_VAT_DEFAULT.get(t.get('category') or '', 0))
 
 
 def _expense_categories(db):
@@ -5793,10 +5848,40 @@ def report_vat():
                 FROM credit_notes WHERE status <> 'draft' AND doc_date BETWEEN %s AND %s ORDER BY doc_date, id""", list(rng)),
             ("""SELECT id, num, doc_date, supplier, currency, total::float8 AS gross, COALESCE(tax_amount,0)::float8 AS vat
                 FROM purchases WHERE doc_date BETWEEN %s AND %s ORDER BY doc_date, id""", list(rng)))
-    out_vat = sum(r['vat'] or 0 for r in sales) - sum(r['vat'] or 0 for r in credits)
-    out_net = sum((r['gross'] or 0) - (r['vat'] or 0) for r in sales) - sum((r['gross'] or 0) - (r['vat'] or 0) for r in credits)
-    in_vat = sum(r['vat'] or 0 for r in purchases)
-    in_net = sum((r['gross'] or 0) - (r['vat'] or 0) for r in purchases)
+        fin = db.execute("""
+            SELECT t.id, t.doc_date, t.type, t."desc", t.contact, t.category, t.ref_doc, t.vat_rate, t.vat_exclude,
+                   t.amount::float8 AS amount, COALESCE(a.s, 0) AS linked
+            FROM transactions t
+            LEFT JOIN (SELECT transaction_id, SUM(amount::float8) s FROM invoice_payments
+                       WHERE transaction_id IS NOT NULL GROUP BY 1) a ON a.transaction_id = t.id
+            WHERE t.doc_date BETWEEN %s AND %s ORDER BY t.doc_date, t.id""", rng).fetchall()
+    # Finance entries that belong on the VAT return:
+    #  - income not attached to an invoice (sales made without an invoice). Money
+    #    linked to invoices is already counted through the invoice itself.
+    #  - expenses not attached to a purchase document (purchases count separately).
+    fin_sales, fin_costs = [], []
+    for t in fin:
+        t = dict(t)
+        rate = _tx_vat_rate(t)
+        if t['type'] == 'income':
+            gross = (t['amount'] - t['linked']) if (t['linked'] or not (t['ref_doc'] or '').strip()) else 0
+            if gross < 0.005 or rate is None:
+                continue
+        else:
+            if (t['ref_doc'] or '').strip():
+                continue
+            gross = t['amount']
+            if (t['category'] or '') in VAT_OUT_OF_SCOPE or t.get('vat_exclude'):
+                continue
+            rate = rate or 0.0
+        vat = round(gross * rate / (100 + rate), 2)
+        t.update(gross=gross, vat=vat, rate=rate)
+        (fin_sales if t['type'] == 'income' else fin_costs).append(t)
+    out_vat = sum(r['vat'] or 0 for r in sales) - sum(r['vat'] or 0 for r in credits) + sum(t['vat'] for t in fin_sales)
+    out_net = (sum((r['gross'] or 0) - (r['vat'] or 0) for r in sales) - sum((r['gross'] or 0) - (r['vat'] or 0) for r in credits)
+               + sum(t['gross'] - t['vat'] for t in fin_sales))
+    in_vat = sum(r['vat'] or 0 for r in purchases) + sum(t['vat'] for t in fin_costs)
+    in_net = sum((r['gross'] or 0) - (r['vat'] or 0) for r in purchases) + sum(t['gross'] - t['vat'] for t in fin_costs)
     boxes = {
         1: round(out_vat, 2), 2: 0.0, 3: round(out_vat, 2), 4: round(in_vat, 2),
         5: round(out_vat - in_vat, 2),
@@ -5804,6 +5889,7 @@ def report_vat():
     }
     foreign = [p for p in purchases if (p.get('currency') or 'GBP') != 'GBP']
     return render_template('report_vat.html', boxes=boxes, sales=sales, credits=credits, purchases=purchases,
+                           fin_sales=fin_sales, fin_costs=fin_costs,
                            quarters=quarters, qkey=qkey, date_from=date_from, date_to=date_to, foreign=foreign)
 
 
