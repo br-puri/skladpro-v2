@@ -680,6 +680,18 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()
+        # Import VAT per VAT period: C79 (paid at the border) and postponed (PVA statement)
+        try:
+            db.execute("""CREATE TABLE IF NOT EXISTS vat_import (
+                date_from TEXT NOT NULL,
+                date_to   TEXT NOT NULL,
+                c79       REAL DEFAULT 0,
+                pva       REAL DEFAULT 0,
+                PRIMARY KEY (date_from, date_to)
+            )""")
+            db.commit()
+        except Exception:
+            db.rollback()
         # Recurring monthly expenses (rent, subscriptions…) posted into Finance automatically
         try:
             db.execute("""CREATE TABLE IF NOT EXISTS recurring_expenses (
@@ -5796,6 +5808,36 @@ def report_top_customers():
         date_from=date_from, date_to=date_to)
 
 
+UK_COUNTRY_NAMES = {'', 'united kingdom', 'uk', 'gb', 'great britain', 'england', 'scotland', 'wales',
+                    'northern ireland', 'britain'}
+
+
+def _is_uk(country):
+    """Blank counts as UK (most contacts); anything else is an overseas supplier."""
+    return (country or '').strip().lower() in UK_COUNTRY_NAMES
+
+
+app.jinja_env.globals['is_uk'] = _is_uk
+
+
+@app.route('/reports/vat/import', methods=['POST'])
+@admin_required
+def save_import_vat():
+    f, t = request.form.get('from', ''), request.form.get('to', '')
+    try:
+        c79 = round(float(request.form.get('c79') or 0), 2)
+        pva = round(float(request.form.get('pva') or 0), 2)
+    except ValueError:
+        flash('Enter amounts as numbers', 'error')
+        return redirect(request.referrer or url_for('report_vat'))
+    with get_db() as db:
+        db.execute("""INSERT INTO vat_import(date_from,date_to,c79,pva) VALUES(%s,%s,%s,%s)
+                      ON CONFLICT (date_from,date_to) DO UPDATE SET c79=EXCLUDED.c79, pva=EXCLUDED.pva""", (f, t, c79, pva))
+        db.commit()
+    flash('Import VAT saved for this period', 'success')
+    return redirect(request.referrer or url_for('report_vat'))
+
+
 def _vat_quarters(end_month, count=8):
     """Most recent `count` VAT quarters as (label, start, end, key) given the
     month (1-3) the stagger's quarters end in: 3 = Mar/Jun/Sep/Dec."""
@@ -5846,8 +5888,12 @@ def report_vat():
                 ORDER BY doc_date, id""", list(rng)),
             ("""SELECT id, num, doc_date, customer, total::float8 AS gross, COALESCE(tax_amount,0)::float8 AS vat
                 FROM credit_notes WHERE status <> 'draft' AND doc_date BETWEEN %s AND %s ORDER BY doc_date, id""", list(rng)),
-            ("""SELECT id, num, doc_date, supplier, currency, total::float8 AS gross, COALESCE(tax_amount,0)::float8 AS vat
-                FROM purchases WHERE doc_date BETWEEN %s AND %s ORDER BY doc_date, id""", list(rng)))
+            ("""SELECT p.id, p.num, p.doc_date, p.supplier, p.currency, p.total::float8 AS gross,
+                       COALESCE(p.tax_amount,0)::float8 AS vat, COALESCE(c.country,'') AS country
+                FROM purchases p LEFT JOIN contacts c ON c.id = p.supplier_id
+                WHERE p.doc_date BETWEEN %s AND %s ORDER BY p.doc_date, p.id""", list(rng)))
+        imp = db.execute("SELECT c79::float8 AS c79, pva::float8 AS pva FROM vat_import WHERE date_from=%s AND date_to=%s",
+                         rng).fetchone() or {'c79': 0.0, 'pva': 0.0}
         fin = db.execute("""
             SELECT t.id, t.doc_date, t.type, t."desc", t.contact, t.category, t.ref_doc, t.vat_rate, t.vat_exclude,
                    t.amount::float8 AS amount, COALESCE(a.s, 0) AS linked
@@ -5877,10 +5923,21 @@ def report_vat():
         vat = round(gross * rate / (100 + rate), 2)
         t.update(gross=gross, vat=vat, rate=rate)
         (fin_sales if t['type'] == 'income' else fin_costs).append(t)
-    out_vat = sum(r['vat'] or 0 for r in sales) - sum(r['vat'] or 0 for r in credits) + sum(t['vat'] for t in fin_sales)
+    # Overseas suppliers don't charge UK VAT: whatever their document says, it
+    # isn't reclaimable. Import VAT comes in separately (C79 / postponed).
+    bad_import_vat = 0.0
+    for r in purchases:
+        r['overseas'] = not _is_uk(r.get('country'))
+        if r['overseas'] and (r['vat'] or 0) > 0.005:
+            bad_import_vat += r['vat']
+            r['net_override'] = r['gross'] - r['vat']    # goods value; the "VAT" wasn't paid to the supplier
+            r['vat'] = 0.0
+            r['gross'] = r['net_override']
+    out_vat = (sum(r['vat'] or 0 for r in sales) - sum(r['vat'] or 0 for r in credits) + sum(t['vat'] for t in fin_sales)
+               + (imp['pva'] or 0))
     out_net = (sum((r['gross'] or 0) - (r['vat'] or 0) for r in sales) - sum((r['gross'] or 0) - (r['vat'] or 0) for r in credits)
                + sum(t['gross'] - t['vat'] for t in fin_sales))
-    in_vat = sum(r['vat'] or 0 for r in purchases) + sum(t['vat'] for t in fin_costs)
+    in_vat = sum(r['vat'] or 0 for r in purchases) + sum(t['vat'] for t in fin_costs) + (imp['c79'] or 0) + (imp['pva'] or 0)
     in_net = sum((r['gross'] or 0) - (r['vat'] or 0) for r in purchases) + sum(t['gross'] - t['vat'] for t in fin_costs)
     boxes = {
         1: round(out_vat, 2), 2: 0.0, 3: round(out_vat, 2), 4: round(in_vat, 2),
@@ -5889,7 +5946,7 @@ def report_vat():
     }
     foreign = [p for p in purchases if (p.get('currency') or 'GBP') != 'GBP']
     return render_template('report_vat.html', boxes=boxes, sales=sales, credits=credits, purchases=purchases,
-                           fin_sales=fin_sales, fin_costs=fin_costs,
+                           fin_sales=fin_sales, fin_costs=fin_costs, imp=imp, bad_import_vat=bad_import_vat,
                            quarters=quarters, qkey=qkey, date_from=date_from, date_to=date_to, foreign=foreign)
 
 

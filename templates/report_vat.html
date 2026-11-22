@@ -51,19 +51,36 @@
   <div class="vr-card">
     <div class="vr-h"><div><h3>VAT return: {{ date_from }} to {{ date_to }}</h3>
       <small>The 9 boxes as they appear on HMRC's VAT return. Copy these figures into your MTD software or HMRC account.</small></div></div>
-    <div class="vr-box"><span class="vr-n">1</span><div>VAT due on sales and other outputs<div class="vr-sub">VAT on invoices and on sales recorded in Finance without an invoice, minus credit notes</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[1]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">1</span><div>VAT due on sales and other outputs<div class="vr-sub">VAT on invoices and on sales recorded in Finance without an invoice, minus credit notes{% if imp.pva %}, plus postponed import VAT{% endif %}</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[1]) }}</span></div>
     <div class="vr-box"><span class="vr-n">2</span><div>VAT due on acquisitions from the EU<div class="vr-sub">Northern Ireland goods only, otherwise 0</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[2]) }}</span></div>
     <div class="vr-box"><span class="vr-n">3</span><div>Total VAT due (box 1 + box 2)</div><span class="vr-v">£{{ "{:,.2f}".format(boxes[3]) }}</span></div>
-    <div class="vr-box"><span class="vr-n">4</span><div>VAT reclaimed on purchases<div class="vr-sub">VAT on purchases and on Finance expenses. Add import VAT from your C79 certificates yourself (see below)</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[4]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">4</span><div>VAT reclaimed on purchases<div class="vr-sub">VAT charged by UK suppliers, VAT on Finance expenses, and import VAT entered below</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[4]) }}</span></div>
     <div class="vr-box key"><span class="vr-n">5</span><div><b>{{ 'Net VAT to pay HMRC' if boxes[5] >= 0 else 'Net VAT HMRC owes you' }}</b><div class="vr-sub">Box 3 minus box 4</div></div><span class="vr-v" style="color:{{ '#b91c1c' if boxes[5] >= 0 else '#15803d' }}">£{{ "{:,.2f}".format(boxes[5]|abs) }}</span></div>
     <div class="vr-box"><span class="vr-n">6</span><div>Total sales excluding VAT<div class="vr-sub">Whole pounds</div></div><span class="vr-v">£{{ "{:,}".format(boxes[6]) }}</span></div>
     <div class="vr-box"><span class="vr-n">7</span><div>Total purchases excluding VAT<div class="vr-sub">Whole pounds: purchases plus Finance expenses (wages, HMRC payments and drawings are left out)</div></div><span class="vr-v">£{{ "{:,}".format(boxes[7]) }}</span></div>
     <div class="vr-box"><span class="vr-n">8</span><div>Goods supplied to the EU (excl. VAT)<div class="vr-sub">Northern Ireland only, otherwise 0</div></div><span class="vr-v">£{{ boxes[8] }}</span></div>
     <div class="vr-box"><span class="vr-n">9</span><div>Goods acquired from the EU (excl. VAT)<div class="vr-sub">Northern Ireland only, otherwise 0</div></div><span class="vr-v">£{{ boxes[9] }}</span></div>
     <div class="vr-note">
-      <b>Before you submit, check:</b> imported stock usually has <b>import VAT</b> shown on your monthly C79 certificate (or postponed VAT statement). Add it to boxes 4 and 7 if you reclaim it. VAT on Finance expenses uses each entry's rate, so check it matches your receipts. Debit notes don't carry VAT in the app and aren't included.
+      <b>Before you submit, check:</b> import VAT is entered below for this period (C79 or postponed statement). VAT on Finance expenses uses each entry's rate, so check it matches your receipts. Debit notes don't carry VAT in the app and aren't included.
       {% if foreign %}<br><b style="color:#b91c1c">{{ foreign|length }} purchase(s) in a foreign currency</b> are counted at their face value; convert them to GBP before filing.{% endif %}
     </div>
+  </div>
+
+  <div class="vr-card">
+    <div class="vr-h"><div><h3>Import VAT for this period</h3>
+      <small>Overseas suppliers charge no UK VAT. The VAT on imports is collected at the border, so enter it here once you have the figures.</small></div></div>
+    <form method="post" action="{{ url_for('save_import_vat') }}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:14px;padding:16px 20px;align-items:end">
+      <input type="hidden" name="from" value="{{ date_from }}"><input type="hidden" name="to" value="{{ date_to }}">
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:5px">Import VAT you paid (C79 certificate / freight agent)</label>
+        <input name="c79" type="number" step="0.01" min="0" class="form-control" value="{{ '%.2f'|format(imp.c79 or 0) }}">
+        <div class="vr-sub">Reclaimed in box 4</div></div>
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:5px">Postponed import VAT (monthly PVA statement)</label>
+        <input name="pva" type="number" step="0.01" min="0" class="form-control" value="{{ '%.2f'|format(imp.pva or 0) }}">
+        <div class="vr-sub">Added to box 1 and box 4 (cancels out)</div></div>
+      <div>{% if session.get('role') in ('admin','editor') %}<button class="btn btn-primary">Save</button>{% endif %}</div>
+    </form>
+    {% if bad_import_vat %}<div class="vr-note" style="padding-top:0;color:#b91c1c"><b>£{{ "{:,.2f}".format(bad_import_vat) }}</b> of "VAT" on overseas suppliers' purchases is <b>not</b> counted, because they don't charge UK VAT. Fix those purchases (untick Apply VAT) so their totals are right.</div>{% endif %}
+    <div class="vr-note" style="padding-top:0">Not paid any import VAT yet? Leave both at 0. If your goods came in under <b>postponed VAT accounting</b>, download the statement from HMRC's Customs Declaration Service and enter its total for the period. If your freight agent paid it, it's on your <b>C79</b> certificate or the agent's invoice.</div>
   </div>
 
   {% if fin_sales %}
@@ -119,7 +136,7 @@
       <summary>Purchases ({{ purchases|length }})</summary>
       <table class="vr-tbl"><thead><tr><th>Date</th><th>Purchase</th><th>Supplier</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Gross</th></tr></thead><tbody>
       {% for r in purchases %}<tr><td>{{ r.doc_date }}</td><td><a href="{{ url_for('view_purchase', pid=r.id) }}" style="color:#315b83;text-decoration:none;font-weight:600">{{ r.num }}</a></td><td>{{ r.supplier }}</td>
-        <td class="n">£{{ "{:,.2f}".format((r.gross or 0) - (r.vat or 0)) }}</td><td class="n">£{{ "{:,.2f}".format(r.vat or 0) }}</td><td class="n">£{{ "{:,.2f}".format(r.gross or 0) }}{% if (r.currency or 'GBP') != 'GBP' %} {{ r.currency }}{% endif %}</td></tr>
+        <td class="n">£{{ "{:,.2f}".format((r.gross or 0) - (r.vat or 0)) }}</td><td class="n">£{{ "{:,.2f}".format(r.vat or 0) }}</td><td class="n">£{{ "{:,.2f}".format(r.gross or 0) }}{% if (r.currency or 'GBP') != 'GBP' %} {{ r.currency }}{% endif %}{% if r.overseas %} <span style="font-size:10.5px;font-weight:700;color:#8a6512;background:#fff7e6;padding:1px 6px;border-radius:8px">IMPORT · 0%</span>{% endif %}</td></tr>
       {% else %}<tr><td colspan="6" style="color:#94a3b8;text-align:center;padding:20px">No purchases in this period</td></tr>{% endfor %}
       </tbody></table>
     </details>
