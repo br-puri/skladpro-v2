@@ -672,6 +672,37 @@ def init_db():
             db.commit()
         except Exception:
             db.rollback()
+        # Recurring monthly expenses (rent, subscriptions…) posted into Finance automatically
+        try:
+            db.execute("""CREATE TABLE IF NOT EXISTS recurring_expenses (
+                id           SERIAL PRIMARY KEY,
+                "desc"       TEXT NOT NULL,
+                amount       REAL NOT NULL DEFAULT 0,
+                category     TEXT DEFAULT '',
+                method       TEXT DEFAULT 'bank',
+                contact_id   INTEGER REFERENCES contacts(id),
+                contact      TEXT DEFAULT '',
+                day_of_month INTEGER DEFAULT 1,
+                start_date   TEXT NOT NULL,
+                end_date     TEXT DEFAULT '',
+                active       INTEGER DEFAULT 1,
+                last_posted  TEXT DEFAULT ''
+            )""")
+            db.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurring_id INTEGER")
+            db.commit()
+        except Exception:
+            db.rollback()
+        # Payment terms: per-customer days (NULL = company default) and a due date per invoice
+        try:
+            db.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS payment_terms INTEGER")
+            db.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS due_date TEXT DEFAULT ''")
+            db.execute("INSERT INTO settings(key,value) VALUES('default_terms_days','7') ON CONFLICT(key) DO NOTHING")
+            # existing invoices: 7 days after the invoice date (what reminders already assumed)
+            db.execute("""UPDATE sales SET due_date = to_char(doc_date::date + 7, 'YYYY-MM-DD')
+                          WHERE COALESCE(due_date,'')='' AND doc_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'""")
+            db.commit()
+        except Exception:
+            db.rollback()
         # Manufacturer / supplier article number, separate from our own SKU
         try:
             db.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS article TEXT DEFAULT ''")
@@ -1190,7 +1221,7 @@ def settings_page():
                   'co_delivery_address', 'co_delivery_address2', 'co_delivery_city', 'co_delivery_postcode', 'co_delivery_country',
                   'co_bank_name', 'co_sort_code', 'co_account_number',
                   'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_tls',
-                  'resend_api_key', 'address_lookup_api_key']
+                  'resend_api_key', 'address_lookup_api_key', 'default_terms_days', 'vat_quarter_end']
         # Boolean toggles (checkboxes)
         with get_db() as db:
             db.execute("INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value",
@@ -1224,6 +1255,7 @@ def settings_page():
 @app.route('/')
 def dashboard():
     with get_db() as db:
+        _post_recurring_soon(db)
         (products, warehouses, sales, cash, monthly, top_products,
          status_counts, outstanding_rows) = db.batch(
             """SELECT p.id, p.name, p.unit, p.cost, p.min_stock, COALESCE(st.qty, 0) AS stock_qty
@@ -2885,6 +2917,43 @@ def customer_statement(cid):
         mimetype='application/pdf', download_name=f"Statement-{c['company'] or c['name']}.pdf", as_attachment=True)
 
 
+@app.route('/suppliers/<int:cid>/statement')
+def supplier_statement(cid):
+    """What we owe a supplier: purchases, payments made (Finance expenses linked
+    to each purchase) and debit notes, with a running balance."""
+    with get_db() as db:
+        c = db.execute("SELECT * FROM contacts WHERE id=%s", (cid,)).fetchone()
+        if not c:
+            flash('Supplier not found', 'error')
+            return redirect(url_for('customers', type='supplier'))
+        label = c['company'] or c['name']
+        purchases, payments, credits = db.batch(
+            ("""SELECT p.id, p.num, p.doc_date, p.total::float8 AS total, p.paid,
+                       COALESCE((SELECT SUM(t.amount::float8) FROM transactions t
+                                 WHERE t.type='expense' AND t.ref_doc=p.num), 0) AS paid_amount
+                FROM purchases p
+                WHERE p.supplier_id=%s OR (p.supplier_id IS NULL AND p.supplier IN (%s, %s))
+                ORDER BY p.doc_date, p.id""", [cid, c['name'], label]),
+            ("""SELECT t.doc_date AS payment_date, t.amount::float8 AS amount, t.method, t.ref_doc AS sale_num
+                FROM transactions t JOIN purchases p ON p.num = t.ref_doc
+                WHERE t.type='expense' AND (p.supplier_id=%s OR (p.supplier_id IS NULL AND p.supplier IN (%s, %s)))
+                ORDER BY t.doc_date, t.id""", [cid, c['name'], label]),
+            ("""SELECT d.num, d.doc_date, d.total::float8 AS total, p.num AS sale_num
+                FROM debit_notes d LEFT JOIN purchases p ON p.id = d.purchase_id
+                WHERE d.status <> 'draft' AND (d.supplier_id=%s OR (d.supplier_id IS NULL AND d.supplier IN (%s, %s)))
+                ORDER BY d.doc_date, d.id""", [cid, c['name'], label]))
+    # purchases ticked "paid" without a recorded payment: show them as settled
+    for p in purchases:
+        gap = (p['total'] or 0) - (p['paid_amount'] or 0)
+        if p['paid'] and gap > 0.005:
+            payments.append({'payment_date': p['doc_date'], 'amount': gap, 'method': 'marked paid', 'sale_num': p['num']})
+            p['paid_amount'] = p['total']
+    company = get_settings()
+    pdf = generate_statement_pdf(dict(c), purchases, company, payments=payments, credits=credits, supplier=True)
+    return send_file(io.BytesIO(pdf), mimetype='application/pdf',
+                     download_name=f"Supplier-Statement-{label}.pdf", as_attachment=True)
+
+
 @app.route('/customers/<int:cid>/note', methods=['POST'])
 @admin_required
 def add_customer_note(cid):
@@ -2901,14 +2970,17 @@ def add_customer_note(cid):
 def add_customer():
     if request.method == 'POST':
         with get_db() as db:
-            db.execute("INSERT INTO contacts(name,type,company,vat_number,phone,email,address,address2,city,postcode,country,balance,discount_pct,currency,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            new_cid = db.execute("INSERT INTO contacts(name,type,company,vat_number,phone,email,address,address2,city,postcode,country,balance,discount_pct,currency,notes) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 (request.form['name'], request.form['type'], request.form.get('company',''),
                  request.form.get('vat_number',''), request.form.get('phone',''),
                  request.form.get('email',''), request.form.get('address',''),
                  request.form.get('address2',''), request.form.get('city',''),
                  request.form.get('postcode',''), request.form.get('country',''),
                  float(request.form.get('balance',0)), float(request.form.get('discount_pct',0)),
-                 request.form.get('currency','GBP'), request.form.get('notes','')))
+                 request.form.get('currency','GBP'), request.form.get('notes',''))).fetchone()['id']
+            _t = (request.form.get('payment_terms') or '').strip()
+            db.execute("UPDATE contacts SET payment_terms=%s WHERE id=%s",
+                       (int(float(_t)) if _t.replace('.', '', 1).isdigit() else None, new_cid))
             db.commit()
         ctype = request.form.get('type', 'customer')
         if ctype == 'supplier':
@@ -2939,6 +3011,9 @@ def edit_customer(cid):
                  request.form.get('postcode',''), request.form.get('country',''),
                  float(request.form.get('balance',0)), float(request.form.get('discount_pct',0)),
                  request.form.get('currency','GBP'), request.form.get('notes',''), cid))
+            _t = (request.form.get('payment_terms') or '').strip()
+            db.execute("UPDATE contacts SET payment_terms=%s WHERE id=%s",
+                       (int(float(_t)) if _t.replace('.', '', 1).isdigit() else None, cid))
             if new_label != old_label:
                 db.execute("UPDATE sales SET customer=%s WHERE customer_id=%s OR (customer_id IS NULL AND customer=%s)", (new_label, cid, old_label))
                 db.execute("UPDATE quotes SET customer=%s WHERE customer_id=%s OR (customer_id IS NULL AND customer=%s)", (new_label, cid, old_label))
@@ -3503,9 +3578,18 @@ def sales():
     customer_id = request.args.get('customer_id', '')
     status_filter = request.args.get('status', '')
     q = request.args.get('q', '').strip()
+    pay = request.args.get('pay', '')
+    today_s = date.today().isoformat()
     with get_db() as db:
         params = []
         where = "WHERE s.archived=0"
+        if pay == 'paid':
+            where += " AND s.paid=1"
+        elif pay in ('unpaid', 'overdue'):
+            where += " AND s.paid=0 AND s.status='completed'"
+            if pay == 'overdue':
+                where += " AND COALESCE(s.due_date,'')<>'' AND s.due_date < %s"
+                params.append(today_s)
         if date_from:
             where += " AND s.doc_date >= %s"
             params.append(date_from)
@@ -3536,8 +3620,16 @@ def sales():
                 r['outstanding'] = 0
             else:
                 r['outstanding'] = max(0, (r['total'] or 0) - (r['paid_amount'] or 0))
+            r['days_overdue'] = 0
+            if not r.get('paid') and r.get('status') == 'completed' and r['outstanding'] >= 0.01 and r.get('due_date'):
+                try:
+                    r['days_overdue'] = max(0, (date.today() - date.fromisoformat(r['due_date'])).days)
+                except ValueError:
+                    pass
+        if pay == 'overdue':
+            rows = [r for r in rows if r['outstanding'] >= 0.01]
     return render_template('sales.html', sales=rows, date_from=date_from, date_till=date_till,
-                           customer_id=customer_id, customers=customers, status_filter=status_filter, q=q)
+                           customer_id=customer_id, customers=customers, status_filter=status_filter, q=q, pay=pay)
 
 
 @app.route('/sales/archive')
@@ -3584,6 +3676,7 @@ def add_sale():
                  delivery_charge, delivery_method,
                  request.form.get('currency','GBP'), 'completed', request.form.get('notes','')))
             sale_id = cur.fetchone()['id']
+            db.execute("UPDATE sales SET due_date=%s WHERE id=%s", (_form_due_date(db, request.form, customer_id), sale_id))
             cost_by_id = {p['id']: p.get('cost') or 0 for p in products}
             for pid, wid, qty, price, disc in zip(pids, wids, qtys, prices, disc_pcts):
                 if pid and float(qty) > 0:
@@ -3596,7 +3689,8 @@ def add_sale():
             db.commit()
             flash(f'Sale {num} created', 'success')
             return redirect(url_for('sales'))
-    return render_template('sale_form.html', customers=customers, warehouses=warehouses, products=products, discounts=discounts, today=date.today().isoformat())
+    return render_template('sale_form.html', customers=customers, warehouses=warehouses, products=products, discounts=discounts, today=date.today().isoformat(),
+                           terms_choices=TERMS_CHOICES, default_terms=_default_terms())
 
 
 # ── POS (quick checkout) ────────────────────────────────────────────────────
@@ -3750,6 +3844,12 @@ def view_sale(sid):
         outstanding = max(0, s['total'] - paid_total)
         credit_notes_list = db.execute("SELECT * FROM credit_notes WHERE sale_id=%s ORDER BY doc_date DESC", (sid,)).fetchall()
         owed_by_payments = round(s['total'] - payments_total, 2)
+        s['days_overdue'] = 0
+        if not s.get('paid') and s.get('status') == 'completed' and outstanding >= 0.01 and s.get('due_date'):
+            try:
+                s['days_overdue'] = max(0, (date.today() - date.fromisoformat(s['due_date'])).days)
+            except ValueError:
+                pass
         bank_entries = (_unlinked_income(db, s.get('customer_id'))
                         if owed_by_payments >= 0.01 and s.get('status') != 'cancelled'
                         and session.get('role') in ('admin', 'editor') else [])
@@ -3800,6 +3900,8 @@ def edit_sale(sid):
             tax_amount = (subtotal + delivery_charge) * tax_pct / 100
             total = subtotal + delivery_charge + tax_amount
             customer_id = request.form.get('customer_id') or None
+            db.execute("UPDATE sales SET due_date=%s WHERE id=%s",
+                       (_form_due_date(db, request.form, request.form.get('customer_id') or None), sid))
             db.execute("UPDATE sales SET doc_date=%s,customer=%s,customer_id=%s,subtotal=%s,total=%s,discount=%s,tax_pct=%s,tax_amount=%s,delivery_charge=%s,delivery_method=%s,currency=%s,notes=%s WHERE id=%s",
                 (request.form['doc_date'], request.form['customer'], customer_id, subtotal, total, global_disc, tax_pct, tax_amount,
                  delivery_charge, delivery_method,
@@ -3815,6 +3917,7 @@ def edit_sale(sid):
             flash(f'Sale {sale["num"]} updated', 'success')
             return redirect(url_for('view_sale', sid=sid))
     return render_template('sale_form.html', sale=dict(sale), items=items,
+                           terms_choices=TERMS_CHOICES, default_terms=_default_terms(),
         customers=customers, warehouses=warehouses, products=products, discounts=discounts)
 
 
@@ -4145,7 +4248,8 @@ def send_payment_reminders():
                 LEFT JOIN contacts c ON c.id = s.customer_id
                 WHERE s.status='completed' AND s.archived=0 AND s.paid=0
                   AND (c.email IS NOT NULL AND c.email != '')
-                  AND s.doc_date <= (CURRENT_DATE - INTERVAL '7 days')::TEXT
+                  -- only once the invoice is past its due date (fallback: 7 days after issue)
+                  AND COALESCE(NULLIF(s.due_date,''), to_char(s.doc_date::date + 7, 'YYYY-MM-DD')) < CURRENT_DATE::TEXT
                   -- ignore rounding leftovers: at least 1p must still be owed
                   AND s.total - COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip WHERE ip.sale_id=s.id), 0) >= 0.01
                 ORDER BY c.email, s.doc_date
@@ -4504,6 +4608,8 @@ def convert_quote(qid):
             (num, date.today().isoformat(), q['customer'], q['customer_id'], q['subtotal'], q['total'],
              q['discount'], q['tax_pct'], q['tax_amount'], q['currency'], 'completed', f'Converted from {q["num"]}'))
         sale_id = cur.fetchone()['id']
+        db.execute("UPDATE sales SET due_date=%s WHERE id=%s",
+                   (_due_from(date.today().isoformat(), _terms_for(db, q['customer_id'])), sale_id))
         cost_by_id = {r['id']: r['cost'] or 0 for r in db.execute(
             "SELECT id, cost FROM products WHERE id = ANY(%s)", ([item['product_id'] for item in items],)).fetchall()}
         for item in items:
@@ -4658,6 +4764,7 @@ def finance():
     date_to   = request.args.get('date_to', '')
     cat       = request.args.get('cat', '')
     with get_db() as db:
+        _post_recurring_soon(db, every=0)      # Finance always shows what's due
         base = "SELECT * FROM transactions WHERE 1=1"
         params = []
         if method:     base += " AND method=%s";    params.append(method)
@@ -4738,12 +4845,19 @@ def add_transaction():
                 c = db.execute("SELECT name FROM contacts WHERE id=%s", (contact_id,)).fetchone()
                 contact_name = c['name'] if c else ''
             cat = _clean_category(request.form.get('category')) if request.form['type'] == 'expense' else ''
-            db.execute('INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc,category) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+            tid = db.execute('INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc,category) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',
                 (request.form['doc_date'], request.form['type'], request.form.get('method','cash'),
                  request.form['desc'], float(request.form.get('amount', 0)),
-                 request.form.get('currency','GBP'), contact_id, contact_name, request.form.get('ref_doc',''), cat))
+                 request.form.get('currency','GBP'), contact_id, contact_name, request.form.get('ref_doc',''), cat)).fetchone()['id']
+            if request.form['type'] == 'expense' and request.form.get('repeat_monthly'):
+                d0 = (request.form['doc_date'] or date.today().isoformat())[:10]
+                rid = db.execute("""INSERT INTO recurring_expenses("desc",amount,category,method,contact_id,contact,day_of_month,start_date,last_posted)
+                                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                                 (request.form['desc'], float(request.form.get('amount', 0)), cat, request.form.get('method', 'cash'),
+                                  contact_id, contact_name, min(int(d0[8:10]), 28), d0, d0[:7])).fetchone()['id']
+                db.execute("UPDATE transactions SET recurring_id=%s WHERE id=%s", (rid, tid))
             db.commit()
-            flash('Transaction added', 'success')
+            flash('Transaction added' + (' and set to repeat monthly' if request.form['type'] == 'expense' and request.form.get('repeat_monthly') else ''), 'success')
             return redirect(url_for('finance'))
         categories = _expense_categories(db)
     return render_template('transaction_form.html', contacts=contacts, categories=categories, today=date.today().isoformat())
@@ -4799,6 +4913,43 @@ def delete_transaction(tid):
     return redirect(url_for('finance'))
 
 
+# ── Payment terms / due dates ────────────────────────────────────────────────
+
+TERMS_CHOICES = [(0, 'Due on receipt'), (7, '7 days'), (14, '14 days'), (30, '30 days'), (60, '60 days')]
+
+
+def _default_terms(db=None):
+    try:
+        v = (get_settings().get('default_terms_days') or '7').strip()
+        return max(0, int(float(v)))
+    except (TypeError, ValueError):
+        return 7
+
+
+def _terms_for(db, customer_id):
+    if customer_id:
+        r = db.execute("SELECT payment_terms FROM contacts WHERE id=%s", (customer_id,)).fetchone()
+        if r and r['payment_terms'] is not None:
+            return int(r['payment_terms'])
+    return _default_terms()
+
+
+def _due_from(doc_date, days):
+    try:
+        return (date.fromisoformat(str(doc_date)[:10]) + timedelta(days=int(days))).isoformat()
+    except (TypeError, ValueError):
+        return ''
+
+
+def _form_due_date(db, form, customer_id):
+    """Due date typed on the form if valid, else invoice date + the customer's terms."""
+    d = (form.get('due_date') or '').strip()
+    try:
+        return date.fromisoformat(d).isoformat()
+    except ValueError:
+        return _due_from(form.get('doc_date'), _terms_for(db, customer_id))
+
+
 # ── Expense categories ───────────────────────────────────────────────────────
 
 EXPENSE_CATEGORIES = [
@@ -4838,6 +4989,135 @@ def set_transaction_category(tid):
     if n:
         flash(f'Set {n} expense{"s" if n != 1 else ""} to “{cat}”' if cat else 'Category cleared', 'success')
     return redirect(request.referrer or url_for('finance'))
+
+
+# ── Recurring expenses ───────────────────────────────────────────────────────
+
+_recurring_checked = {'ts': 0.0}
+
+
+def _month_add(ym, n=1):
+    y, m = int(ym[:4]), int(ym[5:7]) + n
+    while m > 12: y, m = y + 1, m - 12
+    while m < 1:  y, m = y - 1, m + 12
+    return f'{y:04d}-{m:02d}'
+
+
+def _post_recurring(db):
+    """Post every monthly expense that has fallen due and isn't posted yet.
+    A month is posted when its posting date (day_of_month, max 28) is on or
+    after the start date, not after the end date, and not in the future.
+    Each month is claimed with a conditional UPDATE before the insert, so two
+    app processes can never post the same month twice. Returns entries posted."""
+    today = date.today().isoformat()
+    posted = 0
+    for r in db.execute("SELECT * FROM recurring_expenses WHERE active=1").fetchall():
+        start = (r['start_date'] or today)[:10]
+        day = min(max(int(r['day_of_month'] or 1), 1), 28)
+        last = r['last_posted'] or ''
+        ym = _month_add(last, 1) if last else start[:7]
+        while True:
+            when = f'{ym}-{day:02d}'
+            if when > today or (r['end_date'] and when > r['end_date']):
+                break
+            claimed = db.execute("""UPDATE recurring_expenses SET last_posted=%s
+                                    WHERE id=%s AND COALESCE(last_posted,'')=%s RETURNING id""",
+                                 (ym, r['id'], last)).fetchone()
+            if not claimed:
+                break                      # another process got here first
+            if when >= start:              # a posting date before the start date is skipped
+                db.execute("""INSERT INTO transactions(doc_date,type,method,"desc",amount,currency,contact_id,contact,ref_doc,category,recurring_id)
+                              VALUES(%s,'expense',%s,%s,%s,'GBP',%s,%s,'',%s,%s)""",
+                           (when, r['method'] or 'bank', r['desc'], r['amount'], r['contact_id'], r['contact'] or '',
+                            r['category'] or '', r['id']))
+                posted += 1
+            last, ym = ym, _month_add(ym, 1)
+    return posted
+
+
+def _post_recurring_soon(db, every=900):
+    """Throttled check used on page loads (at most every 15 min per process)."""
+    if time.time() - _recurring_checked['ts'] < every:
+        return 0
+    _recurring_checked['ts'] = time.time()
+    try:
+        n = _post_recurring(db)
+        if n:
+            db.commit()
+        return n
+    except Exception as e:
+        db.rollback()
+        app.logger.error(f'_post_recurring: {e}')
+        return 0
+
+
+@app.route('/finance/recurring', methods=['GET', 'POST'])
+@admin_required
+def recurring_expenses():
+    with get_db() as db:
+        if request.method == 'POST':
+            action = request.form.get('action', 'save')
+            rid = request.form.get('id', type=int)
+            if action in ('pause', 'resume') and rid:
+                db.execute("UPDATE recurring_expenses SET active=%s WHERE id=%s", (1 if action == 'resume' else 0, rid))
+                flash('Resumed' if action == 'resume' else 'Paused', 'success')
+            elif action == 'delete' and rid:
+                db.execute("DELETE FROM recurring_expenses WHERE id=%s", (rid,))
+                flash('Recurring expense deleted (entries already in Finance are kept)', 'success')
+            else:
+                desc = (request.form.get('desc') or '').strip()
+                try:
+                    amount = round(float(request.form.get('amount') or 0), 2)
+                    day = min(max(int(request.form.get('day_of_month') or 1), 1), 28)
+                except ValueError:
+                    amount, day = 0, 1
+                start = (request.form.get('start_date') or date.today().isoformat())[:10]
+                end = (request.form.get('end_date') or '')[:10]
+                if not desc or amount <= 0:
+                    flash('Enter a description and an amount', 'error')
+                    return redirect(url_for('recurring_expenses'))
+                contact_id = request.form.get('contact_id') or None
+                contact = ''
+                if contact_id:
+                    c = db.execute("SELECT COALESCE(NULLIF(company,''), name) AS n FROM contacts WHERE id=%s", (contact_id,)).fetchone()
+                    contact = c['n'] if c else ''
+                vals = (desc, amount, _clean_category(request.form.get('category')), request.form.get('method', 'bank'),
+                        contact_id, contact, day, start, end)
+                if rid:
+                    db.execute("""UPDATE recurring_expenses SET "desc"=%s, amount=%s, category=%s, method=%s, contact_id=%s,
+                                  contact=%s, day_of_month=%s, start_date=%s, end_date=%s WHERE id=%s""", vals + (rid,))
+                    flash('Recurring expense updated (applies to future months)', 'success')
+                else:
+                    db.execute("""INSERT INTO recurring_expenses("desc",amount,category,method,contact_id,contact,day_of_month,start_date,end_date)
+                                  VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)""", vals)
+                    flash('Recurring expense added', 'success')
+            n = _post_recurring(db)
+            db.commit()
+            if n:
+                flash(f'{n} entr{"y" if n == 1 else "ies"} posted to Finance', 'success')
+            return redirect(url_for('recurring_expenses'))
+        rows, posted_counts, contacts = db.batch(
+            'SELECT * FROM recurring_expenses ORDER BY active DESC, LOWER("desc")',
+            "SELECT recurring_id AS id, COUNT(*) AS n, SUM(amount::float8) AS s FROM transactions WHERE recurring_id IS NOT NULL GROUP BY 1",
+            "SELECT id, COALESCE(NULLIF(company,''), name) AS label FROM contacts ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))")
+        categories = _expense_categories(db)
+    counts = {c['id']: c for c in posted_counts}
+    today = date.today()
+    for r in rows:
+        day = min(max(int(r['day_of_month'] or 1), 1), 28)
+        start = (r['start_date'] or today.isoformat())[:10]
+        nxt = _month_add(r['last_posted'], 1) if r['last_posted'] else start[:7]
+        if f"{nxt}-{day:02d}" < start:
+            nxt = _month_add(nxt, 1)
+        r['next'] = f"{nxt}-{day:02d}"
+        if r['end_date'] and r['next'] > r['end_date']:
+            r['next'] = ''
+        r['posted_n'] = counts.get(r['id'], {}).get('n', 0)
+        r['posted_sum'] = counts.get(r['id'], {}).get('s', 0) or 0
+    monthly = sum(r['amount'] for r in rows if r['active'])
+    edit = next((r for r in rows if r['id'] == request.args.get('edit', type=int)), None)
+    return render_template('recurring_expenses.html', rows=rows, monthly=monthly, categories=categories,
+                           contacts=contacts, edit=edit, today=today.isoformat())
 
 
 # ── Linking Finance entries to invoices / purchases ──────────────────────────
@@ -5223,47 +5503,61 @@ def report_turnover():
 
 @app.route('/reports/profit')
 def report_profit():
+    """Gross profit (net of line and invoice discounts, ex VAT) grouped by
+    month, customer, product or invoice. Cost is the cost stored on the sale
+    line, falling back to the product's current cost."""
+    view = request.args.get('view', 'month')
+    if view not in ('month', 'customer', 'product', 'invoice'):
+        view = 'month'
     date_from = request.args.get('from', '')
     date_to = request.args.get('to', '')
     customer_filter = request.args.get('customer', '')
+    where, params = "WHERE s.status='completed' AND s.archived=0", []
+    if date_from: where += " AND s.doc_date>=%s"; params.append(date_from)
+    if date_to:   where += " AND s.doc_date<=%s"; params.append(date_to)
+    if customer_filter: where += " AND s.customer=%s"; params.append(customer_filter)
+    line = """FROM sale_items si JOIN sales s ON s.id=si.sale_id JOIN products p ON p.id=si.product_id """ + where
+    rev = "SUM(si.qty::float8 * si.price * (1 - COALESCE(si.discount_pct,0)/100.0) * (1 - COALESCE(s.discount,0)/100.0))"
+    cost = "SUM(si.qty::float8 * COALESCE(NULLIF(si.cost,0), p.cost, 0))"
+    group_sql = {
+        'month':    ("to_char(s.doc_date::date, 'YYYY-MM') AS label, COUNT(DISTINCT s.id) AS n", "1", "1 DESC"),
+        'customer': ("COALESCE(NULLIF(s.customer,''),'Walk-in') AS label, COUNT(DISTINCT s.id) AS n", "1", "revenue DESC"),
+        'product':  ("p.name AS label, SUM(si.qty::float8) AS n, p.id AS pid", "p.id, p.name", "revenue DESC"),
+        'invoice':  ("s.num AS label, s.doc_date, s.customer, s.id AS sid, 1 AS n", "s.id, s.num, s.doc_date, s.customer", "s.doc_date DESC, s.id DESC"),
+    }[view]
     with get_db() as db:
-        customers = [r['customer'] for r in db.execute(
-            "SELECT DISTINCT customer FROM sales WHERE status='completed' AND customer IS NOT NULL AND customer!='' ORDER BY customer"
-        ).fetchall()]
-        q = """SELECT s.doc_date, s.num, s.customer,
-               COALESCE(SUM(si.qty*si.price*(1-COALESCE(si.discount_pct,0)/100)), 0) as revenue,
-               COALESCE(SUM(si.qty*COALESCE(NULLIF(si.cost,0),p.cost,0)), 0) as cost
-               FROM sales s JOIN sale_items si ON si.sale_id=s.id
-               JOIN products p ON p.id=si.product_id WHERE s.status='completed'"""
-        params = []
-        if date_from: q += " AND s.doc_date>=%s"; params.append(date_from)
-        if date_to: q += " AND s.doc_date<=%s"; params.append(date_to)
-        if customer_filter: q += " AND s.customer=%s"; params.append(customer_filter)
-        rows = [dict(r) for r in db.execute(q + " GROUP BY s.id, s.doc_date, s.num, s.customer ORDER BY s.doc_date DESC", params).fetchall()]
-        # Coerce Decimal/None to float so Jinja formatting and Python arithmetic work uniformly
-        for r in rows:
-            r['revenue'] = float(r['revenue'] or 0)
-            r['cost']    = float(r['cost'] or 0)
-        total_rev = sum(r['revenue'] for r in rows)
-        total_cost = sum(r['cost'] for r in rows)
-    return render_template('report_profit.html', rows=rows, total_rev=total_rev,
-        total_cost=total_cost, total_profit=total_rev-total_cost,
-        date_from=date_from, date_to=date_to,
-        customers=customers, customer_filter=customer_filter)
+        customers, rows = db.batch(
+            """SELECT DISTINCT customer FROM sales WHERE status='completed' AND COALESCE(customer,'')<>'' ORDER BY customer""",
+            (f"SELECT {group_sql[0]}, {rev} AS revenue, {cost} AS cost {line} GROUP BY {group_sql[1]} ORDER BY {group_sql[2]}", params))
+    customers = [c['customer'] for c in customers]
+    for r in rows:
+        r['revenue'] = float(r['revenue'] or 0)
+        r['cost'] = float(r['cost'] or 0)
+        r['profit'] = r['revenue'] - r['cost']
+        r['margin'] = (r['profit'] / r['revenue'] * 100) if r['revenue'] else 0
+    total_rev = sum(r['revenue'] for r in rows)
+    total_cost = sum(r['cost'] for r in rows)
+    peak = max([abs(r['profit']) for r in rows] + [1])
+    return render_template('report_profit.html', rows=rows, view=view, peak=peak,
+        total_rev=total_rev, total_cost=total_cost, total_profit=total_rev - total_cost,
+        date_from=date_from, date_to=date_to, customers=customers, customer_filter=customer_filter,
+        periods=_finance_periods())
 
 
 @app.route('/reports/receivables')
 def report_receivables():
     today = date.today()
     with get_db() as db:
-        sales = db.execute("""SELECT s.id, s.num, s.doc_date, s.customer, s.total, s.customer_id
+        sales = db.execute("""SELECT s.id, s.num, s.doc_date, s.due_date, s.customer, s.customer_id,
+                   s.total - COALESCE((SELECT SUM(amount::float8) FROM invoice_payments ip WHERE ip.sale_id=s.id),0) AS total
             FROM sales s WHERE s.status='completed' AND s.paid=0 AND s.archived=0
-            ORDER BY s.doc_date""").fetchall()
+              AND s.total - COALESCE((SELECT SUM(amount::float8) FROM invoice_payments ip WHERE ip.sale_id=s.id),0) >= 0.01
+            ORDER BY COALESCE(NULLIF(s.due_date,''), s.doc_date)""").fetchall()
         rows = []
         buckets = {'current': 0, '30': 0, '60': 0, '90': 0, '90+': 0}
         for s in sales:
-            try:
-                d = datetime.strptime(s['doc_date'], '%Y-%m-%d').date()
+            try:   # days past the due date (not since the invoice date)
+                d = datetime.strptime(s['due_date'] or s['doc_date'], '%Y-%m-%d').date()
                 age = (today - d).days
             except Exception:
                 age = 0
@@ -5323,19 +5617,89 @@ def report_cashflow():
         date_from=date_from, date_to=date_to)
 
 
+def _reorder_rows(db):
+    """Products at or below their minimum stock, with the supplier they were
+    last bought from and a suggested order (top up to twice the minimum,
+    rounded up to whole cartons)."""
+    import math
+    rows = db.execute("""
+        WITH st AS (SELECT product_id, SUM(qty::float8) AS q FROM stock GROUP BY product_id),
+             last_sup AS (
+                SELECT DISTINCT ON (pi.product_id) pi.product_id, pu.supplier_id,
+                       COALESCE(NULLIF(c.company,''), NULLIF(pu.supplier,''), c.name) AS supplier, pu.doc_date
+                FROM purchase_items pi JOIN purchases pu ON pu.id = pi.purchase_id
+                LEFT JOIN contacts c ON c.id = pu.supplier_id
+                ORDER BY pi.product_id, pu.doc_date DESC, pu.id DESC)
+        SELECT p.id, p.name, p.sku, p.article, p.category, p.photo, p.cbm, p.carton_qty, p.min_stock,
+               COALESCE(st.q, 0) AS stock, ls.supplier_id, ls.supplier, ls.doc_date AS last_bought
+        FROM products p
+        LEFT JOIN st ON st.product_id = p.id
+        LEFT JOIN last_sup ls ON ls.product_id = p.id
+        WHERE p.min_stock > 0 AND COALESCE(st.q, 0) <= p.min_stock
+        ORDER BY LOWER(COALESCE(ls.supplier, 'zzz')), LOWER(p.name)""").fetchall()
+    out = []
+    for r in rows:
+        need = max(r['min_stock'] * 2 - r['stock'], r['min_stock'] - r['stock'], 1)
+        per = r['carton_qty'] or 0
+        ctns = math.ceil(need / per) if per > 0 else 0
+        out.append(dict(r, need=need, ctns=ctns, pcs=(ctns * per) if per > 0 else math.ceil(need),
+                        shortage=max(0, r['min_stock'] - r['stock'])))
+    return out
+
+
 @app.route('/reports/low-stock')
 def report_low_stock():
     with get_db() as db:
-        products = db.execute("SELECT * FROM products WHERE min_stock > 0 ORDER BY name").fetchall()
-        stock_map = {r['product_id']: r['s'] for r in db.execute(
-            "SELECT product_id, COALESCE(SUM(qty),0) AS s FROM stock GROUP BY product_id").fetchall()}
-        rows = []
-        for p in products:
-            total = stock_map.get(p['id'], 0)
-            if total <= p['min_stock']:
-                short = max(0, p['min_stock'] - total)
-                rows.append({'product': dict(p), 'stock': total, 'shortage': short})
-    return render_template('report_low_stock.html', rows=rows)
+        rows = _reorder_rows(db)
+    groups = {}
+    for r in rows:
+        key = r['supplier_id'] or 0
+        g = groups.setdefault(key, {'supplier_id': r['supplier_id'], 'supplier': r['supplier'] or 'No supplier yet', 'rows': []})
+        g['rows'].append(r)
+    groups = sorted(groups.values(), key=lambda g: (g['supplier_id'] is None, g['supplier'].lower()))
+    return render_template('report_low_stock.html', rows=rows, groups=groups)
+
+
+@app.route('/reports/low-stock/order', methods=['POST'])
+@admin_required
+def reorder_create_order():
+    """One click: turn the ticked low-stock lines for a supplier into a draft supplier order."""
+    supplier_id = request.form.get('supplier_id', type=int)
+    picked = [int(x) for x in request.form.getlist('pid') if x.isdigit()]
+    if not picked:
+        flash('Tick at least one product to order', 'error')
+        return redirect(url_for('report_low_stock'))
+    with get_db() as db:
+        prods = {r['id']: r for r in db.execute(
+            "SELECT id, name, sku, article, photo, cbm, carton_qty FROM products WHERE id = ANY(%s)", (picked,)).fetchall()}
+        sup = db.execute("SELECT id, COALESCE(NULLIF(company,''), name) AS label FROM contacts WHERE id=%s",
+                         (supplier_id,)).fetchone() if supplier_id else None
+        num = next_num('SO', 'supplier_orders')
+        oid = db.execute("""INSERT INTO supplier_orders(num,doc_date,supplier,supplier_id,notes,status)
+                            VALUES(%s,%s,%s,%s,%s,'draft') RETURNING id""",
+                         (num, date.today().isoformat(), sup['label'] if sup else '', sup['id'] if sup else None,
+                          'Created from the low-stock reorder list')).fetchone()['id']
+        for pid in picked:
+            p = prods.get(pid)
+            if not p:
+                continue
+            try:
+                ctns = float(request.form.get(f'ctns_{pid}') or 0)
+            except ValueError:
+                ctns = 0
+            per = p['carton_qty'] or 0
+            if ctns <= 0 and per <= 0:          # no carton size: order in pieces, stored as 1 "carton" of N pcs
+                try:
+                    pcs = float(request.form.get(f'pcs_{pid}') or 0)
+                except ValueError:
+                    pcs = 0
+                ctns, per = (1, pcs) if pcs > 0 else (0, 0)
+            db.execute("""INSERT INTO supplier_order_items(order_id,name,article,photo,cbm,ctns,pcs_per_ctn)
+                          VALUES(%s,%s,%s,%s,%s,%s,%s)""",
+                       (oid, p['name'], p['article'] or p['sku'] or '', p['photo'] or '', p['cbm'] or 0, ctns, per))
+        db.commit()
+    flash(f'Draft order {num} created with {len(picked)} product(s). Check quantities, then send it to the supplier.', 'success')
+    return redirect(url_for('view_supplier_order', oid=oid))
 
 
 @app.route('/reports/top-customers')
@@ -5377,33 +5741,70 @@ def report_top_customers():
         date_from=date_from, date_to=date_to)
 
 
+def _vat_quarters(end_month, count=8):
+    """Most recent `count` VAT quarters as (label, start, end, key) given the
+    month (1-3) the stagger's quarters end in: 3 = Mar/Jun/Sep/Dec."""
+    t = date.today()
+    ends = sorted({((end_month - 1 + 3 * k) % 12) + 1 for k in range(4)})
+    y, m = t.year, t.month
+    while m not in ends:          # current (open) quarter ends at the next stagger month
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    out = []
+    for _ in range(count):
+        end = (date(y + (m // 12), (m % 12) + 1, 1) - timedelta(days=1))
+        sm, sy = m - 2, y
+        if sm < 1:
+            sm, sy = sm + 12, y - 1
+        start = date(sy, sm, 1)
+        out.append((f"{start.strftime('%b %Y')} – {end.strftime('%b %Y')}", start.isoformat(), end.isoformat(),
+                    end.strftime('%Y-%m')))
+        m -= 3
+        if m < 1:
+            m, y = m + 12, y - 1
+    return out
+
+
 @app.route('/reports/vat')
 def report_vat():
+    st = get_settings()
+    try:
+        end_month = int(st.get('vat_quarter_end') or 3)
+    except ValueError:
+        end_month = 3
+    quarters = _vat_quarters(end_month)
+    qkey = request.args.get('q', '')
     date_from = request.args.get('from', '')
-    date_to   = request.args.get('to', '')
+    date_to = request.args.get('to', '')
+    if not (date_from and date_to):
+        # default to the last completed quarter (the one you'd be filing now)
+        chosen = next((q for q in quarters if q[3] == qkey), quarters[1] if not qkey else quarters[0])
+        _, date_from, date_to, qkey = chosen
+    else:
+        qkey = ''
+    rng = (date_from, date_to)
     with get_db() as db:
-        q = "SELECT doc_date, total, tax_amount, tax_pct FROM sales WHERE status='completed' AND archived=0 AND tax_amount>0"
-        params = []
-        if date_from: q += " AND doc_date>=%s"; params.append(date_from)
-        if date_to:   q += " AND doc_date<=%s"; params.append(date_to)
-        sales_rows = db.execute(q + " ORDER BY doc_date", params).fetchall()
-        by_month = {}
-        for r in sales_rows:
-            month = r['doc_date'][:7] if r['doc_date'] else ''
-            if month not in by_month:
-                by_month[month] = {'net': 0, 'vat': 0, 'gross': 0}
-            tax = r['tax_amount'] or 0
-            net = (r['total'] or 0) - tax
-            by_month[month]['net']   += net
-            by_month[month]['vat']   += tax
-            by_month[month]['gross'] += r['total'] or 0
-        months = sorted(by_month.items(), reverse=True)
-        total_net   = sum(m['net']   for _, m in months)
-        total_vat   = sum(m['vat']   for _, m in months)
-        total_gross = sum(m['gross'] for _, m in months)
-    return render_template('report_vat.html', months=months,
-        total_net=total_net, total_vat=total_vat, total_gross=total_gross,
-        date_from=date_from, date_to=date_to)
+        sales, credits, purchases = db.batch(
+            ("""SELECT id, num, doc_date, customer, total::float8 AS gross, tax_amount::float8 AS vat
+                FROM sales WHERE status='completed' AND archived=0 AND doc_date BETWEEN %s AND %s
+                ORDER BY doc_date, id""", list(rng)),
+            ("""SELECT id, num, doc_date, customer, total::float8 AS gross, COALESCE(tax_amount,0)::float8 AS vat
+                FROM credit_notes WHERE status <> 'draft' AND doc_date BETWEEN %s AND %s ORDER BY doc_date, id""", list(rng)),
+            ("""SELECT id, num, doc_date, supplier, currency, total::float8 AS gross, COALESCE(tax_amount,0)::float8 AS vat
+                FROM purchases WHERE doc_date BETWEEN %s AND %s ORDER BY doc_date, id""", list(rng)))
+    out_vat = sum(r['vat'] or 0 for r in sales) - sum(r['vat'] or 0 for r in credits)
+    out_net = sum((r['gross'] or 0) - (r['vat'] or 0) for r in sales) - sum((r['gross'] or 0) - (r['vat'] or 0) for r in credits)
+    in_vat = sum(r['vat'] or 0 for r in purchases)
+    in_net = sum((r['gross'] or 0) - (r['vat'] or 0) for r in purchases)
+    boxes = {
+        1: round(out_vat, 2), 2: 0.0, 3: round(out_vat, 2), 4: round(in_vat, 2),
+        5: round(out_vat - in_vat, 2),
+        6: round(out_net), 7: round(in_net), 8: 0, 9: 0,   # HMRC wants whole pounds in boxes 6-9
+    }
+    foreign = [p for p in purchases if (p.get('currency') or 'GBP') != 'GBP']
+    return render_template('report_vat.html', boxes=boxes, sales=sales, credits=credits, purchases=purchases,
+                           quarters=quarters, qkey=qkey, date_from=date_from, date_to=date_to, foreign=foreign)
 
 
 # ── Credit Notes ──────────────────────────────────────────────────────────────
@@ -5780,6 +6181,13 @@ def delete_payment(sid, pid):
 
 # ── Export helpers ────────────────────────────────────────────────────────────
 
+def _fmt_due(d):
+    try:
+        return date.fromisoformat(str(d)[:10]).strftime('%d %b %Y')
+    except (TypeError, ValueError):
+        return str(d or '')
+
+
 def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='INVOICE'):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
@@ -5892,6 +6300,9 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
          Paragraph(f"<b>{sale['num']}</b>", normal_r)],
         [Paragraph('<font color="#888888" size="7">DATE</font>', label_s),
          Paragraph(str(sale.get('doc_date') or ''), normal_r)],
+    ] + ([[Paragraph('<font color="#888888" size="7">DUE DATE</font>', label_s),
+           Paragraph(f"<b>{_fmt_due(sale.get('due_date'))}</b>", normal_r)]]
+         if doc_title == 'INVOICE' and sale.get('due_date') else []) + [
         [Paragraph('<font color="#888888" size="7">STATUS</font>', label_s),
          Paragraph(f"<font color='{status_color}'><b>{status_badge}</b></font>", normal_r)],
     ], colWidths=[30*mm, 40*mm])
@@ -6223,7 +6634,7 @@ def generate_delivery_note_pdf(sale, items, customer=None, company=None):
     return buf.getvalue()
 
 
-def generate_statement_pdf(customer, invoices, company=None, payments=None, credits=None):
+def generate_statement_pdf(customer, invoices, company=None, payments=None, credits=None, supplier=False):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
@@ -6265,7 +6676,7 @@ def generate_statement_pdf(customer, invoices, company=None, payments=None, cred
                 img = Image(logo_path); img._restrictSize(55*mm, 22*mm); logo_cell = img
             except Exception:
                 pass
-    banner = Table([[logo_cell, Paragraph('STATEMENT', inv_title)]], colWidths=[90*mm, 80*mm])
+    banner = Table([[logo_cell, Paragraph('SUPPLIER STATEMENT' if supplier else 'STATEMENT', inv_title)]], colWidths=[90*mm, 80*mm])
     banner.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 0)]))
     elements.append(banner)
     elements.append(Spacer(1, 3*mm))
@@ -6313,13 +6724,14 @@ def generate_statement_pdf(customer, invoices, company=None, payments=None, cred
         inv_total = float(inv.get('total', 0))
         paid = float(inv.get('paid_amount', 0) or 0)
         outstanding = inv_total - paid
+        doc_word = 'Purchase' if supplier else 'Invoice'
         if paid > 0.005:
             if outstanding <= 0.005:
-                desc = f"Invoice — <font color='#1a8a4a'>paid in full</font>"
+                desc = f"{doc_word} — <font color='#1a8a4a'>paid in full</font>"
             else:
-                desc = f"Invoice — paid £{paid:,.2f} · <font color='#c0392b'>owed £{outstanding:,.2f}</font>"
+                desc = f"{doc_word} — paid £{paid:,.2f} · <font color='#c0392b'>owed £{outstanding:,.2f}</font>"
         else:
-            desc = 'Invoice'
+            desc = doc_word
         events.append({
             'date': inv.get('doc_date', ''),
             'ref': num,
@@ -6342,7 +6754,7 @@ def generate_statement_pdf(customer, invoices, company=None, payments=None, cred
         events.append({
             'date': cn.get('doc_date', ''),
             'ref': ref,
-            'desc': f"Credit Note{against}",
+            'desc': f"{'Debit Note' if supplier else 'Credit Note'}{against}",
             'charge': 0.0,
             'credit': float(cn.get('total', 0)),
         })
@@ -6394,7 +6806,7 @@ def generate_statement_pdf(customer, invoices, company=None, payments=None, cred
 
     elements.append(Spacer(1, 8*mm))
     out_color = '#c0392b' if total_out > 0 else '#1a8a4a'
-    label_text = 'TOTAL OUTSTANDING' if total_out > 0 else 'ACCOUNT STATUS'
+    label_text = ('TOTAL WE OWE' if supplier else 'TOTAL OUTSTANDING') if total_out > 0 else 'ACCOUNT STATUS'
     value_text = f"£{total_out:,.2f}" if total_out > 0 else 'FULLY PAID'
     summary = Table([[
         Paragraph(f'<b>{label_text}</b>', normal),
@@ -6408,6 +6820,8 @@ def generate_statement_pdf(customer, invoices, company=None, payments=None, cred
     elements.append(summary)
 
     bank_parts = []
+    if supplier:       # our bank details don't belong on a statement of what we owe
+        co = dict(co, co_bank_name='', co_sort_code='', co_account_number='')
     if co.get('co_bank_name'):      bank_parts.append(('Bank', co['co_bank_name']))
     if co.get('co_sort_code'):      bank_parts.append(('Sort Code', co['co_sort_code']))
     if co.get('co_account_number'): bank_parts.append(('Account No', co['co_account_number']))
@@ -7040,10 +7454,16 @@ init_db()
 
 
 def _payment_reminder_worker():
-    """Background daemon thread — sends payment reminders once per week."""
+    """Background daemon thread — sends payment reminders once per week.
+    Sleeps until the next run is due (checking at most every 6 hours) rather
+    than polling hourly, so Neon's database can go to sleep when idle."""
     time.sleep(90)  # Let gunicorn fully start before first check
     while True:
+        wait = 6 * 3600
         try:
+            with get_db() as db:
+                if _post_recurring(db):
+                    db.commit()
             s = get_settings()
             if s.get('reminder_enabled', '1') == '1':
                 last_run = s.get('reminder_last_run', '')
@@ -7058,9 +7478,16 @@ def _payment_reminder_worker():
                         )
                     if cur.rowcount > 0:
                         send_payment_reminders()
+                    last_run = now_str
+                try:   # sleep until the next weekly run is due (at least 5 min, at most 6 h)
+                    due = datetime.strptime(last_run, '%Y-%m-%d %H:%M:%S') + timedelta(days=7)
+                    wait = max(300, min(wait, (due - datetime.now()).total_seconds() + 60))
+                except (TypeError, ValueError):
+                    pass
         except Exception as e:
             app.logger.error(f'_payment_reminder_worker: {e}')
-        time.sleep(3600)  # Check every hour
+            wait = 3600
+        time.sleep(wait)
 
 
 REMINDER_WORKER_ENABLED = os.environ.get('ENABLE_PAYMENT_REMINDERS', '1') == '1'
@@ -7068,21 +7495,10 @@ if REMINDER_WORKER_ENABLED:
     threading.Thread(target=_payment_reminder_worker, daemon=True).start()
 
 
-def _db_keepalive_worker():
-    """Background daemon thread — pings the DB pool periodically so Neon's
-    idle-connection close and compute auto-suspend never trigger during normal
-    use, keeping request latency off the connection-recovery path."""
-    while True:
-        time.sleep(180)
-        try:
-            with get_db() as db:
-                db.execute("SELECT 1")
-        except Exception as e:
-            app.logger.error(f'_db_keepalive_worker: {e}')
-
-
-if DATABASE_URL:
-    threading.Thread(target=_db_keepalive_worker, daemon=True).start()
+# No database keep-alive: Neon suspends its compute after ~5 idle minutes
+# (saving free-plan compute hours). The pool's dead-connection retry in
+# _Db.execute() reconnects transparently; the first page after a quiet spell
+# just takes about a second longer while Neon wakes up.
 
 
 if __name__ == '__main__':

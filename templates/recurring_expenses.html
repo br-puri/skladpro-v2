@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Recurring Expenses{% endblock %}
+{% block page_title %}Recurring Expenses{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('finance') }}" class="btn">← Finance</a>{% endblock %}
+{% block content %}
+<style>
+  .re { max-width:1100px; margin:0 auto; color:#20324a; }
+  .re-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:16px; overflow:hidden; box-shadow:0 3px 12px #20324a04; }
+  .re-h { padding:14px 20px; border-bottom:1px solid #f0f2f5; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .re-h h3 { margin:0; font-size:15px; font-weight:700; }
+  .re-h small { color:#8a96a8; font-size:12px; }
+  .re-form { display:grid; grid-template-columns:2fr 1fr 1.4fr 1fr 0.8fr; gap:12px; padding:16px 20px; align-items:end; }
+  .re-form .wide { grid-column: span 2; }
+  .re-form label.t { display:block; font-size:11.5px; font-weight:600; color:#64748b; margin-bottom:5px; }
+  .re-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .re-tbl th { text-align:left; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; padding:9px 14px; background:#fafbfc; }
+  .re-tbl td { padding:11px 14px; border-top:1px solid #f3f5f8; vertical-align:middle; }
+  .re-tbl .n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .re-tbl tr.off td { color:#94a3b8; }
+  .chip { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; background:#f5f1e7; color:#785a1e; }
+  .re-act { display:flex; gap:5px; justify-content:flex-end; }
+  @media (max-width:800px) { .re-form { grid-template-columns:1fr 1fr; } .re-form .wide { grid-column: span 2; } .re-tbl .hide-m { display:none; } }
+</style>
+<div class="re">
+  <form class="re-card" method="post">
+    <div class="re-h"><div><h3>{{ 'Edit' if edit else 'Add a' }} recurring expense</h3>
+      <small>Posted into Finance automatically on the chosen day each month (days 29–31 use the 28th).</small></div>
+      {% if edit %}<a href="{{ url_for('recurring_expenses') }}" class="btn btn-sm">Cancel edit</a>{% endif %}</div>
+    <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
+    <div class="re-form">
+      <div><label class="t">Description *</label><input name="desc" class="form-control" required placeholder="e.g. Shopify subscription" value="{{ edit['desc'] if edit else '' }}"></div>
+      <div><label class="t">Amount (£) *</label><input name="amount" type="number" step="0.01" min="0.01" required class="form-control" value="{{ '%.2f'|format(edit.amount) if edit else '' }}"></div>
+      <div><label class="t">Category</label><input name="category" list="reCats" class="form-control" autocomplete="off" placeholder="e.g. Rent & rates" value="{{ edit.category if edit else '' }}">
+        <datalist id="reCats">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist></div>
+      <div><label class="t">Paid by</label><select name="method" class="form-control">
+        <option value="bank" {{ 'selected' if not edit or edit.method=='bank' }}>Bank</option>
+        <option value="cash" {{ 'selected' if edit and edit.method=='cash' }}>Cash</option></select></div>
+      <div><label class="t">Day of month</label><input name="day_of_month" type="number" min="1" max="28" class="form-control" value="{{ edit.day_of_month if edit else 1 }}"></div>
+      <div class="wide"><label class="t">Paid to (optional)</label><select name="contact_id" class="form-control">
+        <option value="">— None —</option>
+        {% for c in contacts %}<option value="{{ c.id }}" {{ 'selected' if edit and edit.contact_id == c.id }}>{{ c.label }}</option>{% endfor %}</select></div>
+      <div><label class="t">First payment on/after</label><span style="display:block"><input name="start_date" type="date" class="form-control" value="{{ edit.start_date if edit else today }}"></span></div>
+      <div><label class="t">Stop after (optional)</label><span style="display:block"><input name="end_date" type="date" class="form-control" value="{{ edit.end_date if edit and edit.end_date else '' }}"></span></div>
+      <div><button class="btn btn-primary" style="width:100%">{{ 'Save changes' if edit else 'Add' }}</button></div>
+    </div>
+  </form>
+
+  <div class="re-card">
+    <div class="re-h"><div><h3>Your recurring expenses</h3><small>Active ones add up to <b>£{{ "{:,.2f}".format(monthly) }}</b> a month</small></div></div>
+    {% if rows %}
+    <table class="re-tbl">
+      <thead><tr><th>Expense</th><th class="hide-m">Category</th><th class="n">Amount</th><th class="hide-m">Day</th><th>Next</th><th class="hide-m n">Posted so far</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr class="{{ '' if r.active else 'off' }}">
+        <td><b>{{ r['desc'] }}</b>{% if r.contact %}<div style="font-size:11.5px;color:#94a3b8">{{ r.contact }}</div>{% endif %}{% if not r.active %} <span class="chip" style="background:#f1f5f9;color:#64748b">Paused</span>{% endif %}</td>
+        <td class="hide-m">{% if r.category %}<span class="chip">{{ r.category }}</span>{% else %}—{% endif %}</td>
+        <td class="n"><b>£{{ "{:,.2f}".format(r.amount) }}</b></td>
+        <td class="hide-m">{{ r.day_of_month }}{{ 'st' if r.day_of_month in (1,21) else 'nd' if r.day_of_month in (2,22) else 'rd' if r.day_of_month in (3,23) else 'th' }}</td>
+        <td>{% if not r.active %}—{% elif r.next %}{{ r.next }}{% else %}Ended{% endif %}</td>
+        <td class="hide-m n">{{ r.posted_n }} × · £{{ "{:,.2f}".format(r.posted_sum) }}</td>
+        <td><div class="re-act">
+          <a href="?edit={{ r.id }}" class="btn btn-sm">Edit</a>
+          <form method="post"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="action" value="{{ 'pause' if r.active else 'resume' }}"><button class="btn btn-sm">{{ 'Pause' if r.active else 'Resume' }}</button></form>
+          <form method="post" onsubmit="return confirm('Delete this recurring expense? Entries already in Finance stay.')"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="action" value="delete"><button class="btn btn-sm" style="color:#dc2626;border-color:#fecaca">Delete</button></form>
+        </div></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:36px;text-align:center;color:#94a3b8;font-size:13px">No recurring expenses yet. Add rent, subscriptions and other regular payments above.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

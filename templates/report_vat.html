@@ -1,41 +1,101 @@
 {% extends 'base.html' %}
-{% block title %}VAT Report{% endblock %}
-{% block page_title %}VAT Report{% endblock %}
+{% block title %}VAT Return{% endblock %}
+{% block page_title %}VAT Return{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <form method="get" class="search-wrap">
-    <input type="date" name="from" value="{{ date_from }}" class="form-control" style="width:160px">
-    <span style="color:#888;font-size:13px">to</span>
-    <input type="date" name="to" value="{{ date_to }}" class="form-control" style="width:160px">
-    <button class="btn">Apply</button>
-    {% if date_from or date_to %}<a href="{{ url_for('report_vat') }}" class="btn">Clear</a>{% endif %}
-  </form>
-</div>
-<div class="metrics">
-  <div class="metric"><div class="metric-label">Net Sales</div><div class="metric-value">£{{ "{:,.2f}".format(total_net) }}</div></div>
-  <div class="metric"><div class="metric-label">VAT Collected</div><div class="metric-value blue">£{{ "{:,.2f}".format(total_vat) }}</div></div>
-  <div class="metric"><div class="metric-label">Gross Sales</div><div class="metric-value">£{{ "{:,.2f}".format(total_gross) }}</div></div>
-</div>
-<div class="card">
-  <div class="card-header"><span class="card-title">VAT by Month</span></div>
-  <div class="table-wrap">
-  {% if months %}
-  <table>
-    <thead><tr><th>Month</th><th style="text-align:right">Net Sales</th><th style="text-align:right">VAT</th><th style="text-align:right">Gross Sales</th></tr></thead>
-    <tbody>
-    {% for m, data in months %}
-    <tr>
-      <td><strong>{{ m }}</strong></td>
-      <td style="text-align:right">£{{ "{:,.2f}".format(data['net']) }}</td>
-      <td style="text-align:right;color:#2563eb;font-weight:600">£{{ "{:,.2f}".format(data['vat']) }}</td>
-      <td style="text-align:right">£{{ "{:,.2f}".format(data['gross']) }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}<div class="empty">No VAT data in this period</div>{% endif %}
+<style>
+  .vr { max-width: 1100px; margin: 0 auto; color:#20324a; }
+  .vr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:16px; overflow:hidden; box-shadow:0 3px 12px #20324a04; }
+  .vr-h { padding:14px 20px; border-bottom:1px solid #f0f2f5; display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+  .vr-h h3 { margin:0; font-size:15px; font-weight:700; }
+  .vr-h small { color:#8a96a8; font-size:12px; }
+  .vr-q { display:flex; gap:6px; flex-wrap:wrap; }
+  .vr-q a { font-size:12px; font-weight:600; padding:5px 11px; border-radius:20px; border:1px solid #e2e8f0; color:#475569; text-decoration:none; background:#fff; }
+  .vr-q a.on { background:#20324a; border-color:#20324a; color:#fff; }
+  .vr-box { display:grid; grid-template-columns:60px minmax(0,1fr) 170px; gap:10px; align-items:center; padding:12px 20px; border-bottom:1px solid #f3f5f8; font-size:13.5px; }
+  .vr-box:last-child { border-bottom:0; }
+  .vr-n { width:40px; height:40px; border-radius:10px; background:#f5f1e7; color:#785a1e; display:grid; place-items:center; font-weight:800; }
+  .vr-v { text-align:right; font-weight:700; font-variant-numeric:tabular-nums; font-size:15px; }
+  .vr-box.key { background:#fffbf0; }
+  .vr-box.key .vr-n { background:#20324a; color:#fff; }
+  .vr-box.key .vr-v { font-size:18px; }
+  .vr-sub { font-size:11.5px; color:#8a96a8; margin-top:2px; }
+  .vr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .vr-tbl th { text-align:left; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; padding:8px 14px; background:#fafbfc; }
+  .vr-tbl td { padding:8px 14px; border-top:1px solid #f3f5f8; }
+  .vr-tbl .n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .vr-note { font-size:12.5px; color:#64748b; padding:14px 20px; line-height:1.6; }
+  details summary { cursor:pointer; padding:12px 20px; font-weight:700; font-size:14px; }
+  @media print { .no-print { display:none !important; } .vr-card { box-shadow:none; } }
+</style>
+
+<div class="vr">
+  <div class="vr-card no-print">
+    <div class="vr-h">
+      <div><h3>Period</h3><small>Quarters follow your setting in Settings → Invoices &amp; VAT</small></div>
+      <div class="vr-q">
+        {% for label, f, t, key in quarters %}
+        <a href="?q={{ key }}" class="{{ 'on' if key == qkey }}">{{ label }}{% if loop.first %} (current){% endif %}</a>
+        {% endfor %}
+      </div>
+    </div>
+    <form method="get" style="padding:10px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:#64748b">
+      Custom:
+      <span style="display:inline-block;width:160px"><input type="date" name="from" value="{{ date_from }}" class="form-control"></span> to
+      <span style="display:inline-block;width:160px"><input type="date" name="to" value="{{ date_to }}" class="form-control"></span>
+      <button class="btn btn-sm">Show</button>
+      <button type="button" class="btn btn-sm" onclick="window.print()" style="margin-left:auto">Print</button>
+    </form>
+  </div>
+
+  <div class="vr-card">
+    <div class="vr-h"><div><h3>VAT return: {{ date_from }} to {{ date_to }}</h3>
+      <small>The 9 boxes as they appear on HMRC's VAT return. Copy these figures into your MTD software or HMRC account.</small></div></div>
+    <div class="vr-box"><span class="vr-n">1</span><div>VAT due on sales and other outputs<div class="vr-sub">VAT on invoices, minus VAT on credit notes</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[1]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">2</span><div>VAT due on acquisitions from the EU<div class="vr-sub">Northern Ireland goods only, otherwise 0</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[2]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">3</span><div>Total VAT due (box 1 + box 2)</div><span class="vr-v">£{{ "{:,.2f}".format(boxes[3]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">4</span><div>VAT reclaimed on purchases<div class="vr-sub">VAT recorded on purchases. Add import VAT from your C79 certificates and VAT on expenses yourself (see below)</div></div><span class="vr-v">£{{ "{:,.2f}".format(boxes[4]) }}</span></div>
+    <div class="vr-box key"><span class="vr-n">5</span><div><b>{{ 'Net VAT to pay HMRC' if boxes[5] >= 0 else 'Net VAT HMRC owes you' }}</b><div class="vr-sub">Box 3 minus box 4</div></div><span class="vr-v" style="color:{{ '#b91c1c' if boxes[5] >= 0 else '#15803d' }}">£{{ "{:,.2f}".format(boxes[5]|abs) }}</span></div>
+    <div class="vr-box"><span class="vr-n">6</span><div>Total sales excluding VAT<div class="vr-sub">Whole pounds</div></div><span class="vr-v">£{{ "{:,}".format(boxes[6]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">7</span><div>Total purchases excluding VAT<div class="vr-sub">Whole pounds, stock purchases recorded in the app</div></div><span class="vr-v">£{{ "{:,}".format(boxes[7]) }}</span></div>
+    <div class="vr-box"><span class="vr-n">8</span><div>Goods supplied to the EU (excl. VAT)<div class="vr-sub">Northern Ireland only, otherwise 0</div></div><span class="vr-v">£{{ boxes[8] }}</span></div>
+    <div class="vr-box"><span class="vr-n">9</span><div>Goods acquired from the EU (excl. VAT)<div class="vr-sub">Northern Ireland only, otherwise 0</div></div><span class="vr-v">£{{ boxes[9] }}</span></div>
+    <div class="vr-note">
+      <b>Before you submit, check:</b> imported stock usually has <b>import VAT</b> shown on your monthly C79 certificate (or postponed VAT statement). Add it to boxes 4 and 7 if you reclaim it. VAT on business expenses (rent, software, fuel…) isn't recorded in the app, so add any reclaimable amounts too. Debit notes don't carry VAT in the app and aren't included.
+      {% if foreign %}<br><b style="color:#b91c1c">{{ foreign|length }} purchase(s) in a foreign currency</b> are counted at their face value; convert them to GBP before filing.{% endif %}
+    </div>
+  </div>
+
+  <div class="vr-card">
+    <details>
+      <summary>Sales invoices ({{ sales|length }})</summary>
+      <table class="vr-tbl"><thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Gross</th></tr></thead><tbody>
+      {% for r in sales %}<tr><td>{{ r.doc_date }}</td><td><a href="{{ url_for('view_sale', sid=r.id) }}" style="color:#315b83;text-decoration:none;font-weight:600">{{ r.num }}</a></td><td>{{ r.customer }}</td>
+        <td class="n">£{{ "{:,.2f}".format((r.gross or 0) - (r.vat or 0)) }}</td><td class="n">£{{ "{:,.2f}".format(r.vat or 0) }}</td><td class="n">£{{ "{:,.2f}".format(r.gross or 0) }}</td></tr>
+      {% else %}<tr><td colspan="6" style="color:#94a3b8;text-align:center;padding:20px">No sales in this period</td></tr>{% endfor %}
+      </tbody></table>
+    </details>
+  </div>
+  {% if credits %}
+  <div class="vr-card">
+    <details>
+      <summary>Credit notes ({{ credits|length }})</summary>
+      <table class="vr-tbl"><thead><tr><th>Date</th><th>Credit note</th><th>Customer</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Gross</th></tr></thead><tbody>
+      {% for r in credits %}<tr><td>{{ r.doc_date }}</td><td>{{ r.num }}</td><td>{{ r.customer }}</td>
+        <td class="n">£{{ "{:,.2f}".format((r.gross or 0) - (r.vat or 0)) }}</td><td class="n">£{{ "{:,.2f}".format(r.vat or 0) }}</td><td class="n">£{{ "{:,.2f}".format(r.gross or 0) }}</td></tr>{% endfor %}
+      </tbody></table>
+    </details>
+  </div>
+  {% endif %}
+  <div class="vr-card">
+    <details>
+      <summary>Purchases ({{ purchases|length }})</summary>
+      <table class="vr-tbl"><thead><tr><th>Date</th><th>Purchase</th><th>Supplier</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Gross</th></tr></thead><tbody>
+      {% for r in purchases %}<tr><td>{{ r.doc_date }}</td><td><a href="{{ url_for('view_purchase', pid=r.id) }}" style="color:#315b83;text-decoration:none;font-weight:600">{{ r.num }}</a></td><td>{{ r.supplier }}</td>
+        <td class="n">£{{ "{:,.2f}".format((r.gross or 0) - (r.vat or 0)) }}</td><td class="n">£{{ "{:,.2f}".format(r.vat or 0) }}</td><td class="n">£{{ "{:,.2f}".format(r.gross or 0) }}{% if (r.currency or 'GBP') != 'GBP' %} {{ r.currency }}{% endif %}</td></tr>
+      {% else %}<tr><td colspan="6" style="color:#94a3b8;text-align:center;padding:20px">No purchases in this period</td></tr>{% endfor %}
+      </tbody></table>
+    </details>
   </div>
 </div>
-<div style="font-size:12px;color:#94a3b8;margin-top:12px">Use this report for HMRC VAT returns. Only completed, non-archived sales with VAT are included.</div>
 {% endblock %}

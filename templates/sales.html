@@ -52,10 +52,16 @@
     <option value="{{ c['id'] }}" {{ 'selected' if c['id']|string == customer_id }}>{{ c['label'] }}</option>
     {% endfor %}
   </select>
-  <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="width:148px">
-  <input type="date" name="date_till" value="{{ date_till }}" class="form-control" style="width:148px">
+  <select name="pay" class="form-control" style="width:150px" onchange="this.form.submit()" aria-label="Payment status">
+    <option value="">All invoices</option>
+    <option value="unpaid" {{ 'selected' if pay=='unpaid' }}>Unpaid</option>
+    <option value="overdue" {{ 'selected' if pay=='overdue' }}>Overdue</option>
+    <option value="paid" {{ 'selected' if pay=='paid' }}>Paid</option>
+  </select>
+  <span style="display:inline-block;width:150px"><input type="date" name="date_from" value="{{ date_from }}" class="form-control" placeholder="From"></span>
+  <span style="display:inline-block;width:150px"><input type="date" name="date_till" value="{{ date_till }}" class="form-control" placeholder="To"></span>
   <button type="submit" class="btn btn-primary">Filter</button>
-  {% if date_from or date_till or customer_id or q %}
+  {% if date_from or date_till or customer_id or q or pay %}
   <a href="{{ url_for('sales') }}" class="btn">Clear</a>
   {% endif %}
 </form>
@@ -148,6 +154,7 @@
               {{ 'Paid' if s['paid'] else 'Unpaid' }}
             </button>
           </form>
+          {% if s.get('days_overdue') %}<span title="Due {{ s['due_date'] }}" style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca">{{ s['days_overdue'] }}d overdue</span>{% endif %}
         </div>
       </td>
       <td style="padding:13px 16px;text-align:right">

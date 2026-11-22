@@ -3,38 +3,80 @@
 {% block page_title %}Profit Report{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Reports</a>{% endblock %}
 {% block content %}
+<style>
+  .pr-tabs { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:12px; }
+  .pr-tabs a { font-size:13px; font-weight:600; padding:7px 14px; border-radius:20px; border:1px solid #e2e8f0; color:#475569; text-decoration:none; background:#fff; }
+  .pr-tabs a.on { background:#20324a; border-color:#20324a; color:#fff; }
+  .pr-per { display:flex; gap:4px; flex-wrap:wrap; }
+  .pr-per a { font-size:12px; font-weight:600; padding:4px 10px; border-radius:20px; border:1px solid #e2e8f0; color:#475569; text-decoration:none; }
+  .pr-per a.on { background:#f5f1e7; border-color:#e7d9b4; color:#785a1e; }
+  .pr-bar { height:6px; background:#eef2f6; border-radius:4px; overflow:hidden; margin-top:4px; max-width:220px; }
+  .pr-bar span { display:block; height:100%; border-radius:4px; }
+  table.pr td.n, table.pr th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+</style>
+{% set qs = '&from=' ~ date_from ~ '&to=' ~ date_to ~ ('&customer=' ~ customer_filter|urlencode if customer_filter else '') %}
+<div class="pr-tabs">
+  {% for key, label in [('month','By month'),('customer','By customer'),('product','By product'),('invoice','By invoice')] %}
+  <a href="?view={{ key }}{{ qs }}" class="{{ 'on' if view == key }}">{{ label }}</a>
+  {% endfor %}
+</div>
 <div class="card">
-  <form class="search-wrap" method="get">
-    <input type="date" name="from" value="{{ date_from }}" class="form-control" style="width:160px">
+  <form class="search-wrap" method="get" style="flex-wrap:wrap;gap:8px">
+    <input type="hidden" name="view" value="{{ view }}">
+    <span style="display:inline-block;width:160px"><input type="date" name="from" value="{{ date_from }}" class="form-control"></span>
     <span style="color:#888;font-size:13px">to</span>
-    <input type="date" name="to" value="{{ date_to }}" class="form-control" style="width:160px">
+    <span style="display:inline-block;width:160px"><input type="date" name="to" value="{{ date_to }}" class="form-control"></span>
     <select name="customer" class="form-control" style="width:200px">
-      <option value="">All Customers</option>
-      {% for c in customers %}
-      <option value="{{ c }}" {% if c == customer_filter %}selected{% endif %}>{{ c }}</option>
-      {% endfor %}
+      <option value="">All customers</option>
+      {% for c in customers %}<option value="{{ c }}" {% if c == customer_filter %}selected{% endif %}>{{ c }}</option>{% endfor %}
     </select>
     <button type="submit" class="btn">Apply</button>
-    {% if date_from or date_to or customer_filter %}<a href="{{ url_for('report_profit') }}" class="btn">Clear</a>{% endif %}
+    {% if date_from or date_to or customer_filter %}<a href="?view={{ view }}" class="btn">Clear</a>{% endif %}
+    <span class="pr-per" style="margin-left:auto">
+      {% for label, f, t in periods %}<a href="?view={{ view }}&from={{ f }}&to={{ t }}{{ ('&customer=' ~ customer_filter|urlencode) if customer_filter }}" class="{{ 'on' if date_from == f and date_to == t }}">{{ label }}</a>{% endfor %}
+    </span>
   </form>
 </div>
 <div class="metrics">
-  <div class="metric"><div class="metric-label">Revenue</div><div class="metric-value green">£{{ "{:,.0f}".format(total_rev) }}</div></div>
-  <div class="metric"><div class="metric-label">Cost of Goods</div><div class="metric-value red">£{{ "{:,.0f}".format(total_cost) }}</div></div>
-  <div class="metric"><div class="metric-label">Gross Profit</div><div class="metric-value {% if total_profit>=0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(total_profit) }}</div></div>
+  <div class="metric"><div class="metric-label">Revenue (ex VAT)</div><div class="metric-value green">£{{ "{:,.0f}".format(total_rev) }}</div></div>
+  <div class="metric"><div class="metric-label">Cost of goods</div><div class="metric-value red">£{{ "{:,.0f}".format(total_cost) }}</div></div>
+  <div class="metric"><div class="metric-label">Gross profit</div><div class="metric-value {% if total_profit>=0 %}green{% else %}red{% endif %}">£{{ "{:,.0f}".format(total_profit) }}</div></div>
   <div class="metric"><div class="metric-label">Margin</div><div class="metric-value">{{ "{:.1f}".format(total_profit/total_rev*100 if total_rev else 0) }}%</div></div>
 </div>
 <div class="card">
   <div class="table-wrap">
-  <table><thead><tr><th>Date</th><th>Doc</th><th>Customer</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Margin</th></tr></thead><tbody>
+  <table class="pr"><thead><tr>
+    {% if view == 'month' %}<th>Month</th><th class="n">Invoices</th>
+    {% elif view == 'customer' %}<th>Customer</th><th class="n">Invoices</th>
+    {% elif view == 'product' %}<th>Product</th><th class="n">Pcs sold</th>
+    {% else %}<th>Date</th><th>Invoice</th><th>Customer</th>{% endif %}
+    <th class="n">Revenue</th><th class="n">Cost</th><th class="n">Profit</th><th class="n">Margin</th>
+  </tr></thead><tbody>
   {% for r in rows %}
-  {% set profit = r['revenue'] - r['cost'] %}
-  <tr><td>{{ r['doc_date'] }}</td><td class="mono">{{ r['num'] }}</td><td>{{ r['customer'] }}</td>
-  <td>£{{ "{:,.0f}".format(r['revenue']) }}</td><td style="color:#888">£{{ "{:,.0f}".format(r['cost']) }}</td>
-  <td style="color:{{ '#1a8a4a' if profit>=0 else '#c0392b' }}">£{{ "{:,.0f}".format(profit) }}</td>
-  <td>{{ "{:.1f}".format(profit/r['revenue']*100 if r['revenue'] else 0) }}%</td>
-  </tr>{% endfor %}
+  <tr>
+    {% if view == 'month' %}
+      <td><b>{{ r.label }}</b></td><td class="n">{{ r.n }}</td>
+    {% elif view == 'customer' %}
+      <td><a href="?view=invoice&customer={{ r.label|urlencode }}&from={{ date_from }}&to={{ date_to }}" style="color:#315b83;font-weight:600;text-decoration:none">{{ r.label }}</a>
+        <div class="pr-bar"><span style="width:{{ (r.profit|abs / peak * 100)|round }}%;background:{{ '#16a34a' if r.profit >= 0 else '#dc2626' }}"></span></div></td>
+      <td class="n">{{ r.n }}</td>
+    {% elif view == 'product' %}
+      <td><a href="{{ url_for('edit_product', pid=r.pid) }}" style="color:#315b83;font-weight:600;text-decoration:none">{{ r.label }}</a>
+        <div class="pr-bar"><span style="width:{{ (r.profit|abs / peak * 100)|round }}%;background:{{ '#16a34a' if r.profit >= 0 else '#dc2626' }}"></span></div></td>
+      <td class="n">{{ "{:,.0f}".format(r.n) }}</td>
+    {% else %}
+      <td>{{ r.doc_date }}</td><td><a href="{{ url_for('view_sale', sid=r.sid) }}" class="mono" style="color:#315b83;text-decoration:none">{{ r.label }}</a></td><td>{{ r.customer }}</td>
+    {% endif %}
+    <td class="n">£{{ "{:,.2f}".format(r.revenue) }}</td>
+    <td class="n" style="color:#888">£{{ "{:,.2f}".format(r.cost) }}</td>
+    <td class="n" style="font-weight:700;color:{{ '#1a8a4a' if r.profit>=0 else '#c0392b' }}">£{{ "{:,.2f}".format(r.profit) }}</td>
+    <td class="n">{{ "{:.1f}".format(r.margin) }}%</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:30px">No completed sales in this period</td></tr>
+  {% endfor %}
   </tbody></table>
   </div>
 </div>
+<p style="font-size:12px;color:#94a3b8">Revenue is after line and invoice discounts, excluding VAT and delivery. Cost uses the cost price saved on each invoice line (or the product's current cost for older invoices). Products with no cost price show 100% margin.</p>
 {% endblock %}

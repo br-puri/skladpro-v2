@@ -32,6 +32,7 @@ This is a single-file Flask application (`app.py`, ~4 600 lines) backed by Postg
 - `get_db()` returns a `_Db` context-manager wrapper around a psycopg2 connection using `RealDictCursor` (rows are dicts). Commits on clean exit, rolls back on exception, closes the connection.
 - `init_db()` is called at module load. It issues individual `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements (no migration files).
 - Connections come from a `ThreadedConnectionPool`. `_Db` runs reads in autocommit mode (no BEGIN/COMMIT round trips) and switches to a transaction at the first non-SELECT statement, so writes stay atomic. Dead pooled connections are retried transparently on the first statement.
+- **No keep-alive pings** (removed 2026-11-22): Neon's compute is allowed to suspend after ~5 idle minutes to stay within free-plan compute hours. The first request after a quiet spell takes ~1 s longer while Neon wakes; dead pooled connections are retried transparently. Don't add periodic DB queries — the payment-reminder thread sleeps until its weekly run is due (max 6 h between checks).
 - `db.batch(q1, q2, ...)` runs several read-only SELECTs in one round trip (rows come back via `json_agg`; REAL/numeric types are restored). Prefer it on pages that need several reads.
 - `next_num(prefix, table)` opens its own separate `get_db()` connection to check for number uniqueness — it does not share the caller's transaction.
 
@@ -48,7 +49,7 @@ cur = db.execute("INSERT INTO foo(...) VALUES(...) RETURNING id")
 new_id = cur.fetchone()['id']
 ```
 
-There are currently 13 places in `app.py` using `cur.lastrowid` that are affected by this bug.
+All former `cur.lastrowid` uses have been converted to `RETURNING id`; keep it that way.
 
 ### Auth & Middleware
 

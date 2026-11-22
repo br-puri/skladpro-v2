@@ -1,31 +1,65 @@
 {% extends 'base.html' %}
-{% block title %}Low Stock Alerts{% endblock %}
-{% block page_title %}Low Stock Alerts{% endblock %}
+{% block title %}Reorder List{% endblock %}
+{% block page_title %}Low Stock: Reorder List{% endblock %}
 {% block topbar_actions %}<a href="{{ url_for('reports') }}" class="back-link">← Back to Reports</a>{% endblock %}
 {% block content %}
-<div class="metrics">
-  <div class="metric"><div class="metric-label">Products Below Min Stock</div><div class="metric-value red">{{ rows|length }}</div></div>
-</div>
-<div class="card">
-  <div class="table-wrap">
-  {% if rows %}
-  <table>
-    <thead><tr><th>Article</th><th>Product</th><th>Category</th><th style="text-align:right">Min Stock</th><th style="text-align:right">In Stock</th><th style="text-align:right">Shortage</th><th></th></tr></thead>
-    <tbody>
-    {% for r in rows %}{% set p = r['product'] %}
-    <tr style="background:#fffbf0">
-      <td class="mono">{{ p['sku'] }}</td>
-      <td><strong>{{ p['name'] }}</strong></td>
-      <td>{{ p['category'] }}</td>
-      <td style="text-align:right">{{ p['min_stock']|int }}</td>
-      <td style="text-align:right;color:{{ '#dc2626' if r['stock']==0 else '#a16207' }};font-weight:600">{{ r['stock']|int }}</td>
-      <td style="text-align:right;color:#dc2626;font-weight:600">{{ r['shortage']|int }}</td>
-      <td><a href="{{ url_for('edit_product', pid=p['id']) }}" class="btn btn-sm">Edit</a></td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}<div class="empty">All products are above minimum stock 🎉</div>{% endif %}
+<style>
+  .ro { max-width:1150px; margin:0 auto; color:#20324a; }
+  .ro-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:16px; overflow:hidden; box-shadow:0 3px 12px #20324a04; }
+  .ro-h { padding:14px 20px; border-bottom:1px solid #f0f2f5; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .ro-h h3 { margin:0; font-size:15px; font-weight:700; }
+  .ro-h small { color:#8a96a8; font-size:12px; }
+  .ro-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .ro-tbl th { text-align:left; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; padding:8px 12px; background:#fafbfc; }
+  .ro-tbl td { padding:9px 12px; border-top:1px solid #f3f5f8; vertical-align:middle; }
+  .ro-tbl .n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .ro-tbl input[type=number] { width:76px; text-align:right; padding:5px 6px; }
+  .ro-img { width:36px; height:36px; border-radius:6px; object-fit:cover; background:#f1f5f9; display:block; }
+  .ro-zero { color:#dc2626; font-weight:700; }
+  .ro-low { color:#a16207; font-weight:700; }
+  .ro-note { font-size:12.5px; color:#64748b; margin:0 0 14px; }
+  @media (max-width:760px) { .ro-tbl .hide-m { display:none; } }
+</style>
+<div class="ro">
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Products to reorder</div><div class="metric-value red">{{ rows|length }}</div></div>
+    <div class="metric"><div class="metric-label">Suppliers</div><div class="metric-value">{{ groups|length }}</div></div>
   </div>
+  <p class="ro-note">Products at or below their <b>Min Stock</b>, grouped by the supplier you last bought them from. The suggested quantity tops stock up to twice the minimum, rounded up to whole cartons. Untick anything you don't want, adjust cartons, then <b>Create order</b> to make a draft supplier order.</p>
+
+  {% for g in groups %}
+  <form class="ro-card" method="post" action="{{ url_for('reorder_create_order') }}">
+    <input type="hidden" name="supplier_id" value="{{ g.supplier_id or '' }}">
+    <div class="ro-h">
+      <div><h3>{{ g.supplier }}</h3><small>{{ g.rows|length }} product{{ 's' if g.rows|length != 1 }}{% if not g.supplier_id %} · never bought on a purchase in the app, so pick the supplier on the order{% endif %}</small></div>
+      {% if session.get('role') in ('admin','editor') %}<button class="btn btn-primary btn-sm">Create order{% if g.supplier_id %} for {{ g.supplier }}{% endif %} →</button>{% endif %}
+    </div>
+    <table class="ro-tbl">
+      <thead><tr><th style="width:1%"><input type="checkbox" checked onchange="this.closest('table').querySelectorAll('.ro-pick').forEach(c=>c.checked=this.checked)" aria-label="Select all"></th>
+        <th class="hide-m" style="width:1%"></th><th>Product</th><th class="n">In stock</th><th class="n hide-m">Min</th><th class="n hide-m">Pcs/ctn</th><th class="n">Order</th><th class="n hide-m">Last bought</th></tr></thead>
+      <tbody>
+      {% for r in g.rows %}
+      <tr>
+        <td><input type="checkbox" class="ro-pick" name="pid" value="{{ r.id }}" checked></td>
+        <td class="hide-m">{% if r.photo %}<img class="ro-img" src="{{ photo_url(r.photo) }}" alt="" loading="lazy">{% else %}<span class="ro-img"></span>{% endif %}</td>
+        <td><a href="{{ url_for('edit_product', pid=r.id) }}" style="color:#16233a;font-weight:600;text-decoration:none">{{ r.name }}</a>
+          <div style="font-size:11px;color:#94a3b8">{{ [r.sku, ('Art. ' ~ r.article) if r.article else '']|select|join(' · ') }}</div></td>
+        <td class="n"><span class="{{ 'ro-zero' if r.stock <= 0 else 'ro-low' }}">{{ "{:,.0f}".format(r.stock) }}</span></td>
+        <td class="n hide-m">{{ "{:,.0f}".format(r.min_stock) }}</td>
+        <td class="n hide-m">{{ "{:,.0f}".format(r.carton_qty) if r.carton_qty else '—' }}</td>
+        <td class="n">
+          {% if r.carton_qty %}<input type="number" name="ctns_{{ r.id }}" min="0" step="1" value="{{ r.ctns }}" class="form-control" title="Cartons"> ctn
+          <div style="font-size:11px;color:#94a3b8">= {{ "{:,.0f}".format(r.pcs) }} pcs</div>
+          {% else %}<input type="number" name="pcs_{{ r.id }}" min="0" step="1" value="{{ r.pcs }}" class="form-control" title="Pieces"> pcs{% endif %}
+        </td>
+        <td class="n hide-m" style="color:#64748b">{{ r.last_bought or '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </form>
+  {% else %}
+  <div class="ro-card"><div style="padding:40px;text-align:center;color:#94a3b8">Everything is above its minimum stock. 🎉<br><span style="font-size:12px">Set a <b>Min Stock</b> on products (Edit Product) to get reorder suggestions.</span></div></div>
+  {% endfor %}
 </div>
 {% endblock %}

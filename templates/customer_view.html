@@ -4,6 +4,8 @@
 {% block topbar_actions %}
   {% if customer['type'] == 'customer' %}
   <a href="{{ url_for('customer_statement', cid=customer['id']) }}" class="btn">↓ Statement</a>
+  {% else %}
+  <a href="{{ url_for('supplier_statement', cid=customer['id']) }}" class="btn">↓ Supplier statement</a>
   {% endif %}
   <a href="{{ url_for('edit_customer', cid=customer['id']) }}" class="btn">Edit</a>
   {% if session.get('role') == 'admin' %}

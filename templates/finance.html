@@ -2,6 +2,7 @@
 {% block title %}Finance{% endblock %}
 {% block page_title %}Finance{% endblock %}
 {% block topbar_actions %}
+  {% if session.get('role') in ('admin','editor') %}<a href="{{ url_for('recurring_expenses') }}" class="btn">↻ Recurring</a>{% endif %}
   <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">+ Add Transaction</a>
 {% endblock %}
 {% block content %}

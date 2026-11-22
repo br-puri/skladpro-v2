@@ -27,6 +27,19 @@
     </div>
     <div class="form-row">
       <div class="form-group">
+        <label class="form-label">Payment terms</label>
+        <select id="termsSelect" class="form-control" onchange="termsChanged()">
+          {% for d, label in terms_choices %}<option value="{{ d }}">{{ label }}</option>{% endfor %}
+          <option value="custom">Custom date…</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Due date</label>
+        <input name="due_date" id="dueDate" type="date" class="form-control" value="{{ sale['due_date'] if sale and sale.get('due_date') else '' }}" onchange="document.getElementById('termsSelect').value='custom'">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label class="form-label">Currency</label>
         <select name="currency" id="currencySelect" class="form-control" onchange="currencyChanged()">
           {% for cur in [('GBP','GBP £'),('USD','USD $'),('EUR','EUR €'),('PLN','PLN zł')] %}
@@ -77,7 +90,7 @@
       company: {{ (c['company'] or '')|tojson }},
       phone: {{ (c['phone'] or '')|tojson }},
       city: {{ (c['city'] or '')|tojson }},
-      disc: {{ c['discount_pct'] or 0 }} },
+      disc: {{ c['discount_pct'] or 0 }}, terms: {{ c['payment_terms'] if c.get('payment_terms') is not none else default_terms }} },
     {% endfor %}
     { id: '', label: 'Walk-in', name: 'Walk-in', company: '', phone: '', city: '', disc: 0 }
   ];
@@ -143,9 +156,29 @@
     }
   }
 
+  // ── Payment terms → due date ──
+  const DEFAULT_TERMS = {{ default_terms }};
+  function setTerms(days) {
+    const sel = document.getElementById('termsSelect');
+    const has = Array.from(sel.options).some(o => o.value === String(days));
+    if (!has) { const o = new Option(days + ' days', String(days)); sel.insertBefore(o, sel.lastElementChild); }
+    sel.value = String(days); termsChanged();
+  }
+  function termsChanged() {
+    const sel = document.getElementById('termsSelect');
+    if (sel.value === 'custom') { document.getElementById('dueDate').focus(); return; }
+    const d = document.querySelector('[name="doc_date"]').value;
+    if (!d) return;
+    const due = new Date(d + 'T00:00:00'); due.setDate(due.getDate() + parseInt(sel.value, 10));
+    document.getElementById('dueDate').value = due.getFullYear() + '-' + String(due.getMonth() + 1).padStart(2, '0') + '-' + String(due.getDate()).padStart(2, '0');
+  }
+  document.querySelector('[name="doc_date"]').addEventListener('change', () => { if (document.getElementById('termsSelect').value !== 'custom') termsChanged(); });
+
   function pickCustomer(label, id, disc) {
     custSearch.value = label;
     custId.value = id || '';
+    const cust = CUSTOMERS.find(c => String(c.id) === String(id || ''));
+    setTerms(cust && cust.terms !== undefined ? cust.terms : DEFAULT_TERMS);
     custDropdown.style.display = 'none';
     if (disc && parseFloat(disc) > 0) {
       const gd = document.getElementById('globalDiscount');
@@ -184,7 +217,16 @@
       custDropdown.style.display = 'none';
     }
   });
-  </script>
+  
+  (function initTerms() {
+    if (document.getElementById('dueDate').value) {
+      const sel = document.getElementById('termsSelect');
+      const d = document.querySelector('[name="doc_date"]').value, due = document.getElementById('dueDate').value;
+      const diff = Math.round((new Date(due + 'T00:00:00') - new Date(d + 'T00:00:00')) / 86400000);
+      sel.value = Array.from(sel.options).some(o => o.value === String(diff)) ? String(diff) : 'custom';
+    } else { setTerms(DEFAULT_TERMS); }
+  })();
+</script>
 
   <div class="btn-group">
     <button type="submit" class="btn btn-primary">{{ 'Save Changes' if sale else 'Create Sale' }}</button>

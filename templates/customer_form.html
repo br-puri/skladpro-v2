@@ -88,6 +88,7 @@
   </div>
   <div class="form-row">
     <div class="form-group"><label class="form-label">Balance (£)</label><input name="balance" type="number" step="0.01" class="form-control" value="{{ customer['balance'] if customer else '0' }}"></div>
+    <div class="form-group"><label class="form-label">Payment terms (days) <span style="font-weight:400;color:#94a3b8">blank = company default</span></label><input name="payment_terms" type="number" min="0" max="365" step="1" class="form-control" placeholder="e.g. 30" value="{{ customer['payment_terms'] if customer and customer.get('payment_terms') is not none else '' }}"></div>
     <div class="form-group"><label class="form-label">Discount (%)</label><input name="discount_pct" type="number" step="0.1" min="0" max="100" class="form-control" value="{{ customer['discount_pct'] if customer else '0' }}"></div>
   </div>
   <div class="form-group"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2">{{ customer['notes'] if customer else '' }}</textarea></div>
