@@ -6515,12 +6515,13 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
     col_w = col_w_map
     span_start = len(hdr) - 2
 
+    desc_s = ps('desc', fontSize=9, leading=11, textColor=ACCENT)   # same font, tighter line spacing
     data = [hdr]
     for i in items:
         ctn_qty = i.get('carton_qty') or 0
         line_total = i['qty'] * i['price'] * (1 - i.get('discount_pct', 0) / 100)
         art = (i.get('article') or '').strip()
-        desc_cell = Paragraph(i['product_name'] + (f"<br/><font size='7' color='#64748b'>Art. {art}</font>" if art else ''), normal)
+        desc_cell = Paragraph(i['product_name'] + (f"<br/><font size='7' color='#64748b'>Art. {art}</font>" if art else ''), desc_s)
         row = [desc_cell, f"{i['qty']:g}", i.get('unit', '')]
         if has_ctns:
             row.append(f"{int(ctn_qty)}" if ctn_qty > 0 else '—')
@@ -6564,7 +6565,8 @@ def generate_invoice_pdf(sale, items, customer=None, company=None, doc_title='IN
         ('VALIGN',(0,0),(-1,-1),'TOP'),('ROWBACKGROUNDS',(0,1),(-1,-1),[WHITE,LIGHT_BG]),
         ('LINEBELOW',(0,1),(-1,-1),.35,ACCENT2),('ALIGN',(1,0),(-1,-1),'RIGHT'),
         ('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),
-        ('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),
+        ('TOPPADDING',(0,0),(-1,0),7),('BOTTOMPADDING',(0,0),(-1,0),7),
+        ('TOPPADDING',(0,1),(-1,-1),4),('BOTTOMPADDING',(0,1),(-1,-1),4),
     ]))
     elements.append(t)
     totals = Table(data,colWidths=[48*mm,36*mm],hAlign='RIGHT')
