@@ -58,13 +58,14 @@
     <tbody id="itemsBody">
       {% if li_edit_doc and li_items %}
         {% for item in li_items %}
-        {% set ns = namespace(pname='', ctn_qty=0) %}
-        {% for p in products %}{% if p['id'] == item['product_id'] %}{% set ns.pname = p['name'] %}{% set ns.ctn_qty = p['carton_qty'] or 0 %}{% endif %}{% endfor %}
+        {% set ns = namespace(pname='', ctn_qty=0, art='') %}
+        {% for p in products %}{% if p['id'] == item['product_id'] %}{% set ns.pname = p['name'] %}{% set ns.ctn_qty = p['carton_qty'] or 0 %}{% set ns.art = p['article'] or '' %}{% endif %}{% endfor %}
         <tr>
           <td class="row-num" style="text-align:center;font-size:11px;color:#94a3b8;width:32px;padding:6px 4px">{{ loop.index }}</td>
           <td style="padding:6px 8px">
             <input type="hidden" name="product_id[]" value="{{ item['product_id'] }}">
             <span class="product-name" style="font-size:13px;font-weight:500">{{ ns.pname }}</span>
+            <span class="product-art" style="display:block;font-size:11px;color:#94a3b8;margin-top:1px">{{ ('Art. ' ~ ns.art) if ns.art }}</span>
           </td>
           {% if li_show_wh %}
           <td><select name="warehouse_id[]" class="form-control">
@@ -85,6 +86,7 @@
         <td style="padding:6px 8px">
           <input type="hidden" name="product_id[]" value="">
           <span class="product-name" style="font-size:13px;color:#aaa;font-style:italic">Use scanner above to add products</span>
+          <span class="product-art" style="display:block;font-size:11px;color:#94a3b8;margin-top:1px"></span>
         </td>
         {% if li_show_wh %}
         <td><select name="warehouse_id[]" class="form-control">
@@ -202,6 +204,8 @@ function fillRowForProduct(row, productId) {
   nameEl.textContent = p.name;
   nameEl.style.fontStyle = 'normal';
   nameEl.style.color = '';
+  const artEl = row.querySelector('.product-art');
+  if (artEl) artEl.textContent = p.article ? 'Art. ' + p.article : '';
   // If a customer is selected and we know what they last paid for this product,
   // default to that price; otherwise use the product's standard price.
   const _cp = (window.CUSTOMER_PRICES || {})[p.id];
@@ -230,6 +234,7 @@ function addRow() {
     <td style="padding:6px 8px">
       <input type="hidden" name="product_id[]" value="">
       <span class="product-name" style="font-size:13px;color:#aaa;font-style:italic">Use scanner above to add products</span>
+      <span class="product-art" style="display:block;font-size:11px;color:#94a3b8;margin-top:1px"></span>
     </td>
     ${whTd}
     <td><input type="number" name="qty[]" min="0" step="0.001" value="1" class="form-control qty-input" oninput="qtyChanged(this)"></td>
