@@ -3850,7 +3850,7 @@ def view_sale(sid):
             SELECT s.*, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name) as customer
             FROM sales s LEFT JOIN contacts c ON c.id=s.customer_id WHERE s.id=%s
         """, (sid,)).fetchone())
-        items = db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, w.name as wh_name FROM sale_items si JOIN products pr ON pr.id=si.product_id JOIN warehouses w ON w.id=si.warehouse_id WHERE si.sale_id=%s", (sid,)).fetchall()
+        items = db.execute("SELECT si.*, pr.name as product_name, pr.unit, pr.carton_qty, pr.article, w.name as wh_name FROM sale_items si JOIN products pr ON pr.id=si.product_id JOIN warehouses w ON w.id=si.warehouse_id WHERE si.sale_id=%s", (sid,)).fetchall()
         customer = None
         if s.get('customer_id'):
             row = db.execute("SELECT * FROM contacts WHERE id=%s", (s['customer_id'],)).fetchone()
@@ -6751,19 +6751,24 @@ def generate_delivery_note_pdf(sale, items, customer=None, company=None):
     widths = [9*mm,(98 if not has_cartons else 78)*mm,20*mm,20*mm] + ([20*mm] if has_cartons else []) + [31*mm]
     white = ParagraphStyle('delivery-white',parent=label,textColor=colors.white)
     rows = [[para(h,white) for h in headers]]
+    # Same fonts as before, tighter line spacing so the rows stay compact
+    row_body = ParagraphStyle('delivery-row', parent=body, leading=11)
+    row_small = ParagraphStyle('delivery-row-small', parent=small, leading=10)
+    row_qty = ParagraphStyle('delivery-row-qty', parent=heading, leading=13)
     for index,item in enumerate(items,1):
-        description = [para(item.get('product_name') or 'Product')]
-        if item.get('article'): description.append(para('Article: '+str(item['article']),small))
-        row = [para(index,small),description,para(format(float(item.get('qty') or 0),'g'),heading),para(item.get('unit') or '—')]
+        description = [para(item.get('product_name') or 'Product',row_body)]
+        if item.get('article'): description.append(para('Article: '+str(item['article']),row_small))
+        row = [para(index,row_small),description,para(format(float(item.get('qty') or 0),'g'),row_qty),para(item.get('unit') or '—',row_body)]
         if has_cartons:
             carton = float(item.get('carton_qty') or 0)
-            row.append(para(format(float(item.get('qty') or 0)/carton,'.3g') if carton>0 else '—'))
+            row.append(para(format(float(item.get('qty') or 0)/carton,'.3g') if carton>0 else '—',row_body))
         rows.append(row+[CheckBox()])
     listing = Table(rows,colWidths=widths,repeatRows=1,hAlign='CENTER')
     listing.setStyle(table_style([('BACKGROUND',(0,0),(-1,0),navy),
         ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,pale]),
         ('LINEBELOW',(0,1),(-1,-1),.4,line),('LEFTPADDING',(0,0),(-1,-1),6),
-        ('RIGHTPADDING',(0,0),(-1,-1),6)]))
+        ('RIGHTPADDING',(0,0),(-1,-1),6),
+        ('TOPPADDING',(0,1),(-1,-1),3),('BOTTOMPADDING',(0,1),(-1,-1),3)]))
     elements.append(listing)
     elements.extend([Spacer(1,3*mm),para(str(len(items))+' product lines • Check quantities against the goods received.',small)])
     if sale.get('notes'):

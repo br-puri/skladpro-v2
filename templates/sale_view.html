@@ -145,7 +145,7 @@
         <tbody>
         {% for item in items %}
         <tr style="border-bottom:1px solid #f8f9fb">
-          <td style="padding:13px 0;font-weight:500;color:#1a1a1a">{{ item['product_name'] }}</td>
+          <td style="padding:13px 0;font-weight:500;color:#1a1a1a">{{ item['product_name'] }}{% if item['article'] %}<div style="font-size:11.5px;font-weight:400;color:#94a3b8;margin-top:2px">Art. {{ item['article'] }}</div>{% endif %}</td>
           <td style="padding:13px 0;color:#94a3b8;font-size:12px">{{ item['wh_name'] }}</td>
           <td style="padding:13px 0;text-align:right;color:#1a1a1a">{{ item['qty']|int }} <span style="color:#94a3b8;font-size:11px">{{ item['unit'] }}</span></td>
           <td style="padding:13px 0;text-align:right;color:#64748b">{% if item['carton_qty'] and item['carton_qty'] > 0 %}{{ (item['qty']/item['carton_qty'])|round(2) }}{% else %}—{% endif %}</td>
