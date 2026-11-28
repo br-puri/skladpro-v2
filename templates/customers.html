@@ -19,7 +19,8 @@
 <form class="filter-bar" method="get">
   <div class="search-input-wrap">
     <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
-    <input name="q" value="{{ q }}" class="search-input" placeholder="Search name, company, email, phone…" autocomplete="off">
+    <input name="q" value="{{ q }}" class="search-input" placeholder="Search name, company, email, phone, postcode…" autocomplete="off"
+           data-live-search=".cu-desk-row, .cu-card">
   </div>
   <select name="type" class="form-control" style="width:145px" onchange="this.form.submit()">
     <option value="">All contacts</option>
@@ -52,7 +53,7 @@
 <div class="cu-mob-list">
   {% if customers %}
   {% for row in customers %}{% set c = row['contact'] %}
-  <a class="cu-card" href="{{ url_for('view_customer', cid=c['id']) }}">
+  <a class="cu-card" href="{{ url_for('view_customer', cid=c['id']) }}" data-search="{{ [c['name'], c['company'], c['email'], c['phone'], c['postcode'], c['city'], c['address']]|select|join(' ') }}">
     <div class="cu-row">
       <span style="font-size:15px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ c['company'] if c['company'] else c['name'] }}</span>
       <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;
@@ -98,7 +99,7 @@
     </thead>
     <tbody>
     {% for row in customers %}{% set c = row['contact'] %}
-    <tr style="border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
+    <tr class="cu-desk-row" data-href="{{ url_for('view_customer', cid=c['id']) }}" data-search="{{ [c['name'], c['company'], c['email'], c['phone'], c['postcode'], c['city'], c['address']]|select|join(' ') }}" style="border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .1s"
         onclick="rowClick(event, '{{ url_for('view_customer', cid=c['id']) }}')"
         onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
       <td style="padding:14px 20px">

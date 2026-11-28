@@ -347,8 +347,9 @@ input[type=checkbox].bulk-cb, input[type=checkbox]#select-all { width: 15px; hei
 function initBulk(submitUrl, confirmMsg) {
   const bar = document.getElementById('bulk-bar');
   const countEl = document.getElementById('bulk-count');
-  const allCbs = () => document.querySelectorAll('.bulk-cb');
-  const checkedCbs = () => document.querySelectorAll('.bulk-cb:checked');
+  // Rows hidden by the live search are never selected or bulk-edited
+  const allCbs = () => [...document.querySelectorAll('.bulk-cb')].filter(cb => !cb.closest('.live-hide'));
+  const checkedCbs = () => allCbs().filter(cb => cb.checked);
   const selAll = document.getElementById('select-all');
 
   function updateBar() {
@@ -1168,6 +1169,91 @@ if ('serviceWorker' in navigator) {
       e.preventDefault(); e.stopPropagation(); close();
     }
   }, true);
+})();
+</script>
+<style>
+.live-hide { display:none !important; }
+.live-active, .live-active td { background:#fff7e0 !important; }
+.live-empty { display:none; padding:28px; text-align:center; color:#94a3b8; font-size:13px; background:#fff; border:1px solid #eaecf0; border-radius:10px; margin-bottom:14px; }
+</style>
+<script>
+/* Live search, like the POS: results filter as you type, no Enter needed.
+   <input data-live-search=".row-selector, .mobile-card-selector" [data-live-count="#el" data-live-noun="item"]>
+   Each row is matched on its data-search attribute (or its text); every word typed must appear.
+   ↑/↓ highlight a result, Enter opens it (or the only match). Esc clears the box. */
+(function () {
+  function init(inp) {
+    var sel = inp.getAttribute('data-live-search');
+    var firstSel = sel.split(',')[0];
+    var form = inp.form;
+    var loaded = inp.defaultValue.trim().toLowerCase();   // what the server already filtered by
+    var countEl = inp.dataset.liveCount ? document.querySelector(inp.dataset.liveCount) : null;
+    var noun = inp.dataset.liveNoun || 'item';
+    var empty = document.createElement('div');
+    empty.className = 'live-empty';
+    (form || inp).insertAdjacentElement('afterend', empty);
+    var timer = null;
+    var hay = new Map();
+    function text(r) {
+      if (!hay.has(r)) hay.set(r, (r.getAttribute('data-search') || r.textContent).toLowerCase().replace(/\s+/g, ' '));
+      return hay.get(r);
+    }
+    function visible() {
+      return [].filter.call(document.querySelectorAll(sel), function (r) { return !r.classList.contains('live-hide') && r.offsetParent !== null; });
+    }
+    function clearActive() { document.querySelectorAll('.live-active').forEach(function (r) { r.classList.remove('live-active'); }); }
+    function apply() {
+      var q = inp.value.trim().toLowerCase();
+      // Typed something broader than what the page was loaded with: ask the server again
+      if (loaded && q.indexOf(loaded) === -1) {
+        clearTimeout(timer);
+        timer = setTimeout(function () { if (form) form.submit(); }, 350);
+        return;
+      }
+      var words = q ? q.split(' ').filter(Boolean) : [];
+      var shown = 0, changed = false;
+      document.querySelectorAll(sel).forEach(function (r) {
+        var t = text(r);
+        var ok = words.every(function (w) { return t.indexOf(w) !== -1; });
+        r.classList.toggle('live-hide', !ok);
+        if (!ok) r.querySelectorAll('.bulk-cb:checked').forEach(function (cb) { cb.checked = false; changed = true; });
+      });
+      document.querySelectorAll(firstSel).forEach(function (r) { if (!r.classList.contains('live-hide')) shown++; });
+      if (changed) { var any = document.querySelector('.bulk-cb'); if (any) any.dispatchEvent(new Event('change')); }
+      clearActive();
+      if (countEl) countEl.textContent = shown + ' ' + noun + (shown === 1 ? '' : 's');
+      empty.textContent = 'Nothing matches “' + inp.value.trim() + '”';
+      empty.style.display = (q && !shown) ? 'block' : 'none';
+    }
+    function open(r) {
+      var href = r.getAttribute('data-href') || r.getAttribute('href');
+      if (!href) { var a = r.querySelector('a[href]'); href = a && a.getAttribute('href'); }
+      if (href) window.location.href = href;
+    }
+    inp.addEventListener('input', apply);
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        var rows = visible(); if (!rows.length) return;
+        e.preventDefault();
+        var cur = rows.indexOf(document.querySelector('.live-active'));
+        var next = e.key === 'ArrowDown' ? Math.min(rows.length - 1, cur + 1) : Math.max(0, cur - 1);
+        clearActive(); rows[next].classList.add('live-active');
+        rows[next].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        var q = inp.value.trim().toLowerCase();
+        if (loaded && q.indexOf(loaded) === -1) return;          // let the form search the server
+        e.preventDefault();
+        var act = document.querySelector('.live-active');
+        var vis = visible();
+        if (act && !act.classList.contains('live-hide')) open(act);
+        else if (vis.length === 1) open(vis[0]);
+      } else if (e.key === 'Escape' && inp.value) {
+        e.preventDefault(); inp.value = ''; apply();
+      }
+    });
+    if (inp.value) apply();
+  }
+  document.querySelectorAll('input[data-live-search]').forEach(init);
 })();
 </script>
 </body>

@@ -136,7 +136,7 @@
     <div class="so-picker">
       <div class="so-picker-row">
         <div class="icon">🔍</div>
-        <input type="text" id="productSearch" placeholder="Search products by name or SKU to add to this order…" autocomplete="off">
+        <input type="text" id="productSearch" placeholder="Search products by name, SKU, article or barcode to add to this order…" autocomplete="off">
         <span class="hint" id="productHint">{{ products|length }} products available</span>
       </div>
       <div class="so-results" id="productResults"></div>
@@ -282,7 +282,9 @@
     const ql = q.toLowerCase();
     const matches = PRODUCTS.filter(p =>
       (p.name || '').toLowerCase().includes(ql) ||
-      (p.sku || '').toLowerCase().includes(ql)
+      (p.sku || '').toLowerCase().includes(ql) ||
+      (p.article || '').toLowerCase().includes(ql) ||
+      (p.barcode || '').toLowerCase().includes(ql)
     ).slice(0, 30);
     if (!matches.length) {
       results.appendChild(el('div', {class:'so-empty'}, 'No matches'));

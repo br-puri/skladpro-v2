@@ -4,12 +4,12 @@
 {% block content %}
 <div class="pos-wrap">
   <div class="pos-products">
-    <input id="posSearch" class="form-control" placeholder="Search products by name or SKU…" autofocus>
+    <input id="posSearch" class="form-control" placeholder="Search products by name, SKU or article…" autofocus>
     <div class="pos-grid" id="posGrid">
       {% for p in products %}
       <div class="pos-card" data-id="{{ p.id }}" data-name="{{ p.name|lower }}" data-sku="{{ ((p.sku or '') ~ ' ' ~ (p.article or ''))|lower }}"
-           data-price="{{ p.price }}" data-stock="{{ p.stock_qty }}" onclick="posAddToCart(this)">
-        <div class="pos-card-name">{{ p.name }}</div>
+           data-price="{{ p.price }}" data-stock="{{ p.stock_qty }}" data-article="{{ p.article or '' }}" onclick="posAddToCart(this)">
+        <div class="pos-card-name">{{ p.name }}{% if p.article %}<span class="pos-card-art">Art. {{ p.article }}</span>{% endif %}</div>
         <div class="pos-card-meta">
           <span class="pos-price">£{{ '%.2f'|format(p.price) }}</span>
           <span class="pos-stock {{ 'low' if p.stock_qty <= p.min_stock else '' }}">{{ p.stock_qty|int }} {{ p.unit }}</span>
@@ -91,6 +91,7 @@
 .pos-empty { color:#94a3b8; font-size:13px; text-align:center; padding:20px 0; }
 .pos-line { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }
 .pos-line-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pos-card-art, .pos-line-art { display:block; font-size:11px; font-weight:400; color:#94a3b8; margin-top:2px; overflow:hidden; text-overflow:ellipsis; }
 .pos-qty-btn { width:22px; height:22px; border:1px solid #d8dce3; background:#fff; border-radius:5px; cursor:pointer; font-size:14px; line-height:1; }
 .pos-qty-input { width:40px; text-align:center; border:1px solid #d8dce3; border-radius:5px; padding:3px 2px; font-size:13px; -moz-appearance:textfield; }
 .pos-line-total { width:60px; text-align:right; font-weight:600; }
@@ -191,7 +192,7 @@ function posAddToCart(el) {
   const stock = parseFloat(el.dataset.stock);
   if (!posCart[id]) {
     if (stock <= 0) { alert('Out of stock'); return; }
-    posCart[id] = { name: el.dataset.name, price: parseFloat(el.dataset.price), qty: 1, stock: stock };
+    posCart[id] = { name: el.dataset.name, article: el.dataset.article || '', price: parseFloat(el.dataset.price), qty: 1, stock: stock };
   } else {
     if (posCart[id].qty + 1 > stock) { alert('Not enough stock'); return; }
     posCart[id].qty += 1;
@@ -233,7 +234,7 @@ function posRenderCart() {
       const item = posCart[id];
       const lineTotal = (item.price * item.qty).toFixed(2);
       return `<div class="pos-line" data-product-id="${id}">
-        <span class="pos-line-name">${item.name}</span>
+        <span class="pos-line-name">${item.name}${item.article ? `<span class="pos-line-art">Art. ${item.article.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c])}</span>` : ''}</span>
         <button type="button" class="pos-qty-btn" onclick="posChangeQty('${id}',-1)">−</button>
         <input type="number" class="pos-qty-input" value="${item.qty}" min="0" step="any"
                onchange="posSetQty('${id}', this.value)" onclick="this.select()">

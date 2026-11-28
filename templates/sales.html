@@ -45,7 +45,8 @@
 
 <!-- Filter bar -->
 <form class="filter-bar sl-filter-bar" method="get">
-  <input type="text" name="q" value="{{ q }}" placeholder="Search invoice #…" class="form-control" style="width:168px">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search invoice # or customer…" class="form-control" style="width:220px" autocomplete="off"
+         data-live-search=".sl-desk-row, .sl-card">
   <select name="customer_id" class="form-control" style="width:200px">
     <option value="">All customers</option>
     {% for c in customers %}
@@ -70,7 +71,7 @@
 <div class="sl-mob-list">
   {% if sales %}
   {% for s in sales %}
-  <a class="sl-card" href="{{ url_for('view_sale', sid=s['id']) }}">
+  <a class="sl-card" href="{{ url_for('view_sale', sid=s['id']) }}" data-search="{{ [s['num'], s['customer']]|select|join(' ') }}">
     <div class="sl-card-row">
       <span style="font-family:monospace;font-size:13px;font-weight:700;color:#1a6ef5;background:#eff6ff;padding:3px 8px;border-radius:5px">{{ s['num'] }}</span>
       <span style="font-size:16px;font-weight:700;color:#1a1a1a">£{{ "{:,.2f}".format(s['total']) }}</span>
@@ -121,7 +122,7 @@
     </thead>
     <tbody>
     {% for s in sales %}
-    <tr style="border-bottom:1px solid #f0f2f5;transition:background .1s" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
+    <tr class="sl-desk-row" data-href="{{ url_for('view_sale', sid=s['id']) }}" data-search="{{ [s['num'], s['customer']]|select|join(' ') }}" style="border-bottom:1px solid #f0f2f5;transition:background .1s" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
       <td style="padding:13px 16px">
         <input type="checkbox" class="bulk-cb" value="{{ s['id'] }}">
       </td>

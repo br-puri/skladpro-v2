@@ -210,22 +210,22 @@
     </form>
   </div>
   {% if products_bought %}
-  <table style="width:100%;border-collapse:collapse;font-size:13px">
+  <table id="pp-table" style="width:100%;border-collapse:collapse;font-size:13px">
     <thead>
       <tr style="background:#f8fafc">
-        <th style="text-align:left;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Product</th>
+        <th class="pp-sort" data-col="0" data-type="text" title="Sort by product" style="text-align:left;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Product <span class="pp-arrow"></span></th>
         <th style="text-align:left;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">SKU</th>
-        <th style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Qty</th>
-        <th style="text-align:right;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Value</th>
+        <th class="pp-sort" data-col="2" data-type="num" title="Sort by quantity" style="text-align:right;padding:10px 16px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Qty <span class="pp-arrow">▼</span></th>
+        <th class="pp-sort" data-col="3" data-type="num" title="Sort by value" style="text-align:right;padding:10px 20px;font-size:10.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Value <span class="pp-arrow"></span></th>
       </tr>
     </thead>
     <tbody>
     {% for p in products_bought %}
     <tr style="border-top:1px solid #f0f2f5">
-      <td style="padding:11px 20px;font-weight:500;color:#1e293b">{{ p['product_name'] }}</td>
+      <td data-v="{{ p['product_name']|lower }}" style="padding:11px 20px;font-weight:500;color:#1e293b">{{ p['product_name'] }}</td>
       <td style="padding:11px 16px;font-family:monospace;font-size:12px;color:#94a3b8">{{ p['sku'] or '—' }}</td>
-      <td style="padding:11px 16px;text-align:right;color:#64748b">{{ p['total_qty']|int }} {{ p['unit'] }}</td>
-      <td style="padding:11px 20px;text-align:right;font-weight:600;color:#1e293b">£{{ "{:,.2f}".format(p['total_value']) }}</td>
+      <td data-v="{{ p['total_qty'] }}" style="padding:11px 16px;text-align:right;color:#64748b">{{ p['total_qty']|int }} {{ p['unit'] }}</td>
+      <td data-v="{{ p['total_value'] }}" style="padding:11px 20px;text-align:right;font-weight:600;color:#1e293b">£{{ "{:,.2f}".format(p['total_value']) }}</td>
     </tr>
     {% endfor %}
     </tbody>
@@ -236,6 +236,37 @@
       </tr>
     </tfoot>
   </table>
+  <style>
+    .pp-sort { cursor:pointer; user-select:none; white-space:nowrap; }
+    .pp-sort:hover, .pp-sort.on { color:#1e293b !important; }
+    .pp-arrow { font-size:9px; display:inline-block; min-width:8px; }
+  </style>
+  <script>
+  (function () {
+    var table = document.getElementById('pp-table'), body = table.tBodies[0];
+    var state = { col: 2, dir: -1 };                       // starts as served: Qty, highest first
+    table.querySelectorAll('.pp-sort').forEach(function (th) {
+      if (+th.dataset.col === state.col) th.classList.add('on');
+      th.addEventListener('click', function () {
+        var col = +th.dataset.col, num = th.dataset.type === 'num';
+        // same column flips the order; a new column starts high→low for numbers, A→Z for names
+        state.dir = (state.col === col) ? -state.dir : (num ? -1 : 1);
+        state.col = col;
+        var rows = Array.prototype.slice.call(body.rows);
+        rows.sort(function (a, b) {
+          var x = a.cells[col].dataset.v, y = b.cells[col].dataset.v;
+          return (num ? (parseFloat(x) - parseFloat(y)) : x.localeCompare(y)) * state.dir;
+        });
+        rows.forEach(function (r) { body.appendChild(r); });
+        table.querySelectorAll('.pp-sort').forEach(function (h) {
+          var on = h === th;
+          h.classList.toggle('on', on);
+          h.querySelector('.pp-arrow').textContent = on ? (state.dir === -1 ? '▼' : '▲') : '';
+        });
+      });
+    });
+  })();
+  </script>
   {% else %}
   <div style="text-align:center;padding:40px 20px;color:#94a3b8;font-size:13px">
     No completed sales{{ ' in this period' if date_from or date_till }}

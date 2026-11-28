@@ -110,7 +110,8 @@
     <div class="search-input-wrap">
       <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
       <input name="q" value="{{ q }}" id="products-q" autocomplete="off"
-             class="search-input" placeholder="Search name, SKU or barcode… (press / to focus)">
+             data-live-search=".product-row, .mob-prod-card" data-live-count="#visible-count" data-live-noun="item"
+             class="search-input" placeholder="Search name, SKU, article or barcode… (press / to focus)">
     </div>
     <select name="cat" id="filter-cat" class="form-control" style="width:150px"><option value="">All categories</option></select>
     <select name="subcat" id="filter-subcat" class="form-control" style="width:150px"><option value="">All subcategories</option></select>
@@ -172,7 +173,7 @@
   {% set bpct = 4 if row['total'] <= 0 else ([raw, 100] | min) | round | int %}
   {% set wparts = [] %}
   {% for w in warehouses %}{% set qv = row['stock'].get(w['id'], 0)|int %}{% if qv %}{% set _ = wparts.append(w['name'] ~ ' ' ~ qv) %}{% endif %}{% endfor %}
-  <tr class="product-row" data-href="{{ edit_url }}"
+  <tr class="product-row" data-href="{{ edit_url }}" data-search="{{ [p['name'], p['sku'], p['article'], p['barcode'], p['category'], p['subcategory'], p['subsubcategory']]|select|join(' ') }}"
       style="border-bottom:1px solid #f3f5f8;cursor:pointer;transition:background .1s"
       onmouseover="this.style.background='#fafbfc'" onmouseout="this.style.background=''"
       title="Click to select (F6 for sales history) · double-click to open"
@@ -259,7 +260,7 @@
 <!-- Mobile card list -->
 <div class="mob-prod-list">
   {% for row in filtered %}{% set p = row['product'] %}
-  <a href="{{ url_for('edit_product', pid=p['id']) }}" class="mob-prod-card">
+  <a href="{{ url_for('edit_product', pid=p['id']) }}" class="mob-prod-card" data-search="{{ [p['name'], p['sku'], p['article'], p['barcode'], p['category'], p['subcategory'], p['subsubcategory']]|select|join(' ') }}">
     <div class="mob-prod-thumb">
       {% if p['photo'] %}
       <img src="{{ photo_url(p['photo']) }}" alt="">

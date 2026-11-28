@@ -43,6 +43,8 @@
 </div>
 <input id="product-photo-input" name="photo" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" class="form-control" style="padding:6px">
 <button id="open-photo-crop" type="button" class="btn btn-secondary" style="margin-top:10px" {% if not product or not product['photo'] %}hidden{% endif %}>Crop photo</button>
+<button id="remove-photo-btn" type="button" class="btn" style="margin-top:10px;color:#dc2626" {% if not product or not product['photo'] %}hidden{% endif %}>Remove photo</button>
+<input type="hidden" name="remove_photo" id="remove-photo" value="">
 <div id="photo-crop-status" role="status" style="font-size:12px;color:#64748b;margin-top:8px">Photos are automatically optimised when saved. Crop if needed; transparent backgrounds are preserved.</div>
 <dialog id="photo-crop-dialog" aria-labelledby="crop-title">
   <header class="crop-header"><div><h2 id="crop-title">Frame your product</h2><p>A consistent crop for a cleaner catalogue.</p></div><button class="crop-close" id="crop-close" type="button" aria-label="Close crop editor">×</button></header>
@@ -68,3 +70,33 @@
   <footer class="crop-footer"><button type="button" class="crop-button" id="crop-reset">↺ Reset crop</button><div class="crop-actions"><button type="button" class="crop-button" id="crop-cancel">Cancel</button><button type="button" class="crop-button" id="crop-apply">Use this crop</button></div></footer>
 </dialog>
 <script src="{{ url_for('static', filename='product_cropper.js', v='2') }}"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var input = $('product-photo-input'), btn = $('remove-photo-btn'), flag = $('remove-photo');
+  var wrap = $('photo-preview-wrap'), crop = $('open-photo-crop'), status = $('photo-crop-status'), preview = $('photo-preview');
+  var savedSrc = preview.getAttribute('src');          // the photo already saved on this product
+  var defaultStatus = status.textContent;
+  var pickedNew = false;
+  input.addEventListener('change', function () {
+    if (input.files && input.files[0]) { flag.value = ''; pickedNew = true; btn.hidden = false; }
+  });
+  btn.addEventListener('click', function () {
+    input.value = '';
+    flag.value = savedSrc ? '1' : '';
+    wrap.hidden = true; crop.hidden = true; btn.hidden = true;
+    if (savedSrc) {
+      status.innerHTML = '<b style="color:#dc2626">The photo will be removed when you save.</b> <a href="#" id="undo-remove-photo" style="color:#1a6ef5">Undo</a>';
+      $('undo-remove-photo').addEventListener('click', function (e) {
+        e.preventDefault();
+        flag.value = '';
+        preview.src = savedSrc; wrap.hidden = false; btn.hidden = false;
+        crop.hidden = pickedNew;   // the cropper still points at the discarded file
+        status.textContent = defaultStatus;
+      });
+    } else {
+      status.textContent = 'No photo selected.';
+    }
+  });
+})();
+</script>

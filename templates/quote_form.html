@@ -209,7 +209,7 @@ function searchProducts(input) {
   const dropdown = input.nextElementSibling;
   if (!q) { closeDropdown(dropdown); return; }
   const matches = products.filter(p =>
-    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.article || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
   ).slice(0, 25);
   renderDropdown(dropdown, matches, function(p) {
     input.value = p.name;
@@ -228,7 +228,7 @@ topSearch.addEventListener('input', function() {
   const q = this.value.toLowerCase();
   if (!q) { closeDropdown(topDropdown); return; }
   const matches = products.filter(p =>
-    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
+    p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.article || '').toLowerCase().includes(q) || (p.barcode || '').includes(q)
   ).slice(0, 25);
   renderDropdown(topDropdown, matches, function(p) {
     let target = null;

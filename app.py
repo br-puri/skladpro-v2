@@ -2249,6 +2249,8 @@ def edit_product(pid):
             photo = _save_photo(request.files.get('photo'))
             fields = _product_fields(request.form)
             photo_val = photo if photo else (dict(p).get('photo') or '')
+            if not photo and request.form.get('remove_photo') == '1':
+                photo_val = ''   # "Remove photo" on the edit page
             db.execute(
                 "UPDATE products SET sku=%s,barcode=%s,name=%s,category=%s,subcategory=%s,unit=%s,cost=%s,price=%s,min_stock=%s,description=%s,length=%s,width=%s,height=%s,weight=%s,cbm=%s,carton_qty=%s,ctn_price=%s,china_price=%s,china_currency=%s,subsubcategory=%s,photo=%s WHERE id=%s",
                 fields + (photo_val, pid)
@@ -3357,7 +3359,7 @@ def supplier_orders():
 def add_supplier_order():
     with get_db() as db:
         suppliers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
-        products = [dict(r) for r in db.execute("SELECT id, name, sku, photo, cbm, carton_qty FROM products ORDER BY name").fetchall()]
+        products = [dict(r) for r in db.execute("SELECT id, name, sku, article, barcode, photo, cbm, carton_qty FROM products ORDER BY name").fetchall()]
         if request.method == 'POST':
             num = next_num('SO', 'supplier_orders')
             supplier_id = request.form.get('supplier_id') or None
@@ -3384,7 +3386,7 @@ def edit_supplier_order(oid):
             return redirect(url_for('supplier_orders'))
         order = dict(order)
         suppliers = [dict(r) for r in db.execute("SELECT * FROM contacts WHERE type='supplier' ORDER BY LOWER(COALESCE(NULLIF(TRIM(company),''), name))").fetchall()]
-        products = [dict(r) for r in db.execute("SELECT id, name, sku, photo, cbm, carton_qty FROM products ORDER BY name").fetchall()]
+        products = [dict(r) for r in db.execute("SELECT id, name, sku, article, barcode, photo, cbm, carton_qty FROM products ORDER BY name").fetchall()]
         items = [dict(r) for r in db.execute("SELECT * FROM supplier_order_items WHERE order_id=%s ORDER BY id", (oid,)).fetchall()]
         if request.method == 'POST':
             supplier_id = request.form.get('supplier_id') or None
@@ -3623,8 +3625,8 @@ def sales():
             where += " AND s.status = %s"
             params.append(status_filter)
         if q:
-            where += " AND s.num ILIKE %s"
-            params.append(f'%{q}%')
+            where += " AND (s.num ILIKE %s OR s.customer ILIKE %s OR c.company ILIKE %s OR c.name ILIKE %s)"
+            params += [f'%{q}%'] * 4
         rows, customers = db.batch(
             (f"""SELECT s.*, COALESCE(NULLIF(c.company,''), NULLIF(s.customer,''), c.name) as customer,
                        COALESCE(ip.paid_sum, 0) AS paid_amount
