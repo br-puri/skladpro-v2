@@ -557,6 +557,7 @@ def init_db():
             )
         """)
         db.commit()
+        db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT DEFAULT ''")
         db.execute("""
             CREATE TABLE IF NOT EXISTS audit_log (
                 id         SERIAL PRIMARY KEY,
@@ -803,6 +804,7 @@ def login():
             session.permanent = True
             session['user_id'] = user['id']
             session['username'] = user['username']
+            session['display_name'] = (user.get('display_name') or '').strip()
             session['role'] = user['role']
             next_page = request.args.get('next') or url_for('dashboard')
             return redirect(next_page)
@@ -903,6 +905,19 @@ def reset_user_password(uid):
                    (generate_password_hash(password, method='pbkdf2:sha256'), uid))
         db.commit()
     flash('Password updated', 'success')
+    return redirect(url_for('users_list'))
+
+
+@app.route('/users/<int:uid>/name', methods=['POST'])
+@superadmin_required
+def set_user_display_name(uid):
+    name = request.form.get('display_name', '').strip()[:60]
+    with get_db() as db:
+        db.execute("UPDATE users SET display_name=%s WHERE id=%s", (name, uid))
+        db.commit()
+    if uid == session.get('user_id'):
+        session['display_name'] = name
+    flash('Name saved' if name else 'Name cleared', 'success')
     return redirect(url_for('users_list'))
 
 
@@ -1089,7 +1104,7 @@ def admin_panel():
         db.execute("SELECT 1").fetchone()
         db_ms = (time.perf_counter() - t0) * 1000
         (users, user_stats, recent, daily, settings_rows, db_size, reminders) = db.batch(
-            "SELECT id, username, role FROM users ORDER BY role, username",
+            "SELECT id, username, role, display_name FROM users ORDER BY role, username",
             """SELECT username, MAX(ts) AS last_ts,
                       COUNT(*) FILTER (WHERE ts >= to_char(now() AT TIME ZONE 'UTC' - interval '30 days', 'YYYY-MM-DD')) AS n30,
                       MAX(ts) FILTER (WHERE path = '/login') AS last_login
@@ -1112,6 +1127,7 @@ def admin_panel():
         s_ = stats.get(u['username'], {})
         last = _uk_time(s_.get('last_ts'))
         team.append({'id': u['id'], 'username': u['username'], 'role': u['role'],
+                     'display_name': (u.get('display_name') or '').strip(),
                      'last_active': _ago(last, now) or 'never',
                      'online': bool(last and (now - last).total_seconds() < 900),
                      'n30': s_.get('n30') or 0})
@@ -1275,6 +1291,9 @@ def settings_page():
 @app.route('/')
 def dashboard():
     with get_db() as db:
+        if 'display_name' not in session and session.get('user_id'):
+            row = db.execute("SELECT display_name FROM users WHERE id=%s", (session['user_id'],)).fetchone()
+            session['display_name'] = ((row or {}).get('display_name') or '').strip()
         _post_recurring_soon(db)
         (products, warehouses, sales, cash, monthly, top_products,
          status_counts, outstanding_rows) = db.batch(

@@ -226,12 +226,18 @@
       <div class="tm-row">
         <div class="tm-who">
           <div class="av" style="background:{{ palette[loop.index0 % palette|length] }}">
-            {{ u.username[:1]|upper }}
+            {{ (u.display_name or u.username)[:1]|upper }}
             {% if u.online %}<span class="dot ok" title="Active in the last 15 minutes"></span>{% endif %}
           </div>
           <div style="min-width:0">
-            <div class="tm-name">{{ u.username }}{% if u.id == session.get('user_id') %}<span class="you">YOU</span>{% endif %}</div>
-            <div class="tm-meta">Last active {{ u.last_active }}</div>
+            <div class="tm-name">{{ u.display_name or u.username }}{% if u.id == session.get('user_id') %}<span class="you">YOU</span>{% endif %}
+              <form method="POST" action="{{ url_for('set_user_display_name', uid=u.id) }}" style="display:inline"
+                    onsubmit="var n = prompt('Name shown for {{ u.username }} (e.g. on the dashboard greeting):', {{ u.display_name|tojson }}); if (n === null) return false; this.display_name.value = n; return true;">
+                <input type="hidden" name="display_name">
+                <button type="submit" title="Change name" aria-label="Change name for {{ u.username }}" style="border:0;background:none;color:#94a3b8;cursor:pointer;font-size:11.5px;padding:0 0 0 6px">✎</button>
+              </form>
+            </div>
+            <div class="tm-meta">{% if u.display_name %}Login: {{ u.username }} · {% endif %}Last active {{ u.last_active }}</div>
           </div>
         </div>
         <div class="tm-act"><b>{{ u.n30 }}</b> action{{ 's' if u.n30 != 1 }} in 30 days</div>

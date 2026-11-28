@@ -79,7 +79,7 @@
   @media(prefers-reduced-motion:reduce){.dash a.kc{transition:none}.dash a.kc:hover{transform:none}}
 </style>
 
-<div class="dash" data-user="{{ session.get('username','') }}">
+<div class="dash" data-user="{{ session.get('display_name') or session.get('username','') }}">
 
   <header class="dash-welcome">
     <div>
